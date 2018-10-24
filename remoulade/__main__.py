@@ -136,8 +136,8 @@ def parse_arguments():
         help="the number of worker processes to run (default: %s)" % cpus,
     )
     parser.add_argument(
-        "--threads", "-t", default=8, type=int,
-        help="the number of worker threads per process (default: 8)",
+        "--threads", "-t", default=1, type=int,
+        help="the number of worker threads per process (default: 1)",
     )
     parser.add_argument(
         "--path", "-P", default=".", nargs="*", type=str,
