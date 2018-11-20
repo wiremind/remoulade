@@ -18,12 +18,12 @@
 import fcntl
 import os
 from contextlib import contextmanager
-from http.server import BaseHTTPRequestHandler, HTTPServer
-from threading import Thread
+from http.server import BaseHTTPRequestHandler
 
 from ..common import current_millis
 from ..logging import get_logger
 from .middleware import Middleware
+from .utils import ExpositionServer
 
 #: The path to the file to use to race Exposition servers against one another.
 LOCK_PATH = os.getenv("remoulade_prom_lock", "/tmp/remoulade-prometheus.lock")
@@ -59,6 +59,7 @@ class Prometheus(Middleware):
         self.http_port = http_port
         self.delayed_messages = set()
         self.message_start_times = {}
+        self.server = None
 
     def after_process_boot(self, broker):
         os.environ["prometheus_multiproc_dir"] = DB_PATH
@@ -116,11 +117,16 @@ class Prometheus(Middleware):
         )
 
         self.logger.debug("Starting exposition server...")
-        self.server = _ExpositionServer(
+        self.server = ExpositionServer(
             http_host=self.http_host,
             http_port=self.http_port,
             lockfile=LOCK_PATH,
+            handler=metrics_handler
         )
+
+        if not os.path.exists(DB_PATH):
+            os.makedirs(DB_PATH)
+
         self.server.start()
 
     def after_worker_shutdown(self, broker, worker):
@@ -166,42 +172,6 @@ class Prometheus(Middleware):
             self.total_errored_messages.labels(*labels).inc()
 
     after_skip_message = after_process_message
-
-
-class _ExpositionServer(Thread):
-    """Exposition servers race against a POSIX lock in order to bind
-    an HTTP server that can expose Prometheus metrics in the
-    background.
-    """
-
-    def __init__(self, *, http_host, http_port, lockfile):
-        super().__init__(daemon=True)
-
-        self.logger = get_logger(__name__, type(self))
-        self.address = (http_host, http_port)
-        self.httpd = None
-        self.lockfile = lockfile
-
-    def run(self):
-        with flock(self.lockfile) as acquired:
-            if not acquired:
-                self.logger.debug("Failed to acquire lock file.")
-                return
-
-            self.logger.debug("Lock file acquired. Running exposition server.")
-            if not os.path.exists(DB_PATH):
-                os.makedirs(DB_PATH)
-
-            try:
-                self.httpd = HTTPServer(self.address, metrics_handler)
-                self.httpd.serve_forever()
-            except OSError:
-                self.logger.warning("Failed to bind exposition server.", exc_info=True)
-
-    def stop(self):
-        if self.httpd:
-            self.httpd.shutdown()
-            self.join()
 
 
 class metrics_handler(BaseHTTPRequestHandler):

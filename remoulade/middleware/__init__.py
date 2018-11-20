@@ -20,6 +20,7 @@ import platform
 from .age_limit import AgeLimit
 from .callbacks import Callbacks
 from .declare_queues import DeclareQueuesMiddleware
+from .liveness import Liveness
 from .middleware import Middleware, MiddlewareError, SkipMessage
 from .pipelines import Pipelines
 from .retries import Retries
@@ -43,7 +44,8 @@ __all__ = [
     # Middlewares
     "AgeLimit", "Callbacks", "Pipelines", "Retries",
     "Shutdown", "ShutdownNotifications", "TimeLimit",
-    "TimeLimitExceeded", "DeclareQueuesMiddleware"
+    "TimeLimitExceeded", "DeclareQueuesMiddleware",
+    "Liveness"
 ]
 
 if CURRENT_OS != "Windows":
