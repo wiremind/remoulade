@@ -1,5 +1,3 @@
-import platform
-
 import pytest
 
 import remoulade
@@ -7,9 +5,6 @@ import remoulade.broker
 from remoulade.brokers.rabbitmq import RabbitmqBroker
 from remoulade.brokers.stub import StubBroker
 from remoulade.middleware import Middleware
-
-CURRENT_OS = platform.system()
-skip_on_windows = pytest.mark.skipif(CURRENT_OS == "Windows", reason="test skipped on Windows")
 
 
 class EmptyMiddleware(Middleware):
@@ -51,7 +46,6 @@ def test_change_broker(stub_broker):
     assert stub_broker.actors == new_broker.actors
 
 
-@skip_on_windows
 def test_broker_middleware_can_be_added_before_other_middleware(stub_broker):
     from remoulade.middleware import AgeLimit
 
@@ -65,7 +59,6 @@ def test_broker_middleware_can_be_added_before_other_middleware(stub_broker):
     assert stub_broker.middleware[0] == empty_middleware
 
 
-@skip_on_windows
 def test_broker_middleware_can_be_added_after_other_middleware(stub_broker):
     from remoulade.middleware import AgeLimit
 
@@ -89,7 +82,6 @@ def test_broker_middleware_can_fail_to_be_added_before_or_after_missing_middlewa
         stub_broker.add_middleware(empty_middleware, after=EmptyMiddleware)
 
 
-@skip_on_windows
 def test_broker_middleware_cannot_be_added_both_before_and_after(stub_broker):
     from remoulade.middleware import AgeLimit
 

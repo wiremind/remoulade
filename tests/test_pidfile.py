@@ -56,7 +56,7 @@ def test_cli_aborts_when_pidfile_contains_garbage(start_cli):
             f.write("important!")
 
         # When I try to start the cli and pass that file as a PID file
-        proc = start_cli("tests.test_pidfile:broker", extra_args=["--pid-file", filename])
+        proc = start_cli("tests.test_pidfile", extra_args=["--pid-file", filename])
         proc.wait()
 
         # Then the process should exit with return code 4

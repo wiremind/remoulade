@@ -1,5 +1,3 @@
-import os
-import platform
 import time
 from pathlib import Path
 
@@ -9,13 +7,13 @@ import remoulade
 from remoulade.brokers.rabbitmq import RabbitmqBroker
 from remoulade.common import current_millis
 
+from .common import skip_on_pypy, skip_on_travis
+
+
 broker = RabbitmqBroker()
 remoulade.set_broker(broker)
 
 loaded_at = current_millis()
-
-CURRENT_PLATFORM = platform.python_implementation()
-CURRENT_OS = platform.system()
 
 
 @remoulade.actor()
@@ -27,9 +25,8 @@ def write_loaded_at(filename):
 broker.declare_actor(write_loaded_at)
 
 
-@pytest.mark.skipif(os.getenv("TRAVIS") == "1", reason="test skipped on Travis")
-@pytest.mark.skipif(CURRENT_PLATFORM == "PyPy", reason="Code reloading is not supported on PyPy.")
-@pytest.mark.skipif(CURRENT_OS == "Windows", reason="Code reloading is not supported on Windows.")
+@skip_on_travis
+@skip_on_pypy
 @pytest.mark.parametrize("extra_args", [
     (),
     ("--watch-use-polling",),

@@ -21,6 +21,8 @@ Changed
 * Merged PipelineResult and GroupResult into |CollectionResult|
 * |message_get_result| on forgotten results now returns None
 * Update redis-py to 3.0.1
+* Remoulade now shuts itself down if any of the workers die unexpectedly (for example, if one of them is killed by
+  the OOM killer).
 
 
 `0.6.0`_ -- 2018-11-23
