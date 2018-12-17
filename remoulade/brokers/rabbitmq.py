@@ -81,7 +81,6 @@ class RabbitmqBroker(Broker):
         self.connections = set()
         self.channels = set()
         self.queues = set()
-        self.declared_queues = set()
         self.state = local()
 
     @property
@@ -181,11 +180,9 @@ class RabbitmqBroker(Broker):
           AMQPConnectionError or AMQPChannelError: If the underlying channel or connection has been closed.
         """
         for queue_name in self.queues:
-            if queue_name not in self.declared_queues:
-                self._declare_queue(queue_name)
-                self._declare_dq_queue(queue_name)
-                self._declare_xq_queue(queue_name)
-                self.declared_queues.add(queue_name)
+            self._declare_queue(queue_name)
+            self._declare_dq_queue(queue_name)
+            self._declare_xq_queue(queue_name)
 
     def declare_queue(self, queue_name):
         """Declare a queue.  Has no effect if a queue with the given

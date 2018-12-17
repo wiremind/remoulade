@@ -48,7 +48,6 @@ def test_rabbitmq_queues_created_lazily(rabbitmq_broker):
 
     # queue_name should be in prepared_queues
     assert add.queue_name in rabbitmq_broker.queues
-    assert add.queue_name not in rabbitmq_broker.declared_queues
 
     # nothing is sent so RabbitMQ before sending a message
     assert len(rabbitmq_broker.connections) == 0
