@@ -8,6 +8,17 @@ All notable changes to this project will be documented in this file.
 `Unreleased`_
 -------------
 
+
+`0.8.1`_ -- 2018-12-17
+----------------------
+
+Fixed
+^^^^^
+
+* Declare queues on each ConnectionError even if the queue has already been declare (before a worker restart was
+needed if a queue was deleted)
+* RedisBackend.get_result saving a ForgottenResult every time
+
 `0.8.0`_ -- 2018-12-07
 ----------------------
 
