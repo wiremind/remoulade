@@ -82,6 +82,7 @@ class RabbitmqBroker(Broker):
         self.channels = set()
         self.queues = set()
         self.state = local()
+        self.queues_declared = False
 
     @property
     def connection(self):
@@ -250,7 +251,12 @@ class RabbitmqBroker(Broker):
         attempts = 1
         while True:
             try:
-                self._declare_rabbitmq_queues()
+                # I chose to do queue declaration only on first enqueuing, it should be sufficient but it do not
+                # resolve the case of queue deletion at runtime. But we do not want the overhead of queue creation on
+                # each enqueue
+                if not self.queues_declared:
+                    self._declare_rabbitmq_queues()
+                    self.queues_declared = True
                 self.logger.debug("Enqueueing message %r on queue %r.", message.message_id, queue_name)
                 self.emit_before("enqueue", message, delay)
                 self.channel.publish(
