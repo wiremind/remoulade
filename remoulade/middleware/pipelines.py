@@ -43,7 +43,7 @@ class Pipelines(Middleware):
     def after_process_message(self, broker, message, *, result=None, exception=None):
         from ..composition import GroupInfo
 
-        if exception is not None or message.failed:
+        if exception is not None or getattr(message, 'failed', False):
             return
 
         pipe_target = message.options.get("pipe_target")
