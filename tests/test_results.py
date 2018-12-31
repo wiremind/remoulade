@@ -4,10 +4,10 @@ import pytest
 
 import remoulade
 from remoulade import Result
-from remoulade.middleware import Retries
-from remoulade.results import ResultMissing, Results, ResultTimeout, ErrorStored
-from remoulade.results.backend import FailureResult
 from remoulade.errors import ResultNotStored
+from remoulade.middleware import Retries
+from remoulade.results import ErrorStored, ResultMissing, Results, ResultTimeout
+from remoulade.results.backend import FailureResult
 
 
 @pytest.mark.parametrize("forget", [True, False])

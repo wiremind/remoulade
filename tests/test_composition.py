@@ -4,9 +4,9 @@ from threading import Condition
 import pytest
 
 import remoulade
-from remoulade import group, pipeline, CollectionResults
-from remoulade.results import Results, ResultTimeout, ErrorStored, ResultMissing
+from remoulade import CollectionResults, group, pipeline
 from remoulade.errors import ResultNotStored
+from remoulade.results import ErrorStored, ResultMissing, Results, ResultTimeout
 
 
 def test_messages_can_be_piped(stub_broker):
@@ -549,3 +549,37 @@ def test_pipeline_with_groups_and_pipe_ignore(stub_broker, stub_worker, result_b
 
     with pytest.raises(ResultMissing):
         pipe.result.get()
+
+
+def test_pipeline_does_not_continue_to_next_actor_when_message_is_marked_as_failed(stub_broker, stub_worker):
+    # Given that I have an actor that fails messages
+    class FailMessageMiddleware(remoulade.middleware.Middleware):
+        def after_process_message(self, broker, message, *, result=None, exception=None):
+            message.fail()
+
+    stub_broker.add_middleware(FailMessageMiddleware())
+
+    has_run = False
+
+    @remoulade.actor
+    def do_nothing():
+        pass
+
+    @remoulade.actor
+    def should_never_run():
+        nonlocal has_run
+        has_run = True
+
+    # And this actor is declared
+    stub_broker.declare_actor(do_nothing)
+    stub_broker.declare_actor(should_never_run)
+
+    # When I pipe some messages intended for that actor together and run the pipeline
+    pipe = do_nothing.message_with_options(pipe_ignore=True) | should_never_run.message()
+    pipe.run()
+
+    stub_broker.join(should_never_run.queue_name, timeout=10 * 1000)
+    stub_worker.join()
+
+    # Then the second message in the pipe should never have run
+    assert not has_run
