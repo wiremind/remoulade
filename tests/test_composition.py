@@ -57,13 +57,9 @@ def test_pipelines_flatten_child_pipelines(stub_broker):
     assert pipe.children[3].args == (5,)
 
 
-@pytest.mark.parametrize("backend", ["redis", "stub"])
-def test_pipe_ignore_message_options(stub_broker, stub_worker, backend, result_backends):
-    # Given a result backend
-    backend = result_backends[backend]
-
+def test_pipe_ignore_message_options(stub_broker, stub_worker, result_backend):
     # And a broker with the results middleware
-    stub_broker.add_middleware(Results(backend=backend))
+    stub_broker.add_middleware(Results(backend=result_backend))
 
     # And an actor that return something
     @remoulade.actor(store_results=True)
@@ -86,13 +82,9 @@ def test_pipe_ignore_message_options(stub_broker, stub_worker, backend, result_b
     assert pipe.result.get(block=True) == 1
 
 
-@pytest.mark.parametrize("backend", ["redis", "stub"])
-def test_pipe_ignore_actor_options(stub_broker, stub_worker, backend, result_backends):
-    # Given a result backend
-    backend = result_backends[backend]
-
+def test_pipe_ignore_actor_options(stub_broker, stub_worker, result_backend):
     # And a broker with the results middleware
-    stub_broker.add_middleware(Results(backend=backend))
+    stub_broker.add_middleware(Results(backend=result_backend))
 
     # And an actor that return something
     @remoulade.actor(store_results=True)
@@ -115,13 +107,9 @@ def test_pipe_ignore_actor_options(stub_broker, stub_worker, backend, result_bac
     assert pipe.result.get(block=True) == 1
 
 
-@pytest.mark.parametrize("backend", ["redis", "stub"])
-def test_pipeline_cannot_have_actor_without_store_results(stub_broker, stub_worker, backend, result_backends):
-    # Given a result backend
-    backend = result_backends[backend]
-
+def test_pipeline_cannot_have_actor_without_store_results(stub_broker, stub_worker, result_backend):
     # And a broker with the results middleware
-    stub_broker.add_middleware(Results(backend=backend))
+    stub_broker.add_middleware(Results(backend=result_backend))
 
     # And an actor that return something
     @remoulade.actor()
@@ -144,13 +132,9 @@ def test_pipeline_cannot_have_actor_without_store_results(stub_broker, stub_work
         pipe.results
 
 
-@pytest.mark.parametrize("backend", ["redis", "stub"])
-def test_pipeline_results_can_be_retrieved(stub_broker, stub_worker, backend, result_backends):
-    # Given a result backend
-    backend = result_backends[backend]
-
+def test_pipeline_results_can_be_retrieved(stub_broker, stub_worker, result_backend):
     # And a broker with the results middleware
-    stub_broker.add_middleware(Results(backend=backend))
+    stub_broker.add_middleware(Results(backend=result_backend))
 
     # And an actor that adds two numbers together and stores the result
     @remoulade.actor(store_results=True)
@@ -171,13 +155,9 @@ def test_pipeline_results_can_be_retrieved(stub_broker, stub_worker, backend, re
     assert list(pipe.results.get()) == [3, 6, 10]
 
 
-@pytest.mark.parametrize("backend", ["redis", "stub"])
-def test_pipeline_results_respect_timeouts(stub_broker, stub_worker, backend, result_backends):
-    # Given a result backend
-    backend = result_backends[backend]
-
+def test_pipeline_results_respect_timeouts(stub_broker, stub_worker, result_backend):
     # And a broker with the results middleware
-    stub_broker.add_middleware(Results(backend=backend))
+    stub_broker.add_middleware(Results(backend=result_backend))
 
     # And an actor that waits some amount of time then doubles that amount
     @remoulade.actor(store_results=True)
@@ -199,13 +179,9 @@ def test_pipeline_results_respect_timeouts(stub_broker, stub_worker, backend, re
             pass
 
 
-@pytest.mark.parametrize("backend", ["redis", "stub"])
-def test_pipelines_expose_completion_stats(stub_broker, stub_worker, backend, result_backends):
-    # Given a result backend
-    backend = result_backends[backend]
-
+def test_pipelines_expose_completion_stats(stub_broker, stub_worker, result_backend):
     # And a broker with the results middleware
-    stub_broker.add_middleware(Results(backend=backend))
+    stub_broker.add_middleware(Results(backend=result_backend))
 
     # And an actor that waits some amount of time
     condition = Condition()
@@ -235,12 +211,10 @@ def test_pipelines_expose_completion_stats(stub_broker, stub_worker, backend, re
     assert pipe.results.completed
 
 
-@pytest.mark.parametrize("backend", ["redis", "stub"])
-def test_pipelines_can_be_incomplete(stub_broker, backend, result_backends):
+def test_pipelines_can_be_incomplete(stub_broker, result_backend):
     # Given that I am not running a worker
     # And I have a result backend
-    backend = result_backends[backend]
-    stub_broker.add_middleware(Results(backend=backend))
+    stub_broker.add_middleware(Results(backend=result_backend))
 
     # And I have an actor that does nothing
     @remoulade.actor(store_results=True)
@@ -259,13 +233,9 @@ def test_pipelines_can_be_incomplete(stub_broker, backend, result_backends):
     assert not pipe.results.completed
 
 
-@pytest.mark.parametrize("backend", ["redis", "stub"])
-def test_pipelines_store_results_error(stub_broker, backend, result_backends, stub_worker):
-    # Given a result backend
-    backend = result_backends[backend]
-
+def test_pipelines_store_results_error(stub_broker, result_backend, stub_worker):
     # And a broker with the results middleware
-    stub_broker.add_middleware(Results(backend=backend))
+    stub_broker.add_middleware(Results(backend=result_backend))
 
     # Given an actor that stores results and fail
     @remoulade.actor(store_results=True)
@@ -305,11 +275,9 @@ def test_pipelines_store_results_error(stub_broker, backend, result_backends, st
         assert str(e.value).startswith('ParentFailed')
 
 
-@pytest.mark.parametrize("backend", ["redis", "stub"])
-def test_groups_execute_jobs_in_parallel(stub_broker, stub_worker, backend, result_backends):
+def test_groups_execute_jobs_in_parallel(stub_broker, stub_worker, result_backend):
     # Given that I have a result backend
-    backend = result_backends[backend]
-    stub_broker.add_middleware(Results(backend=backend))
+    stub_broker.add_middleware(Results(backend=result_backend))
 
     # And I have an actor that sleeps for 100ms
     @remoulade.actor(store_results=True)
@@ -338,11 +306,9 @@ def test_groups_execute_jobs_in_parallel(stub_broker, stub_worker, backend, resu
     assert isinstance(g.results, CollectionResults)
 
 
-@pytest.mark.parametrize("backend", ["redis", "stub"])
-def test_inner_groups_forbidden(stub_broker, stub_worker, backend, result_backends):
+def test_inner_groups_forbidden(stub_broker, stub_worker, result_backend):
     # Given that I have a result backend
-    backend = result_backends[backend]
-    stub_broker.add_middleware(Results(backend=backend))
+    stub_broker.add_middleware(Results(backend=result_backend))
 
     # And I have an actor
     @remoulade.actor()
@@ -356,11 +322,9 @@ def test_inner_groups_forbidden(stub_broker, stub_worker, backend, result_backen
         group(group(do_work.message() for _ in range(2)) for _ in range(3))
 
 
-@pytest.mark.parametrize("backend", ["redis", "stub"])
-def test_groups_can_time_out(stub_broker, stub_worker, backend, result_backends):
+def test_groups_can_time_out(stub_broker, stub_worker, result_backend):
     # Given that I have a result backend
-    backend = result_backends[backend]
-    stub_broker.add_middleware(Results(backend=backend))
+    stub_broker.add_middleware(Results(backend=result_backend))
 
     # And I have an actor that sleeps for 300ms
     @remoulade.actor(store_results=True)
@@ -383,11 +347,9 @@ def test_groups_can_time_out(stub_broker, stub_worker, backend, result_backends)
     assert not g.results.completed
 
 
-@pytest.mark.parametrize("backend", ["redis", "stub"])
-def test_groups_expose_completion_stats(stub_broker, stub_worker, backend, result_backends):
+def test_groups_expose_completion_stats(stub_broker, stub_worker, result_backend):
     # Given that I have a result backend
-    backend = result_backends[backend]
-    stub_broker.add_middleware(Results(backend=backend))
+    stub_broker.add_middleware(Results(backend=result_backend))
 
     # And an actor that waits some amount of time
     condition = Condition()
@@ -417,14 +379,10 @@ def test_groups_expose_completion_stats(stub_broker, stub_worker, backend, resul
     assert g.results.completed
 
 
-@pytest.mark.parametrize("backend", ["redis", "stub"])
 @pytest.mark.parametrize("block", [True, False])
-def test_group_forget(stub_broker, backend, result_backends, stub_worker, block):
+def test_group_forget(stub_broker, result_backend, stub_worker, block):
     # Given a result backend
-    backend = result_backends[backend]
-
-    # And a broker with the results middleware
-    stub_broker.add_middleware(Results(backend=backend))
+    stub_broker.add_middleware(Results(backend=result_backend))
 
     # Given an actor that stores results
     @remoulade.actor(store_results=True)
@@ -453,13 +411,10 @@ def test_group_forget(stub_broker, backend, result_backends, stub_worker, block)
     assert list(results) == [None] * 5
 
 
-@pytest.mark.parametrize("backend", ["redis", "stub"])
-def test_group_wait_forget(stub_broker, backend, result_backends, stub_worker):
+def test_group_wait_forget(stub_broker, result_backend, stub_worker):
     # Given a result backend
-    backend = result_backends[backend]
-
     # And a broker with the results middleware
-    stub_broker.add_middleware(Results(backend=backend))
+    stub_broker.add_middleware(Results(backend=result_backend))
 
     # Given an actor that stores results
     @remoulade.actor(store_results=True)
@@ -481,13 +436,10 @@ def test_group_wait_forget(stub_broker, backend, result_backends, stub_worker):
     assert list(g.results.get()) == [None] * 5
 
 
-@pytest.mark.parametrize("backend", ["redis", "stub"])
-def test_pipelines_with_groups(stub_broker, stub_worker, backend, result_backends):
+def test_pipelines_with_groups(stub_broker, stub_worker, result_backend):
     # Given a result backend
-    backend = result_backends[backend]
-
     # And a broker with the results middleware
-    stub_broker.add_middleware(Results(backend=backend))
+    stub_broker.add_middleware(Results(backend=result_backend))
 
     # Given an actor that stores results
     @remoulade.actor(store_results=True)
@@ -526,13 +478,10 @@ def test_pipelines_with_groups(stub_broker, stub_worker, backend, result_backend
     assert [13 + 12, 13 + 15] == list(result)
 
 
-@pytest.mark.parametrize("backend", ["redis", "stub"])
-def test_complex_pipelines(stub_broker, stub_worker, backend, result_backends):
+def test_complex_pipelines(stub_broker, stub_worker, result_backend):
     # Given a result backend
-    backend = result_backends[backend]
-
     # And a broker with the results middleware
-    stub_broker.add_middleware(Results(backend=backend))
+    stub_broker.add_middleware(Results(backend=result_backend))
 
     # Given an actor that stores results
     @remoulade.actor(store_results=True)
@@ -564,13 +513,10 @@ def test_complex_pipelines(stub_broker, stub_worker, backend, result_backends):
     assert 9 == result
 
 
-@pytest.mark.parametrize("backend", ["redis", "stub"])
-def test_pipeline_with_groups_and_pipe_ignore(stub_broker, stub_worker, backend, result_backends):
+def test_pipeline_with_groups_and_pipe_ignore(stub_broker, stub_worker, result_backend):
     # Given a result backend
-    backend = result_backends[backend]
-
     # And a broker with the results middleware
-    stub_broker.add_middleware(Results(backend=backend))
+    stub_broker.add_middleware(Results(backend=result_backend))
 
     # Given an actor that do not stores results
     @remoulade.actor()

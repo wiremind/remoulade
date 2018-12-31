@@ -19,7 +19,7 @@ import logging
 import time
 from functools import partial
 from itertools import chain
-from threading import local, Event
+from threading import Event, local
 
 import pika
 from pika.exceptions import AMQPChannelError, AMQPConnectionError

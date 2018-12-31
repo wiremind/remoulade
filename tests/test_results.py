@@ -10,15 +10,12 @@ from remoulade.results.backend import FailureResult
 from remoulade.errors import ResultNotStored
 
 
-@pytest.mark.parametrize("backend", ["redis", "stub"])
 @pytest.mark.parametrize("forget", [True, False])
 @pytest.mark.parametrize("block", [True, False])
-def test_actors_can_store_results(stub_broker, stub_worker, backend, result_backends, forget, block):
+def test_actors_can_store_results(stub_broker, stub_worker, result_backend, forget, block):
     # Given a result backend
-    backend = result_backends[backend]
-
     # And a broker with the results middleware
-    stub_broker.add_middleware(Results(backend=backend))
+    stub_broker.add_middleware(Results(backend=result_backend))
 
     # And an actor that stores results
     @remoulade.actor(store_results=True)
@@ -43,13 +40,10 @@ def test_actors_can_store_results(stub_broker, stub_worker, backend, result_back
     assert result == 42
 
 
-@pytest.mark.parametrize("backend", ["redis", "stub"])
-def test_cannot_get_result_of_message_without_store_results(stub_broker, stub_worker, backend, result_backends):
+def test_cannot_get_result_of_message_without_store_results(stub_broker, stub_worker, result_backend):
     # Given a result backend
-    backend = result_backends[backend]
-
     # And a broker with the results middleware
-    stub_broker.add_middleware(Results(backend=backend))
+    stub_broker.add_middleware(Results(backend=result_backend))
 
     # And an actor that does not store results
     @remoulade.actor()
@@ -68,14 +62,11 @@ def test_cannot_get_result_of_message_without_store_results(stub_broker, stub_wo
     assert str(e.value) == 'There cannot be any result to an actor without store_results=True'
 
 
-@pytest.mark.parametrize("backend", ["redis", "stub"])
 @pytest.mark.parametrize("forget", [True, False])
-def test_retrieving_a_result_can_raise_result_missing(stub_broker, stub_worker, backend, result_backends, forget):
+def test_retrieving_a_result_can_raise_result_missing(stub_broker, stub_worker, result_backend, forget):
     # Given a result backend
-    backend = result_backends[backend]
-
     # And a broker with the results middleware
-    stub_broker.add_middleware(Results(backend=backend))
+    stub_broker.add_middleware(Results(backend=result_backend))
 
     # And an actor that sleeps for a long time before it stores a result
     @remoulade.actor(store_results=True)
@@ -92,17 +83,14 @@ def test_retrieving_a_result_can_raise_result_missing(stub_broker, stub_worker, 
     # And get the result without blocking
     # Then a ResultMissing error should be raised
     with pytest.raises(ResultMissing):
-        backend.get_result(message, forget=forget)
+        result_backend.get_result(message, forget=forget)
 
 
-@pytest.mark.parametrize("backend", ["redis", "stub"])
 @pytest.mark.parametrize("forget", [True, False])
-def test_retrieving_a_result_can_time_out(stub_broker, stub_worker, backend, result_backends, forget):
+def test_retrieving_a_result_can_time_out(stub_broker, stub_worker, result_backend, forget):
     # Given a result backend
-    backend = result_backends[backend]
-
     # And a broker with the results middleware
-    stub_broker.add_middleware(Results(backend=backend))
+    stub_broker.add_middleware(Results(backend=result_backend))
 
     # And an actor that sleeps for a long time before it stores a result
     @remoulade.actor(store_results=True)
@@ -119,17 +107,14 @@ def test_retrieving_a_result_can_time_out(stub_broker, stub_worker, backend, res
     # And wait for a result
     # Then a ResultTimeout error should be raised
     with pytest.raises(ResultTimeout):
-        backend.get_result(message, block=True, timeout=100, forget=forget)
+        result_backend.get_result(message, block=True, timeout=100, forget=forget)
 
 
-@pytest.mark.parametrize("backend", ["redis", "stub"])
 @pytest.mark.parametrize("forget", [True, False])
-def test_messages_can_get_results_from_backend(stub_broker, stub_worker, backend, result_backends, forget):
+def test_messages_can_get_results_from_backend(stub_broker, stub_worker, result_backend, forget):
     # Given a result backend
-    backend = result_backends[backend]
-
     # And a broker with the results middleware
-    stub_broker.add_middleware(Results(backend=backend))
+    stub_broker.add_middleware(Results(backend=result_backend))
 
     # And an actor that stores a result
     @remoulade.actor(store_results=True)
@@ -147,13 +132,10 @@ def test_messages_can_get_results_from_backend(stub_broker, stub_worker, backend
     assert message.result.get(block=True, forget=forget) == 42
 
 
-@pytest.mark.parametrize("backend", ["redis", "stub"])
-def test_messages_results_can_get_results_from_backend(stub_broker, stub_worker, backend, result_backends):
+def test_messages_results_can_get_results_from_backend(stub_broker, stub_worker, result_backend):
     # Given a result backend
-    backend = result_backends[backend]
-
     # And a broker with the results middleware
-    stub_broker.add_middleware(Results(backend=backend))
+    stub_broker.add_middleware(Results(backend=result_backend))
 
     # And an actor that stores a result
     @remoulade.actor(store_results=True)
@@ -194,13 +176,10 @@ def test_messages_can_get_results_from_inferred_backend(stub_broker, stub_worker
     assert message.result.get(block=True) == 42
 
 
-@pytest.mark.parametrize("backend", ["redis", "stub"])
-def test_result_default_before_retries(stub_broker, backend, result_backends, stub_worker):
+def test_result_default_before_retries(stub_broker, result_backend, stub_worker):
     # Given a result backend
-    backend = result_backends[backend]
-
     # And a broker with the results middleware
-    stub_broker.add_middleware(Results(backend=backend))
+    stub_broker.add_middleware(Results(backend=result_backend))
 
     retries_index, results_index = None, None
 
@@ -216,14 +195,11 @@ def test_result_default_before_retries(stub_broker, backend, result_backends, st
     assert retries_index > results_index
 
 
-@pytest.mark.parametrize("backend", ["redis", "stub"])
 @pytest.mark.parametrize("block", [True, False])
-def test_raise_on_error(stub_broker, backend, result_backends, stub_worker, block):
+def test_raise_on_error(stub_broker, result_backend, stub_worker, block):
     # Given a result backend
-    backend = result_backends[backend]
-
     # And a broker with the results middleware
-    stub_broker.add_middleware(Results(backend=backend))
+    stub_broker.add_middleware(Results(backend=result_backend))
 
     # And an actor that store a result and fail
     @remoulade.actor(store_results=True)
@@ -247,14 +223,11 @@ def test_raise_on_error(stub_broker, backend, result_backends, stub_worker, bloc
     assert str(e.value) == 'ValueError()'
 
 
-@pytest.mark.parametrize("backend", ["redis", "stub"])
 @pytest.mark.parametrize("block", [True, False])
-def test_store_errors(stub_broker, backend, result_backends, stub_worker, block):
+def test_store_errors(stub_broker, result_backend, stub_worker, block):
     # Given a result backend
-    backend = result_backends[backend]
-
     # And a broker with the results middleware
-    stub_broker.add_middleware(Results(backend=backend))
+    stub_broker.add_middleware(Results(backend=result_backend))
 
     # And an actor that store a result and fail
     @remoulade.actor(store_results=True)
@@ -276,14 +249,12 @@ def test_store_errors(stub_broker, backend, result_backends, stub_worker, block)
     assert message.result.get(block=block, raise_on_error=False) == FailureResult
 
 
-@pytest.mark.parametrize("backend", ["redis", "stub"])
-def test_store_errors_after_no_more_retry(stub_broker, backend, result_backends, stub_worker):
+def test_store_errors_after_no_more_retry(stub_broker, result_backend, stub_worker):
     # Given that I have a database
     failures = []
 
-    backend = result_backends[backend]
     # And a broker with the results middleware
-    stub_broker.add_middleware(Results(backend=backend))
+    stub_broker.add_middleware(Results(backend=result_backend))
 
     # Given an actor that stores results
     @remoulade.actor(max_retries=3, store_results=True, min_backoff=10, max_backoff=100)
@@ -309,14 +280,11 @@ def test_store_errors_after_no_more_retry(stub_broker, backend, result_backends,
     assert sum(failures) == 4
 
 
-@pytest.mark.parametrize("backend", ["redis", "stub"])
 @pytest.mark.parametrize("block", [True, False])
-def test_messages_can_get_results_and_forget(stub_broker, stub_worker, backend, result_backends, block):
+def test_messages_can_get_results_and_forget(stub_broker, stub_worker, result_backend, block):
     # Given a result backend
-    backend = result_backends[backend]
-
     # And a broker with the results middleware
-    stub_broker.add_middleware(Results(backend=backend))
+    stub_broker.add_middleware(Results(backend=result_backend))
 
     # And an actor that stores a result
     @remoulade.actor(store_results=True)
@@ -341,14 +309,11 @@ def test_messages_can_get_results_and_forget(stub_broker, stub_worker, backend, 
     assert message.result.get() is None
 
 
-@pytest.mark.parametrize("backend", ["redis", "stub"])
 @pytest.mark.parametrize("error", [True, False])
-def test_messages_can_get_completed(stub_broker, stub_worker, backend, result_backends, error):
+def test_messages_can_get_completed(stub_broker, stub_worker, result_backend, error):
     # Given a result backend
-    backend = result_backends[backend]
-
     # And a broker with the results middleware
-    stub_broker.add_middleware(Results(backend=backend))
+    stub_broker.add_middleware(Results(backend=result_backend))
 
     # And an actor that stores results
     @remoulade.actor(store_results=True)
@@ -378,13 +343,10 @@ def test_messages_can_get_completed(stub_broker, stub_worker, backend, result_ba
     assert result.completed
 
 
-@pytest.mark.parametrize("backend", ["redis", "stub"])
-def test_result_get_forget_not_store_if_no_result(stub_broker, stub_worker, backend, result_backends):
+def test_result_get_forget_not_store_if_no_result(stub_broker, stub_worker, result_backend):
     # Given a result backend
-    backend = result_backends[backend]
-
     # And a broker with the results middleware
-    stub_broker.add_middleware(Results(backend=backend))
+    stub_broker.add_middleware(Results(backend=result_backend))
 
     # And an actor that stores results
     @remoulade.actor(store_results=True)

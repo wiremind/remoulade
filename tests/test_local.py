@@ -6,13 +6,9 @@ from remoulade.results import Results
 from remoulade.results.backends import LocalBackend
 
 
-@pytest.mark.parametrize("backend", ["redis", "stub"])
-def test_local_broker_cannot_have_non_local_backend(local_broker, backend, result_backends):
-    # Given a backend
-    result_backend = result_backends[backend]
-
+def test_local_broker_cannot_have_non_local_backend(local_broker, result_backend):
     # Which is not a LocalBackend
-    assert not isinstance(backend, LocalBackend)
+    assert not isinstance(result_backend, LocalBackend)
 
     # Cannot be used with LocalBroker
     with pytest.raises(RuntimeError):

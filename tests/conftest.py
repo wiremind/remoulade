@@ -143,6 +143,11 @@ def rate_limiter_backends(redis_rate_limiter_backend, stub_rate_limiter_backend)
     }
 
 
+@pytest.fixture(params=["redis", "stub"])
+def rate_limiter_backend(request, rate_limiter_backends):
+    return rate_limiter_backends[request.param]
+
+
 @pytest.fixture
 def redis_result_backend():
     backend = res_backends.RedisBackend()
@@ -162,3 +167,8 @@ def result_backends(redis_result_backend, stub_result_backend):
         "redis": redis_result_backend,
         "stub": stub_result_backend,
     }
+
+
+@pytest.fixture(params=["redis", "stub"])
+def result_backend(request, result_backends):
+    return result_backends[request.param]
