@@ -9,6 +9,7 @@
 .. |Groups| replace:: :func:`Groups<remoulade.group>`
 .. |Interrupt| replace:: :class:`Interrupt<remoulade.middleware.Interrupt>`
 .. |Messages| replace:: :class:`Messages<remoulade.Message>`
+.. |Message| replace:: :class:`Message<remoulade.Message>`
 .. |MiddlewareError| replace:: :class:`MiddlewareError<remoulade.middleware.MiddlewareError>`
 .. |Prometheus| replace:: :class:`Prometheus<remoulade.middleware.Prometheus>`
 .. |RabbitmqBroker_join| replace:: :meth:`join<remoulade.brokers.rabbitmq.RabbitmqBroker.join>`
