@@ -69,7 +69,12 @@ class RateLimitExceeded(RemouladeError):
 
 
 class NoResultBackend(BrokerError):
-    """Raised when trying to access a the result backend on a broker without it
+    """Raised when trying to access the result backend on a broker without it
+    """
+
+
+class NoCancelBackend(BrokerError):
+    """Raised when trying to access the cancel backend on a broker without it
     """
 
 

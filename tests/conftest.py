@@ -14,6 +14,8 @@ from remoulade.brokers.rabbitmq import RabbitmqBroker
 from remoulade.brokers.stub import StubBroker
 from remoulade.rate_limits import backends as rl_backends
 from remoulade.results import backends as res_backends
+from remoulade.cancel import backends as cl_backends
+
 
 logfmt = "[%(asctime)s] [%(threadName)s] [%(name)s] [%(levelname)s] %(message)s"
 logging.basicConfig(level=logging.INFO, format=logfmt)
@@ -37,6 +39,7 @@ def check_redis(client):
         client.ping()
     except redis.ConnectionError as e:
         raise e if CI else pytest.skip("No connection to Redis server.")
+    client.flushall()
 
 
 @pytest.fixture()
@@ -126,7 +129,6 @@ def start_cli():
 def redis_rate_limiter_backend():
     backend = rl_backends.RedisBackend()
     check_redis(backend.client)
-    backend.client.flushall()
     return backend
 
 
@@ -152,7 +154,6 @@ def rate_limiter_backend(request, rate_limiter_backends):
 def redis_result_backend():
     backend = res_backends.RedisBackend()
     check_redis(backend.client)
-    backend.client.flushall()
     return backend
 
 
@@ -172,3 +173,28 @@ def result_backends(redis_result_backend, stub_result_backend):
 @pytest.fixture(params=["redis", "stub"])
 def result_backend(request, result_backends):
     return result_backends[request.param]
+
+
+@pytest.fixture
+def redis_cancel_backend():
+    backend = cl_backends.RedisBackend()
+    check_redis(backend.client)
+    return backend
+
+
+@pytest.fixture
+def stub_cancel_backend():
+    return cl_backends.StubBackend()
+
+
+@pytest.fixture
+def cancel_backends(redis_cancel_backend, stub_cancel_backend):
+    return {
+        "redis": redis_cancel_backend,
+        "stub": stub_cancel_backend,
+    }
+
+
+@pytest.fixture(params=["redis", "stub"])
+def cancel_backend(request, cancel_backends):
+    return cancel_backends[request.param]

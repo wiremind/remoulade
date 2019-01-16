@@ -49,7 +49,7 @@ class Pipelines(Middleware):
         pipe_target = message.options.get("pipe_target")
         group_info = message.options.get("group_info")
         if group_info:
-            group_info = GroupInfo.from_dict(**group_info)
+            group_info = GroupInfo(**group_info)
 
         if pipe_target is not None:
 
@@ -90,7 +90,7 @@ class Pipelines(Middleware):
 
         if not pipe_ignore:
             if group_info:
-                result = self._get_group_result(group_info)
+                result = list(group_info.results.get(forget=True))
             next_message = next_message.copy(args=next_message.args + (result,))
 
         broker.enqueue(next_message)
@@ -113,11 +113,4 @@ class Pipelines(Middleware):
 
         group_completion = result_backend.increment_group_completion(group_info.group_id)
 
-        return group_completion >= group_info.count
-
-    @staticmethod
-    def _get_group_result(group_info):
-        if group_info.results is None:
-            raise ResultNotStored('An actor in the group do not have store_result=True')
-
-        return list(group_info.results.get(forget=True))
+        return group_completion >= group_info.children_count

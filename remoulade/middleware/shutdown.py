@@ -86,3 +86,4 @@ class ShutdownNotifications(Middleware):
             self.notifications.remove(thread_id)
 
     after_skip_message = after_process_message
+    after_message_canceled = after_process_message

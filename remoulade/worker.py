@@ -22,6 +22,7 @@ from itertools import chain
 from queue import Empty, PriorityQueue
 from threading import Event, Thread
 
+from .cancel import MessageCanceled
 from .common import current_millis, iter_queue, join_all, q_name
 from .errors import ActorNotFound, ConnectionError, RateLimitExceeded
 from .logging import get_logger
@@ -401,6 +402,10 @@ class _WorkerThread(Thread):
         except SkipMessage:
             self.logger.warning("Message %s was skipped.", message)
             self.broker.emit_after("skip_message", message)
+
+        except MessageCanceled:
+            self.logger.warning("Message %s has been canceled", message)
+            self.broker.emit_after("message_canceled", message)
 
         except BaseException as e:
             if isinstance(e, RateLimitExceeded):
