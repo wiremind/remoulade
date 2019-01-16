@@ -14,7 +14,8 @@
 #
 # You should have received a copy of the GNU Lesser General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
-from .errors import ActorNotFound, NoResultBackend
+from .cancel import Cancel, CancelBackend
+from .errors import ActorNotFound, NoCancelBackend, NoResultBackend
 from .logging import get_logger
 from .middleware import MiddlewareError, default_middleware
 from .results import ResultBackend, Results
@@ -117,11 +118,35 @@ class Broker:
         Returns:
             ResultBackend: the result backend
         """
-        for middleware in self.middleware:
-            if isinstance(middleware, Results):
-                return middleware.backend
-        else:
-            raise NoResultBackend("The default broker doesn't have a results backend.")
+        return self._get_backend('results')
+
+    def get_cancel_backend(self) -> CancelBackend:
+        """ Get the CancelBackend associated with the broker
+
+        Raises:
+            NoCancelBackend: if there is no CancelBackend
+
+        Returns:
+            CancelBackend: the cancel backend
+        """
+        return self._get_backend('cancel')
+
+    def _get_backend(self, name: str):
+        """ Get the backend associated with the broker either cancel or results """
+        message = "The default broker doesn't have a %s backend."
+        backends = {
+            'results': (Results, NoResultBackend(message % 'results')),
+            'cancel': (Cancel, NoCancelBackend(message % 'cancel'))
+        }
+        try:
+            middleware_class, exception = backends[name]
+            for middleware in self.middleware:
+                if isinstance(middleware, middleware_class):
+                    return middleware.backend
+            else:
+                raise exception
+        except KeyError:
+            raise ValueError('invalid backend name')
 
     def add_middleware(self, middleware, *, before=None, after=None):
         """Add a middleware object to this broker.  The middleware is

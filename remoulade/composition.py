@@ -15,36 +15,35 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 from collections import namedtuple
+from typing import List
 
 from .broker import get_broker
 from .common import generate_unique_id
 from .composition_result import CollectionResults
-from .errors import ResultNotStored
 
 
-class GroupInfo(namedtuple("GroupInfo", ("group_id", "count", "results"))):
+class GroupInfo(namedtuple("GroupInfo", ("group_id", "message_ids", "cancel_on_error"))):
     """Encapsulates metadata about a group being sent to multiple actors.
 
     Parameters:
       group_id(str): The id of the group
-      count(int): The number of child in the group
-      results(CollectionResults)
+      message_ids(List)
+      cancel_on_error(bool)
     """
 
-    def __new__(cls, *, group_id: str, count: int, results: CollectionResults):
-        return super().__new__(cls, group_id, count, results)
+    def __new__(cls, *, group_id: str, message_ids: List, cancel_on_error: bool):
+        return super().__new__(cls, group_id, message_ids, cancel_on_error)
 
     def asdict(self):
-        return {
-            'group_id': self.group_id,
-            'count': self.count,
-            'results': self.results.asdict() if self.results else None
-        }
+        return self._asdict()
 
-    @staticmethod
-    def from_dict(group_id, count, results):
-        results = CollectionResults.from_dict(results) if results else None
-        return GroupInfo(group_id=group_id, count=count, results=results)
+    @property
+    def children_count(self):
+        return len(self.message_ids)
+
+    @property
+    def results(self):
+        return CollectionResults.from_message_ids(self.message_ids)
 
 
 class pipeline:
@@ -116,6 +115,14 @@ class pipeline:
     def __str__(self):  # pragma: no cover
         return "pipeline([%s])" % ", ".join(str(m) for m in self.children)
 
+    @property
+    def message_ids(self):
+        for child in self.children:
+            if isinstance(child, group):
+                yield list(child.message_ids)
+            else:
+                yield child.message_id
+
     def run(self, *, delay=None):
         """Run this pipeline.
 
@@ -155,12 +162,17 @@ class group:
     Parameters:
       children(Iterator[Message|pipeline]): A sequence of messages or pipelines.
       broker(Broker): The broker to run the group on.  Defaults to the current global broker.
+      cancel_on_error(boolean): True if you want to cancel all messages of a group if on of
+        the actor fails, this is only possible with a Cancel middleware.
 
     Attributes:
         children(List[Message|pipeline]) The sequence to execute as a group
+
+    Raise:
+        NoCancelBackend: if no cancel middleware is set
     """
 
-    def __init__(self, children, *, broker=None, group_id=None):
+    def __init__(self, children, *, broker=None, group_id=None, cancel_on_error=False):
         self.children = []
         for child in children:
             if isinstance(child, group):
@@ -169,6 +181,9 @@ class group:
 
         self.broker = broker or get_broker()
         self.group_id = generate_unique_id() if group_id is None else group_id
+        self.cancel_on_error = cancel_on_error
+        if cancel_on_error:
+            self.broker.get_cancel_backend()
 
     def __or__(self, other) -> pipeline:
         """Combine this group into a pipeline with "other".
@@ -183,8 +198,10 @@ class group:
     def __str__(self):  # pragma: no cover
         return "group([%s])" % ", ".join(str(c) for c in self.children)
 
-    def build(self, options):
+    def build(self, options=None):
         """ Build group for pipeline """
+        if options is None:
+            options = {}
         options = {'group_info': self.info.asdict(), **options}
         messages = []
         for group_child in self.children:
@@ -197,12 +214,18 @@ class group:
 
     @property
     def info(self):
-        """ Info used for group completion """
-        try:
-            results = self.results
-        except ResultNotStored:
-            results = None
-        return GroupInfo(group_id=self.group_id, count=len(self.children), results=results)
+        """ Info used for group completion and cancel"""
+        return GroupInfo(
+            group_id=self.group_id, message_ids=list(self.message_ids), cancel_on_error=self.cancel_on_error
+        )
+
+    @property
+    def message_ids(self):
+        for child in self.children:
+            if isinstance(child, pipeline):
+                yield list(child.message_ids)
+            else:
+                yield child.message_id
 
     def run(self, *, delay=None):
         """Run the actors in this group.
@@ -211,11 +234,8 @@ class group:
           delay(int): The minimum amount of time, in milliseconds,
             each message in the group should be delayed by.
         """
-        for child in self.children:
-            if isinstance(child, pipeline):
-                child.run(delay=delay)
-            else:
-                self.broker.enqueue(child, delay=delay)
+        for message in self.build():
+            self.broker.enqueue(message, delay=delay)
 
         return self
 

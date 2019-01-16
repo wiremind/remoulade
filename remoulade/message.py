@@ -107,6 +107,12 @@ class Message(namedtuple("Message", (
         """ Build message for pipeline """
         return self.copy(options=options)
 
+    def cancel(self):
+        """ Mark a message as canceled """
+        broker = get_broker()
+        backend = broker.get_cancel_backend()
+        backend.cancel([self.message_id])
+
     @property
     def result(self):
         broker = get_broker()

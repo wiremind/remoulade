@@ -166,6 +166,7 @@ class Prometheus(Middleware):
             self.total_errored_messages.labels(*labels).inc()
 
     after_skip_message = after_process_message
+    after_message_canceled = after_process_message
 
 
 class _ExpositionServer(Thread):

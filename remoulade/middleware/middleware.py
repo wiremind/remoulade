@@ -109,6 +109,10 @@ class Middleware:
         """Called instead of ``after_process_message`` after a message
         has been skippped.
         """
+    def after_message_canceled(self, broker, message):
+        """Called instead of ``after_process_message`` after a message
+        has been canceled.
+        """
 
     def after_process_boot(self, broker):
         """Called immediately after subprocess start up.

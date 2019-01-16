@@ -90,3 +90,4 @@ class TimeLimit(Middleware):
         self.deadlines[threading.get_ident()] = None
 
     after_skip_message = after_process_message
+    after_message_canceled = after_process_message

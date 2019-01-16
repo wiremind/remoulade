@@ -34,20 +34,20 @@ class CollectionResults:
     def __len__(self):
         return len(self._message_ids)
 
-    def asdict(self):
-        result = []
-        for child in self.children:
-            result.append(child.asdict())
-        return result
-
     @classmethod
-    def from_dict(cls, group_results):
+    def from_message_ids(cls, message_ids):
         children = []
-        for result in group_results:
-            if isinstance(result, list):
-                child = cls.from_dict(result)
+        for message_id in message_ids:
+            # it's a pipeline
+            if isinstance(message_id, list):
+                last = message_id[-1]
+                # it's a group
+                if isinstance(last, list):
+                    child = cls.from_message_ids(last)
+                else:
+                    child = Result(message_id=last)
             else:
-                child = Result(**result)
+                child = Result(message_id=message_id)
             children.append(child)
         return CollectionResults(children)
 
