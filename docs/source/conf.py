@@ -18,11 +18,10 @@ import sys
 
 import alabaster  # noqa
 
-import remoulade  # noqa
-
 sys.path.insert(0, os.path.abspath('../..'))
 sys.path.insert(0, os.path.abspath('./'))
 
+import remoulade  # noqa
 
 
 # -- General configuration ------------------------------------------------
