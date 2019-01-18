@@ -8,6 +8,14 @@ All notable changes to this project will be documented in this file.
 `Unreleased`_
 -------------
 
+`0.9.0`_ -- 2018-01-18
+----------------------
+
+Added
+^^^^^
+
+* |Cancel| middleware, and a |message_cancel| method to prevent processing of messages which have been enqueued
+* |cancel_on_error| which cancel all group members on member failure.
 
 `0.8.2`_ -- 2018-12-31
 ----------------------
@@ -156,6 +164,7 @@ Fixed
 * pipe_ignore was not recovered from right message
 
 .. _Unreleased: https://github.com/wiremind/remoulade/compare/v0.8.2...HEAD
+.. _0.9.0: https://github.com/wiremind/remoulade/releases/tag/v0.9.0
 .. _0.8.2: https://github.com/wiremind/remoulade/releases/tag/v0.8.2
 .. _0.8.1: https://github.com/wiremind/remoulade/releases/tag/v0.8.1
 .. _0.8.0: https://github.com/wiremind/remoulade/releases/tag/v0.8.0

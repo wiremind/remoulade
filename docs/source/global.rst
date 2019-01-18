@@ -62,6 +62,9 @@
 .. |pipeline_results_get| replace:: :meth:`get<remoulade.CollectionResults.get>`
 .. |completed_count| replace:: :meth:`completed_count<remoulade.CollectionResults.completed_count>`
 .. |completed| replace:: :meth:`completed<remoulade.Result.completed>`
+.. |Cancel| replace:: :class:`Cancel<remoulade.cancel.Cancel>`
+.. |message_cancel| replace:: :meth:`cancel<remoulade.message.cancel>`
+.. |cancel_on_error| replace:: :param:`cancel_on_error<remoulade.group.cancel_on_error>`
 
 
 
