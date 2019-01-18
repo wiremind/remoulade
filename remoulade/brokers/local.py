@@ -50,6 +50,10 @@ class LocalBroker(Broker):
     def declare_queue(self, queue_name):
         pass
 
+    def get_cancel_backend(self):
+        """ Local broker does not need a cancel """
+        return None
+
     def enqueue(self, message, *, delay=None):
         """Enqueue and compute a message.
 
