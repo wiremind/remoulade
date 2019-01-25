@@ -78,6 +78,8 @@ setup(
     packages=[
         "remoulade",
         "remoulade.brokers",
+        "remoulade.cancel",
+        "remoulade.cancel.backends",
         "remoulade.middleware",
         "remoulade.rate_limits",
         "remoulade.rate_limits.backends",
