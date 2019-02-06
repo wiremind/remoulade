@@ -233,12 +233,13 @@ def test_pipelines_can_be_incomplete(stub_broker, result_backend):
     assert not pipe.results.completed
 
 
-def test_pipelines_store_results_error(stub_broker, result_backend, stub_worker):
+@pytest.mark.parametrize("store_results", [True, False])
+def test_pipelines_store_results_error(stub_broker, result_backend, stub_worker, store_results):
     # And a broker with the results middleware
     stub_broker.add_middleware(Results(backend=result_backend))
 
-    # Given an actor that stores results and fail
-    @remoulade.actor(store_results=True)
+    # Given an actor that fail
+    @remoulade.actor(store_results=store_results)
     def do_work_fail():
         raise ValueError()
 
@@ -260,18 +261,19 @@ def test_pipelines_store_results_error(stub_broker, result_backend, stub_worker)
     stub_worker.join()
 
     # I get an error
-    with pytest.raises(ErrorStored) as e:
-        pipe.children[0].result.get(block=True)
-    assert str(e.value) == 'ValueError()'
+    if store_results:
+        with pytest.raises(ErrorStored) as e:
+            pipe.children[0].result.get()
+        assert str(e.value) == 'ValueError()'
 
     for i in [1, 3]:
         with pytest.raises(ErrorStored) as e:
-            pipe.children[i].result.get(block=True)
+            pipe.children[i].result.get()
         assert str(e.value).startswith('ParentFailed')
 
     for child in g.children:
         with pytest.raises(ErrorStored) as e:
-            child.result.get(block=True)
+            child.result.get()
         assert str(e.value).startswith('ParentFailed')
 
 

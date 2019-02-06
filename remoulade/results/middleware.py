@@ -73,35 +73,40 @@ class Results(Middleware):
         actor = broker.get_actor(message.actor_name)
 
         store_results = actor.options.get("store_results", self.store_results)
-        if not store_results:
-            return
-
         result_ttl = actor.options.get("result_ttl", self.result_ttl)
+        message_failed = getattr(message, 'failed', False)
 
-        if exception is None:
-            self.backend.store_result(message.message_id, BackendResult(result=result, error=None), result_ttl)
-        # If the message will not be retried
-        elif message.failed:
-            self.backend.store_result(message.message_id, BackendResult(result=None, error=repr(exception)), result_ttl)
+        if store_results:
+            if exception is None:
+                self.backend.store_result(message.message_id, BackendResult(result=result, error=None), result_ttl)
+            elif message_failed:
+                error = repr(exception)
+                self.backend.store_result(message.message_id, BackendResult(result=None, error=error), result_ttl)
 
+        # even if the actor do not have store_results, we need to invalidate the messages in the pipeline that has it
+        if message_failed:
             exception = ParentFailed("%s failed because of %s" % (message, repr(exception)))
-            result = BackendResult(result=None, error=repr(exception))
+            children_result = BackendResult(result=None, error=repr(exception))
 
-            for message_id in self._get_children_message_ids(message.options.get("pipe_target")):
-                self.backend.store_result(message_id, result, result_ttl)
+            for message_id in self._get_children_message_ids(broker, message.options.get("pipe_target")):
+                self.backend.store_result(message_id, children_result, result_ttl)
 
-    def _get_children_message_ids(self, pipe_target):
-        """ Get the ids of all the following messages in the pipeline """
+    def _get_children_message_ids(self, broker, pipe_target):
+        """ Get the ids of all the following messages in the pipeline which have store_results """
         from ..message import Message
 
         message_ids = set()
 
         if isinstance(pipe_target, list):
             for message_data in pipe_target:
-                message_ids |= self._get_children_message_ids(message_data)
+                message_ids |= self._get_children_message_ids(broker, message_data)
         elif pipe_target:
             message = Message(**pipe_target)
-            message_ids.add(message.message_id)
-            message_ids |= self._get_children_message_ids(message.options.get("pipe_target"))
+            actor = broker.get_actor(message.actor_name)
+
+            if actor.options.get("store_results", self.store_results):
+                message_ids.add(message.message_id)
+
+            message_ids |= self._get_children_message_ids(broker, message.options.get("pipe_target"))
 
         return message_ids
