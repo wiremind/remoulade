@@ -210,41 +210,6 @@ Finally, instantiate and add it to your broker:
 .. _raven: https://github.com/getsentry/raven-python
 
 
-Frameworks
-----------
-
-API Star
-^^^^^^^^
-
-The `apistar_remoulade`_ library lets you use API Star dependency
-injection with your Remoulade actors.
-
-.. _apistar_remoulade: https://github.com/wiremind/apistar_remoulade
-.. _API Star: https://github.com/encode/apistar
-
-
-Django
-^^^^^^
-
-Check out the `django_remoulade`_ project if you want to use Remoulade
-with Django_.  The `django_remoulade_example`_ repo is an example app
-build with Django and Remoulade.
-
-.. _django_remoulade: https://github.com/wiremind/django_remoulade
-.. _django_remoulade_example: https://github.com/wiremind/django_remoulade_example
-.. _django: https://djangoproject.com
-
-
-Flask
-^^^^^
-
-The `flask_remoulade_example`_ repo is an example app built with Flask_
-and Remoulade.
-
-.. _flask_remoulade_example: https://github.com/wiremind/flask_remoulade_example
-.. _flask: http://flask.pocoo.org
-
-
 Operations
 ----------
 
