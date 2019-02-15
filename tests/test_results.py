@@ -107,7 +107,7 @@ def test_retrieving_a_result_can_time_out(stub_broker, stub_worker, result_backe
     # And wait for a result
     # Then a ResultTimeout error should be raised
     with pytest.raises(ResultTimeout):
-        result_backend.get_result(message, block=True, timeout=100, forget=forget)
+        result_backend.get_result(message, block=True, timeout=1000, forget=forget)
 
 
 @pytest.mark.parametrize("forget", [True, False])
