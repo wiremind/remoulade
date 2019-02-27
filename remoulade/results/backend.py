@@ -16,7 +16,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 import time
-import typing
+from typing import Iterable, Dict, Union
 from collections import namedtuple
 
 from ..common import compute_backoff
@@ -48,7 +48,7 @@ class BackendResult(namedtuple("BackendResult", ('result', 'error', 'forgot'))):
 ForgottenResult = BackendResult(result=None, error=None, forgot=True)
 
 #: A union representing a Result that may or may not be there.
-MResult = typing.Union[type(Missing), BackendResult]
+MResult = Union[type(Missing), BackendResult]
 
 
 class ResultBackend:
@@ -142,7 +142,13 @@ class ResultBackend:
             stored in the backend for.
         """
         message_key = self.build_message_key(message_id)
-        return self._store(message_key, result._asdict(), ttl)
+        return self._store([message_key], [result._asdict()], ttl)
+
+    def forget_results(self, message_ids: str, ttl: int):
+        """ Forget the results associated to the given message_id """
+        result = ForgottenResult.asdict()
+        message_keys = [self.build_message_key(message_id) for message_id in message_ids]
+        self._store(message_keys, [result] * len(message_keys), ttl)
 
     def build_message_key(self, message_id: str) -> str:  # noqa: F821
         """Given a message, return its globally-unique key.
@@ -155,7 +161,7 @@ class ResultBackend:
         """
         return "{}:{}".format(self.namespace, message_id)
 
-    def get_status(self, message_ids: typing.List[str]) -> int:
+    def get_status(self, message_ids: Iterable[str]) -> int:
         """ Given a list of messages ids return the number of messages with a result stored"""
         count = 0
         for message_id in message_ids:
@@ -178,8 +184,8 @@ class ResultBackend:
             "classname": type(self).__name__,
         })
 
-    def _store(self, message_key: str, result: typing.Dict, ttl: int) -> None:  # pragma: no cover
-        """Store a result in the backend.  Subclasses may implement
+    def _store(self, message_keys: Iterable[str], result: Iterable[Dict], ttl: int) -> None:  # pragma: no cover
+        """Store multiple results in the backend.  Subclasses may implement
         this method if they want to use the default implementation of
         set_result.
         """

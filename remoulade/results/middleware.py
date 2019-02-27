@@ -110,3 +110,8 @@ class Results(Middleware):
             message_ids |= self._get_children_message_ids(broker, message.options.get("pipe_target"))
 
         return message_ids
+
+    def after_enqueue_pipe_target(self, broker, group_info):
+        """ After a pipe target has been enqueued, we need to forget the result of the group (if it's a group) """
+        if group_info:
+            self.backend.forget_results([group_info.message_ids], self.result_ttl)
