@@ -51,6 +51,28 @@ def test_change_broker(stub_broker):
     assert stub_broker.actors == new_broker.actors
 
 
+def test_declare_actors(stub_broker):
+    # Given that some actors
+    @remoulade.actor
+    def add(x, y):
+        return x + y
+
+    @remoulade.actor
+    def modulo(x, y):
+        return x % y
+
+    actors = [add, modulo]
+    remoulade.declare_actors(actors)
+
+    assert set(stub_broker.actors.values()) == set(actors)
+
+
+def test_declare_actors_no_broker():
+    remoulade.broker.global_broker = None
+    with pytest.raises(ValueError):
+        remoulade.declare_actors([])
+
+
 @skip_on_windows
 def test_broker_middleware_can_be_added_before_other_middleware(stub_broker):
     from remoulade.middleware import AgeLimit
