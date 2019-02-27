@@ -39,7 +39,7 @@ def actor(fn=None, *, actor_name=None, queue_name="default", priority=0, **optio
       Actor(<function add at 0x106c6d488>, queue_name='default', actor_name='add')
 
       You need to declare an actor before using it
-      >>> get_broker().declare_actor(add)
+      >>> remoulade.declare_actors([add])
       None
 
       >>> add(1, 2)

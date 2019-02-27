@@ -57,7 +57,7 @@ and declare it to the broker:
      count = len(response.text.split(" "))
      print(f"There are {count} words at {url!r}.")
 
-   get_broker().declare_actor(count_words)
+   remoulade.declare_actors([count_words])
 
 Like before, if we call the function in the interactive interpreter,
 it will run synchronously and we'll get the same result out::

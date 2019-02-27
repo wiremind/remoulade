@@ -58,10 +58,20 @@ def change_broker(broker: "Broker"):
       broker(Broker): The broker instance to use by default.
     """
     global global_broker
-    if global_broker:
-        for actor in global_broker.actors.values():
-            broker.declare_actor(actor)
+    actors = global_broker.actors.values() if global_broker else []
     global_broker = broker
+    declare_actors(actors)
+
+
+def declare_actors(actors):
+    """Declare the given actors to the current broker
+
+    Parameters:
+      actors(List[Actor]): The actors being declared.
+    """
+    broker = get_broker()
+    for actor in actors:
+        broker.declare_actor(actor)
 
 
 class Broker:

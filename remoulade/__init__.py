@@ -16,7 +16,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 from .actor import Actor, actor
-from .broker import Broker, Consumer, MessageProxy, change_broker, get_broker, set_broker
+from .broker import Broker, Consumer, MessageProxy, change_broker, get_broker, set_broker, declare_actors
 from .composition import group, pipeline
 from .composition_result import CollectionResults
 from .encoder import Encoder, JSONEncoder, PickleEncoder
@@ -36,7 +36,7 @@ __all__ = [
     "Actor", "GenericActor", "actor",
 
     # Brokers
-    "Broker", "Consumer", "MessageProxy", "get_broker", "set_broker", "change_broker",
+    "Broker", "Consumer", "MessageProxy", "get_broker", "set_broker", "change_broker", "declare_actors",
 
     # Composition
     "group", "pipeline", "CollectionResults",
