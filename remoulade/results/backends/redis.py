@@ -106,11 +106,12 @@ class RedisBackend(ResultBackend):
         result = BackendResult(**self.encoder.decode(data))
         return self.process_result(result, raise_on_error)
 
-    def _store(self, message_key, result, ttl):
+    def _store(self, message_keys, results, ttl):
         with self.client.pipeline() as pipe:
-            pipe.delete(message_key)
-            pipe.lpush(message_key, self.encoder.encode(result))
-            pipe.pexpire(message_key, ttl)
+            for (message_key, result) in zip(message_keys, results):
+                pipe.delete(message_key)
+                pipe.lpush(message_key, self.encoder.encode(result))
+                pipe.pexpire(message_key, ttl)
             pipe.execute()
 
     def increment_group_completion(self, group_id: str) -> int:

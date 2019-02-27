@@ -25,8 +25,9 @@ class LocalBackend(ResultBackend):
         except KeyError:
             return Missing
 
-    def _store(self, message_key, result, _):
-        self.results[message_key] = result
+    def _store(self, message_keys, results, _):
+        for (message_key, result) in zip(message_keys, results):
+            self.results[message_key] = result
 
     def increment_group_completion(self, group_id: str) -> int:
         group_completion_key = self.build_group_completion_key(group_id)

@@ -58,6 +58,9 @@ class Pipelines(Middleware):
                     return
 
                 self._send_next_message(pipe_target, broker, result, group_info)
+
+                broker.emit_after('enqueue_pipe_target', group_info)
+
             except (NoResultBackend, ResultNotStored) as e:
                 self.logger.error(str(e))
                 message.fail()
@@ -90,7 +93,7 @@ class Pipelines(Middleware):
 
         if not pipe_ignore:
             if group_info:
-                result = list(group_info.results.get(forget=True))
+                result = list(group_info.results.get())
             next_message = next_message.copy(args=next_message.args + (result,))
 
         broker.enqueue(next_message)

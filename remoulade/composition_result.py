@@ -32,7 +32,7 @@ class CollectionResults:
         self.children = list(children)
 
     def __len__(self):
-        return len(self._message_ids)
+        return len(self.message_ids)
 
     @classmethod
     def from_message_ids(cls, message_ids):
@@ -65,11 +65,11 @@ class CollectionResults:
         return self.completed_count == len(self)
 
     @property
-    def _message_ids(self):
+    def message_ids(self):
         message_ids = []
         for child in self.children:
             if isinstance(child, CollectionResults):
-                message_ids += child._message_ids
+                message_ids += child.message_ids
             else:
                 message_ids += [child.message_id]
         return message_ids
@@ -91,7 +91,7 @@ class CollectionResults:
         broker = get_broker()
         backend = broker.get_result_backend()
         # we could use message.completed here but we just want to make 1 call to get_status
-        return backend.get_status(self._message_ids)
+        return backend.get_status(self.message_ids)
 
     def get(self, *, block=False, timeout=None, raise_on_error=True, forget=False):
         """Get the results of each job in the collection.

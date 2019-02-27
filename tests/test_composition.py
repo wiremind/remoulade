@@ -553,6 +553,36 @@ def test_pipeline_with_groups_and_pipe_ignore(stub_broker, stub_worker, result_b
         pipe.result.get()
 
 
+def test_multiple_groups_pipelines(stub_broker, stub_worker, result_backend):
+    # Given a result backend
+    # And a broker with the results middleware
+    stub_broker.add_middleware(Results(backend=result_backend))
+
+    # Given an actor that stores results
+    @remoulade.actor(store_results=True)
+    def do_work():
+        return 1
+
+    # Given an actor that stores results
+    @remoulade.actor(store_results=True)
+    def do_sum(results):
+        return sum(results)
+
+    # And this actor is declared
+    stub_broker.declare_actor(do_work)
+    stub_broker.declare_actor(do_sum)
+
+    pipe = pipeline([
+        group([do_work.message(), do_work.message()]),
+        group([do_sum.message(), do_sum.message()]),
+        do_sum.message()
+    ]).run()
+
+    result = pipe.result.get(block=True)
+
+    assert 4 == result
+
+
 def test_pipeline_does_not_continue_to_next_actor_when_message_is_marked_as_failed(stub_broker, stub_worker):
     # Given that I have an actor that fails messages
     class FailMessageMiddleware(remoulade.middleware.Middleware):

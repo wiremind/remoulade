@@ -153,3 +153,6 @@ class Middleware:
 
         There is no ``after_worker_thread_boot``.
         """
+
+    def after_enqueue_pipe_target(self, broker, group_info):
+        """ Called after the pipe target of a message has been enqueued """

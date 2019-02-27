@@ -43,10 +43,11 @@ class StubBackend(ResultBackend):
             return self.encoder.decode(data)
         return Missing
 
-    def _store(self, message_key, result, ttl):
-        result_data = self.encoder.encode(result)
-        expiration = time.monotonic() + int(ttl / 1000)
-        self.results[message_key] = (result_data, expiration)
+    def _store(self, message_keys, results, ttl):
+        for (message_key, result) in zip(message_keys, results):
+            result_data = self.encoder.encode(result)
+            expiration = time.monotonic() + int(ttl / 1000)
+            self.results[message_key] = (result_data, expiration)
 
     def increment_group_completion(self, group_id: str) -> int:
         group_completion_key = self.build_group_completion_key(group_id)
