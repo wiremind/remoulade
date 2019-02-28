@@ -14,7 +14,7 @@
 #
 # You should have received a copy of the GNU Lesser General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
-from ..errors import NoResultBackend, ResultNotStored
+from ..errors import NoResultBackend
 from ..logging import get_logger
 from .middleware import Middleware
 
@@ -61,7 +61,7 @@ class Pipelines(Middleware):
 
                 broker.emit_after('enqueue_pipe_target', group_info)
 
-            except (NoResultBackend, ResultNotStored) as e:
+            except NoResultBackend as e:
                 self.logger.error(str(e))
                 message.fail()
 

@@ -76,8 +76,3 @@ class NoResultBackend(BrokerError):
 class NoCancelBackend(BrokerError):
     """Raised when trying to access the cancel backend on a broker without it
     """
-
-
-class ResultNotStored(RemouladeError):
-    """ Raised when trying to access Message|Pipeline|Group result with one or more actor not have store_results=True
-    """

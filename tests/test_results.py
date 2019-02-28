@@ -4,7 +4,6 @@ import pytest
 
 import remoulade
 from remoulade import Result
-from remoulade.errors import ResultNotStored
 from remoulade.middleware import Retries
 from remoulade.results import ErrorStored, ResultMissing, Results, ResultTimeout
 from remoulade.results.backend import FailureResult
@@ -38,28 +37,6 @@ def test_actors_can_store_results(stub_broker, stub_worker, result_backend, forg
 
     # Then the result should be what the actor returned
     assert result == 42
-
-
-def test_cannot_get_result_of_message_without_store_results(stub_broker, stub_worker, result_backend):
-    # Given a result backend
-    # And a broker with the results middleware
-    stub_broker.add_middleware(Results(backend=result_backend))
-
-    # And an actor that does not store results
-    @remoulade.actor()
-    def do_work():
-        return 42
-
-    # And this actor is declared
-    stub_broker.declare_actor(do_work)
-
-    # When I send that actor a message
-    message = do_work.send()
-
-    # I cannot access the result property of the message
-    with pytest.raises(ResultNotStored) as e:
-        message.result
-    assert str(e.value) == 'There cannot be any result to an actor without store_results=True'
 
 
 @pytest.mark.parametrize("forget", [True, False])
