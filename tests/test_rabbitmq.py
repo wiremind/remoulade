@@ -6,7 +6,7 @@ from unittest.mock import Mock
 import pytest
 
 import remoulade
-from remoulade import Message, QueueJoinTimeout
+from remoulade import Message, QueueJoinTimeout, Worker, ActorNotFound
 from remoulade.brokers.rabbitmq import _IgnoreScaryLogs
 from remoulade.common import current_millis
 
@@ -199,15 +199,8 @@ def test_rabbitmq_messages_belonging_to_missing_actors_are_rejected(rabbitmq_bro
         options={},
     )
     rabbitmq_broker.declare_queue(message.queue_name)
-    rabbitmq_broker.enqueue(message)
-
-    # Then join on the queue
-    rabbitmq_broker.join(message.queue_name)
-    rabbitmq_worker.join()
-
-    # I expect the message to end up on the dead letter queue
-    _, _, dead = rabbitmq_broker.get_queue_message_counts(message.queue_name)
-    assert dead == 1
+    with pytest.raises(ActorNotFound):
+        rabbitmq_broker.enqueue(message)
 
 
 def test_rabbitmq_broker_reconnects_after_enqueue_failure(rabbitmq_broker):
@@ -339,3 +332,34 @@ def test_rabbitmq_broker_can_flush_queues(rabbitmq_broker):
     # And then join on the actors's queue
     # Then it should join immediately
     assert rabbitmq_broker.join(do_work.queue_name, min_successes=1, timeout=200) is None
+
+
+def test_rabbitmq_broker_can_enqueue_messages_with_priority(rabbitmq_broker):
+    max_priority = 10
+    message_processing_order = []
+    queue_name = 'prioritized'
+
+    # Given that I have an actor that store priorities
+    @remoulade.actor(queue_name=queue_name)
+    def do_work(message_priority):
+        message_processing_order.append(message_priority)
+
+    remoulade.declare_actors([do_work])
+
+    worker = Worker(rabbitmq_broker, worker_threads=1)
+    worker.queue_prefetch = 1
+
+    try:
+        # When I send that actor messages with increasing priorities
+        for priority in range(max_priority):
+            do_work.send_with_options(args=(priority,), priority=priority)
+
+        worker.start()
+        # And then tell the broker to wait for all messages
+        rabbitmq_broker.join(queue_name, timeout=5000)
+        worker.join()
+
+        # I expect the stored priorities to be saved in decreasing order
+        assert message_processing_order == list(reversed(range(max_priority)))
+    finally:
+        worker.stop()

@@ -501,11 +501,11 @@ def test_actors_can_prioritize_work(stub_broker):
         # And actors with different priorities
         calls = []
 
-        @remoulade.actor(priority=0)
+        @remoulade.actor(priority=10)
         def hi():
             calls.append("hi")
 
-        @remoulade.actor(priority=10)
+        @remoulade.actor(priority=0)
         def lo():
             calls.append("lo")
 
