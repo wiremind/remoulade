@@ -15,6 +15,7 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 import uuid
+from collections import Iterable
 from queue import Empty
 from random import uniform
 from time import time
@@ -137,3 +138,12 @@ def generate_unique_id() -> str:
     """Generate a globally-unique message id.
     """
     return str(uuid.uuid4())
+
+
+def flatten(l):
+    """ Flatten deep an iterable """
+    for el in l:
+        if isinstance(el, Iterable) and not isinstance(el, (str, bytes)):
+            yield from flatten(el)
+        else:
+            yield el

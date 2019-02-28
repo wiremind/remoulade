@@ -3,7 +3,7 @@ import time
 import pytest
 
 import remoulade
-from remoulade import group
+from remoulade import group, pipeline
 from remoulade.cancel import Cancel
 from remoulade.errors import NoCancelBackend
 
@@ -92,3 +92,37 @@ def test_cannot_cancel_on_error_if_no_cancel(stub_broker):
 
     with pytest.raises(NoCancelBackend):
         group((do_work.message() for _ in range(4)), cancel_on_error=True)
+
+
+@pytest.mark.parametrize("with_pipeline", [True, False])
+def test_cancel_pipeline_or_groups(stub_broker, stub_worker, cancel_backend, with_pipeline):
+    # Given a cancel backend
+    # And a broker with the cancel middleware
+    stub_broker.add_middleware(Cancel(backend=cancel_backend))
+
+    has_been_called = []
+
+    # And an actor that is cancelable
+    @remoulade.actor(cancelable=True)
+    def do_work():
+        has_been_called.append(1)
+        raise ValueError()
+
+    # And this actor is declared
+    stub_broker.declare_actor(do_work)
+
+    if with_pipeline:
+        g = pipeline((do_work.message() for _ in range(4)))
+    else:
+        g = group((do_work.message() for _ in range(4)))
+
+    g.cancel()
+    g.run()
+
+    stub_broker.join(do_work.queue_name)
+    stub_worker.join()
+
+    # All actors should have been canceled
+    assert all(cancel_backend.is_canceled(child.message_id) for child in g.children)
+    assert len(has_been_called) == 0
+
