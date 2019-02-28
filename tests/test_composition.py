@@ -5,7 +5,6 @@ import pytest
 
 import remoulade
 from remoulade import CollectionResults, group, pipeline
-from remoulade.errors import ResultNotStored
 from remoulade.results import ErrorStored, ResultMissing, Results, ResultTimeout
 
 
@@ -105,31 +104,6 @@ def test_pipe_ignore_actor_options(stub_broker, stub_worker, result_backend):
     pipe.run()
 
     assert pipe.result.get(block=True) == 1
-
-
-def test_pipeline_cannot_have_actor_without_store_results(stub_broker, stub_worker, result_backend):
-    # And a broker with the results middleware
-    stub_broker.add_middleware(Results(backend=result_backend))
-
-    # And an actor that return something
-    @remoulade.actor()
-    def do_nothing():
-        return 0
-
-    # Nothing should be sent to pipe ignored
-    @remoulade.actor(store_results=True, pipe_ignore=True)
-    def pipe_ignored(*args):
-        assert len(args) == 0
-        return 1
-
-    # And these actors are declared
-    stub_broker.declare_actor(do_nothing)
-    stub_broker.declare_actor(pipe_ignored)
-
-    pipe = do_nothing.message() | pipe_ignored.message()
-
-    with pytest.raises(ResultNotStored):
-        pipe.results
 
 
 def test_pipeline_results_can_be_retrieved(stub_broker, stub_worker, result_backend):
