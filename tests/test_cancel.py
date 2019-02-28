@@ -125,4 +125,3 @@ def test_cancel_pipeline_or_groups(stub_broker, stub_worker, cancel_backend, wit
     # All actors should have been canceled
     assert all(cancel_backend.is_canceled(child.message_id) for child in g.children)
     assert len(has_been_called) == 0
-
