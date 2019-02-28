@@ -9,7 +9,7 @@ import remoulade
 from remoulade.brokers.rabbitmq import RabbitmqBroker
 from remoulade.common import current_millis
 
-broker = RabbitmqBroker()
+broker = RabbitmqBroker(max_priority=10)
 remoulade.set_broker(broker)
 
 loaded_at = current_millis()

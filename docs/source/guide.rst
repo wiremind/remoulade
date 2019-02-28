@@ -348,11 +348,11 @@ that belongs to the actor with the highest priority.
 
 You can set an Actor's priority via the ``priority`` keyword argument::
 
-  @remoulade.actor(priority=0)  # 0 is the default
+  @remoulade.actor(priority=1)
   def generate_report(user_id):
     ...
 
-  @remoulade.actor(priority=10)
+  @remoulade.actor(priority=0) # 0 is the default
   def sync_order_to_warehouse(order_id):
     ...
 
@@ -362,17 +362,24 @@ one of them, ``generate_report`` will always run *first*.
 
 Although all positive integers represent valid priorities, if you're
 going to use this feature, I'd recommend setting up constants for the
-various priorities you plan to use::
+various priorities you plan to use:
 
-  PRIO_LO = 100
-  PRIO_MED = 50
-  PRIO_HI = 0
+  PRIO_LO = 0
+  PRIO_MED = 1
+  PRIO_HI = 2
+
+Rabbitmq also have a support for priorities, to take advantage of it
+you need to set ``max_priority``
+
+   broker = RabbitmqBroker(host="rabbitmq", max_priority=PRIO_HI)
+
+In `priority documentation`_, you will see that recommended value for
+max_priority is between 1 and 10 (max: 255).
+You should try to use the minimum max_priority possible and not use priority
+values bigger than max_priority as they will be considered as max_priority.
 
 .. important::
-   The lower the numeric value, the higher priority!  If you need a
-   mnemonic to remember this, think of having a ticket with a number
-   on it handed to you while waiting in line, perhaps at a government
-   institution or deli counter.
+   The bigger the numeric value, the higher priority!
 
 
 Message Brokers
@@ -465,3 +472,5 @@ synchronously by calling them as you would normal functions.
 
 
 .. _pytest fixtures: https://docs.pytest.org/en/latest/fixture.html
+.. _priority documentation: https://www.rabbitmq.com/priority.html
+
