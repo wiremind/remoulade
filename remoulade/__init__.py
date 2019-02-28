@@ -18,7 +18,7 @@
 from .actor import Actor, actor
 from .broker import Broker, Consumer, MessageProxy, change_broker, get_broker, set_broker, declare_actors
 from .composition import group, pipeline
-from .composition_result import CollectionResults
+from .collection_results import CollectionResults
 from .encoder import Encoder, JSONEncoder, PickleEncoder
 from .errors import (
     ActorNotFound, BrokerError, ConnectionClosed, ConnectionError, ConnectionFailed, NoResultBackend, QueueJoinTimeout,

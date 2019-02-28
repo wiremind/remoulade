@@ -18,8 +18,8 @@ from collections import namedtuple
 from typing import List
 
 from .broker import get_broker
-from .common import generate_unique_id
-from .composition_result import CollectionResults
+from .common import generate_unique_id, flatten
+from .collection_results import CollectionResults
 
 
 class GroupInfo(namedtuple("GroupInfo", ("group_id", "message_ids", "cancel_on_error"))):
@@ -155,6 +155,12 @@ class pipeline:
         last_child = self.children[-1]
         return last_child.results if isinstance(last_child, group) else last_child.result
 
+    def cancel(self):
+        """ Mark all the children as cancelled """
+        broker = get_broker()
+        backend = broker.get_cancel_backend()
+        backend.cancel(list(flatten(self.message_ids)))
+
 
 class group:
     """Run a group of actors in parallel.
@@ -243,3 +249,9 @@ class group:
     def results(self) -> CollectionResults:
         """ CollectionResults created from this group, used for result related methods"""
         return CollectionResults(children=[child.result for child in self.children])
+
+    def cancel(self):
+        """ Mark all the children as cancelled """
+        broker = get_broker()
+        backend = broker.get_cancel_backend()
+        backend.cancel(list(flatten(self.message_ids)))
