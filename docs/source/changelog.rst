@@ -8,6 +8,24 @@ All notable changes to this project will be documented in this file.
 `Unreleased`_
 -------------
 
+`0.10.0`_ -- 2018-02-28
+----------------------
+
+BREAKING CHANGE
+^^^^^^^^^^^^^^^
+* higher priorities are now processed before to be consistent with rabbimq
+
+Added
+^^^^^
+* Priority support in RabbitMQ broker
+* cancel method on |group| and |pipeline|
+* declare_actors helper function, which take a list of actors and declare it to the current broker
+
+Remove
+^^^^^^
+
+* ResultNotStored error (fix bug when store_results is set at middleware level)
+
 `0.9.0`_ -- 2018-01-18
 ----------------------
 
