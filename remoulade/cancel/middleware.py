@@ -58,28 +58,14 @@ class Cancel(Middleware):
     Parameters:
       backend(CancelBackend): The cancel backend to use to check
         cancellations.
-      cancelable(bool): Whether or not  an actor can be canceled.
         Defaults to False and can be set on a per-actor basis.
     """
 
-    def __init__(self, *, backend=None, cancelable=False):
+    def __init__(self, *, backend=None):
         self.logger = get_logger(__name__, type(self))
         self.backend = backend
-        self.cancelable = cancelable
-
-    @property
-    def actor_options(self):
-        return {
-            "cancelable"
-        }
 
     def before_process_message(self, broker, message):
-        actor = broker.get_actor(message.actor_name)
-
-        cancelable = actor.options.get("cancelable", self.cancelable)
-        if not cancelable:
-            return
-
         if self.backend.is_canceled(message.message_id):
             raise MessageCanceled("Message %s has been canceled" % message.message_id)
 

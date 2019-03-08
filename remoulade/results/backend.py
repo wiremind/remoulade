@@ -16,8 +16,8 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 import time
-from typing import Iterable, Dict, Union
 from collections import namedtuple
+from typing import Dict, Iterable, Union
 
 from ..common import compute_backoff
 from ..encoder import Encoder

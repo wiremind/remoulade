@@ -16,8 +16,8 @@ def test_actors_can_be_canceled(stub_broker, stub_worker, cancel_backend, cancel
 
     has_been_called = []
 
-    # And an actor that is cancelable
-    @remoulade.actor(cancelable=True)
+    # And an actor
+    @remoulade.actor()
     def do_work():
         has_been_called.append(1)
 
@@ -60,8 +60,8 @@ def test_group_are_canceled_on_actor_failure(stub_broker, stub_worker, cancel_ba
 
     has_been_called = []
 
-    # And an actor that is cancelable
-    @remoulade.actor(cancelable=True)
+    # And an actor
+    @remoulade.actor()
     def do_work():
         has_been_called.append(1)
         raise ValueError()
@@ -102,8 +102,8 @@ def test_cancel_pipeline_or_groups(stub_broker, stub_worker, cancel_backend, wit
 
     has_been_called = []
 
-    # And an actor that is cancelable
-    @remoulade.actor(cancelable=True)
+    # And an actor
+    @remoulade.actor()
     def do_work():
         has_been_called.append(1)
         raise ValueError()

@@ -385,7 +385,6 @@ Result
    from remoulade.brokers.rabbitmq import RabbitmqBroker
    from remoulade.results.backends import RedisBackend
    from remoulade.results import Results
-   from remoulade.message_result import MessageResult
 
    result_backend = RedisBackend()
    broker = RabbitmqBroker()
@@ -462,3 +461,45 @@ But if you have short actors, you may want to increase this multiplier to reduce
 .. code-block:: bash
 
     remoulade package --prefetch-multiplier 1
+
+
+Cancel
+------
+
+Cancel a message
+^^^^^^^^^^^^^^^^
+
+You can cancel messages if you add the |Cancel| middleware to the broker.
+.. code-block:: python
+
+   import remoulade
+
+   from remoulade.brokers.rabbitmq import RabbitmqBroker
+   from remoulade.cancel.backends import RedisBackend
+   from remoulade.cancel import Cancel
+   from remoulade import group
+
+   result_backend = RedisBackend()
+   broker = RabbitmqBroker()
+   broker.add_middleware(Results(backend=result_backend))
+   remoulade.set_broker(broker)
+
+   @remoulade.actor()
+   def add(x, y):
+     return x + y
+
+   broker.declare_actor(add)
+
+   if __name__ == "__main__":
+     message = add.send(1, 2)
+     message.cancel()
+
+     g = group([add.message(1, 2), add.message(1, 2)]).run()
+     g.cancel()
+
+If a message has not yet started its processing, remoulade will not
+start the execution of the actor.
+Basically, the id of the message to cancel is stored in a redis set.
+And before each message processing, remoulade check if the message_id
+is in the set.
+|message|, |group| and |pipeline| can be canceled.
