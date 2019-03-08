@@ -8,6 +8,14 @@ All notable changes to this project will be documented in this file.
 `Unreleased`_
 -------------
 
+`0.11.0`_ -- 2018-03-08
+----------------------
+
+Remove
+^^^^^^
+
+* Cancelable option in |Cancel| and as actor option.
+
 `0.10.0`_ -- 2018-02-28
 ----------------------
 
@@ -181,7 +189,9 @@ Fixed
 
 * pipe_ignore was not recovered from right message
 
-.. _Unreleased: https://github.com/wiremind/remoulade/compare/v0.8.2...HEAD
+.. _Unreleased: https://github.com/wiremind/remoulade/compare/v0.11.2...HEAD
+.. _0.11.0: https://github.com/wiremind/remoulade/releases/tag/v0.11.0
+.. _0.10.0: https://github.com/wiremind/remoulade/releases/tag/v0.10.0
 .. _0.9.0: https://github.com/wiremind/remoulade/releases/tag/v0.9.0
 .. _0.8.2: https://github.com/wiremind/remoulade/releases/tag/v0.8.2
 .. _0.8.1: https://github.com/wiremind/remoulade/releases/tag/v0.8.1
