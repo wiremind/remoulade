@@ -18,8 +18,8 @@ from collections import namedtuple
 from typing import List
 
 from .broker import get_broker
-from .common import generate_unique_id, flatten
 from .collection_results import CollectionResults
+from .common import flatten, generate_unique_id
 
 
 class GroupInfo(namedtuple("GroupInfo", ("group_id", "message_ids", "cancel_on_error"))):
