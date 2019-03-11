@@ -127,7 +127,7 @@ class ResultBackend:
             return FailureResult
         return result.result
 
-    def increment_group_completion(self, group_id: str) -> int:
+    def increment_group_completion(self, group_id: str, ttl: int) -> int:
         raise NotImplementedError("%(classname)r does not implement increment_group_completion()" % {
             "classname": type(self).__name__,
         })

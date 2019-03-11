@@ -74,23 +74,35 @@ class Results(Middleware):
 
         store_results = actor.options.get("store_results", self.store_results)
         result_ttl = actor.options.get("result_ttl", self.result_ttl)
-        message_failed = getattr(message, 'failed', False)
+
+        # only increment group completion if the message will not be retried
+        if exception is None or message.failed:
+            self._set_group_completion(message, result_ttl)
 
         if store_results:
             if exception is None:
                 self.backend.store_result(message.message_id, BackendResult(result=result, error=None), result_ttl)
-            elif message_failed:
+            elif message.failed:
                 error = repr(exception)
                 self.backend.store_result(message.message_id, BackendResult(result=None, error=error), result_ttl)
 
         # even if the actor do not have store_results, we need to invalidate the messages in the pipeline that has it
-        if message_failed:
+        if message.failed:
             exception = ParentFailed("%s failed because of %s" % (message, repr(exception)))
             children_result = BackendResult(result=None, error=repr(exception))
 
             for message_id in self._get_children_message_ids(broker, message.options.get("pipe_target")):
                 self.backend.store_result(message_id, children_result, result_ttl)
 
+    def _set_group_completion(self, message, result_ttl):
+        """ increment the completion count of the group and set message.group_completed """
+        from ..composition import GroupInfo
+        group_info = message.options.get("group_info")
+        if group_info:
+            group_info = GroupInfo(**group_info)
+            group_completion = self.backend.increment_group_completion(group_info.group_id, result_ttl)
+            message.group_completed = group_completion >= group_info.children_count
+            
     def _get_children_message_ids(self, broker, pipe_target):
         """ Get the ids of all the following messages in the pipeline which have store_results """
         from ..message import Message

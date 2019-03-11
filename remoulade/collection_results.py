@@ -53,10 +53,7 @@ class CollectionResults:
 
     @property
     def completed(self) -> bool:
-        """Returns True when all the jobs have been
-        completed.  Actors that don't store results are not counted,
-        meaning this may be inaccurate if all or some of your actors
-        don't store results.
+        """Returns True when all the jobs have been completed.
 
         Raises:
           RuntimeError: If your broker doesn't have a result backend
@@ -77,9 +74,6 @@ class CollectionResults:
     @property
     def completed_count(self) -> int:
         """Returns the total number of jobs that have been completed.
-        Actors that don't store results are not counted, meaning this
-        may be inaccurate if all or some of your actors don't store
-        results.
 
         Raises:
           RuntimeError: If your broker doesn't have a result backend

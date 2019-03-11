@@ -49,7 +49,7 @@ class StubBackend(ResultBackend):
             expiration = time.monotonic() + int(ttl / 1000)
             self.results[message_key] = (result_data, expiration)
 
-    def increment_group_completion(self, group_id: str) -> int:
+    def increment_group_completion(self, group_id: str, _) -> int:
         group_completion_key = self.build_group_completion_key(group_id)
         completion = self.results.get(group_completion_key, 0) + 1
         self.results[group_completion_key] = completion

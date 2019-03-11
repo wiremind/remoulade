@@ -382,6 +382,7 @@ class MessageProxy:
 
     def __init__(self, message):
         self.failed = False
+        self.group_completed = False
         self._message = message
 
     def fail(self):

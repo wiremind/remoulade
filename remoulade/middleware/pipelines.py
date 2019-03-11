@@ -43,7 +43,7 @@ class Pipelines(Middleware):
     def after_process_message(self, broker, message, *, result=None, exception=None):
         from ..composition import GroupInfo
 
-        if exception is not None or getattr(message, 'failed', False):
+        if exception is not None or message.failed:
             return
 
         pipe_target = message.options.get("pipe_target")
@@ -54,7 +54,7 @@ class Pipelines(Middleware):
         if pipe_target is not None:
 
             try:
-                if group_info and not self._group_completed(group_info, broker):
+                if group_info and not message.group_completed:
                     return
 
                 self._send_next_message(pipe_target, broker, result, group_info)
@@ -98,22 +98,3 @@ class Pipelines(Middleware):
 
         broker.enqueue(next_message)
 
-    @staticmethod
-    def _group_completed(group_info, broker):
-        """ Returns true if a group is completed, and increment the completion count of the group
-
-        Parameters:
-            group_info(GroupInfo): the info of the group to get the completion from
-            broker(Broker): the broker to use
-
-        Raises:
-            NoResultBackend: if there is no result backend set
-        """
-        try:
-            result_backend = broker.get_result_backend()
-        except NoResultBackend:
-            raise NoResultBackend('Pipeline with groups are ony supported with a result backend')
-
-        group_completion = result_backend.increment_group_completion(group_info.group_id)
-
-        return group_completion >= group_info.children_count

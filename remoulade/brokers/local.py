@@ -14,7 +14,7 @@
 #
 # You should have received a copy of the GNU Lesser General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
-from ..broker import Broker
+from ..broker import Broker, MessageProxy
 from ..results import Results
 from ..results.backends import LocalBackend
 
@@ -62,9 +62,10 @@ class LocalBroker(Broker):
           delay(int): ignored
         """
         actor = self.get_actor(message.actor_name)
-        self.emit_before("process_message", message)
+        proxy = MessageProxy(message)
+        self.emit_before("process_message", proxy)
         res = actor(*message.args, **message.kwargs)
-        self.emit_after("process_message", message, result=res)
+        self.emit_after("process_message", proxy, result=res)
         return message
 
     def flush(self, _):

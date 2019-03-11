@@ -114,9 +114,8 @@ class RedisBackend(ResultBackend):
                 pipe.pexpire(message_key, ttl)
             pipe.execute()
 
-    def increment_group_completion(self, group_id: str) -> int:
+    def increment_group_completion(self, group_id: str, ttl: int) -> int:
         # there should be a ttl
-        ttl = 600  # 10 min ?
         group_completion_key = self.build_group_completion_key(group_id)
         with self.client.pipeline() as pipe:
             pipe.incr(group_completion_key)
