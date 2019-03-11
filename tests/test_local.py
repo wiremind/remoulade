@@ -81,3 +81,18 @@ def test_local_broker_forget(local_broker):
 
     # the result is forgotten
     assert message.result.get() is None
+
+
+def test_local_broker_cancel(local_broker, stub_cancel_backend):
+    @remoulade.actor()
+    def do_work():
+        return 1
+
+    # And this actor is declared
+    local_broker.declare_actor(do_work)
+
+    # When I send that actor a message
+    message = do_work.send()
+
+    # I can call cancel
+    message.cancel()

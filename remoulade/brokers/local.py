@@ -15,6 +15,8 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 from ..broker import Broker
+from ..cancel import Cancel
+from ..cancel.backends import StubBackend as CancelStubBackend
 from ..results import Results
 from ..results.backends import LocalBackend
 
@@ -29,6 +31,7 @@ class LocalBroker(Broker):
 
         # It use LocalBackend
         self.add_middleware(Results(backend=LocalBackend()))
+        self.add_middleware(Cancel(backend=CancelStubBackend()))
 
     def add_middleware(self, middleware, *, before=None, after=None):
         if isinstance(middleware, Results) and not isinstance(middleware.backend, LocalBackend):
@@ -49,10 +52,6 @@ class LocalBroker(Broker):
 
     def declare_queue(self, queue_name):
         pass
-
-    def get_cancel_backend(self):
-        """ Local broker does not need a cancel """
-        return None
 
     def enqueue(self, message, *, delay=None):
         """Enqueue and compute a message.
