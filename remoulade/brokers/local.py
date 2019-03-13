@@ -15,8 +15,6 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 from ..broker import Broker
-from ..cancel import Cancel
-from ..cancel.backends import StubBackend as CancelStubBackend
 from ..results import Results
 from ..results.backends import LocalBackend
 
@@ -28,10 +26,6 @@ class LocalBroker(Broker):
     """
     def __init__(self, middleware=None):
         super().__init__(middleware)
-
-        # It use LocalBackend
-        self.add_middleware(Results(backend=LocalBackend()))
-        self.add_middleware(Cancel(backend=CancelStubBackend()))
 
     def add_middleware(self, middleware, *, before=None, after=None):
         if isinstance(middleware, Results) and not isinstance(middleware.backend, LocalBackend):
