@@ -412,8 +412,12 @@ without running any Worker (for example in a development environment)::
   import remoulade
 
   from remoulade.brokers.local import LocalBroker
+  from remoulade.results.backends import LocalBackend
+  from remoulade.cancel.backends import StubBackend
 
   local_broker = LocalBroker(middleware=[])
+  broker.add_middleware(Results(backend=LocalBackend()))
+  broker.add_middleware(Cancel(backend=StubBackend()))
   remoulade.set_broker(local_broker)
 
 

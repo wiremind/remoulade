@@ -163,6 +163,11 @@ def stub_result_backend():
 
 
 @pytest.fixture
+def local_result_backend():
+    return res_backends.LocalBackend()
+
+
+@pytest.fixture
 def result_backends(redis_result_backend, stub_result_backend):
     return {
         "redis": redis_result_backend,
