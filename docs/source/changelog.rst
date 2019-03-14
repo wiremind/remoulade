@@ -8,6 +8,17 @@ All notable changes to this project will be documented in this file.
 `Unreleased`_
 -------------
 
+`0.12.0`_ -- 2018-03-14
+----------------------
+
+Added
+^^^^^
+* Log message args and kwargs in extra field when error
+
+Changed
+^^^^^^^
+* Local broker do not declare its middleware anymore
+
 `0.11.0`_ -- 2018-03-08
 ----------------------
 
@@ -189,7 +200,8 @@ Fixed
 
 * pipe_ignore was not recovered from right message
 
-.. _Unreleased: https://github.com/wiremind/remoulade/compare/v0.11.2...HEAD
+.. _Unreleased: https://github.com/wiremind/remoulade/compare/v0.12.0...HEAD
+.. _0.12.0: https://github.com/wiremind/remoulade/releases/tag/v0.12.0
 .. _0.11.0: https://github.com/wiremind/remoulade/releases/tag/v0.11.0
 .. _0.10.0: https://github.com/wiremind/remoulade/releases/tag/v0.10.0
 .. _0.9.0: https://github.com/wiremind/remoulade/releases/tag/v0.9.0
