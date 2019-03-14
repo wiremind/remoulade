@@ -434,7 +434,10 @@ class _WorkerThread(Thread):
             if isinstance(e, RateLimitExceeded):
                 self.logger.warning("Rate limit exceeded in message %s: %s.", message, e)
             else:
-                self.logger.error("Failed to process message %s with unhandled exception.", message, exc_info=True)
+                self.logger.error(
+                    "Failed to process message %s with unhandled exception.", message,
+                    exc_info=True, extra={'input': {'args': message.args, 'kwargs': message.kwargs}}
+                )
 
             self.broker.emit_after("process_message", message, exception=e)
 
