@@ -232,7 +232,7 @@ class _ConsumerThread(Thread):
                 self.consumer = self.broker.consume(
                     queue_name=self.queue_name,
                     prefetch=self.prefetch,
-                    timeout=self.worker_timeout,
+                    timeout=self.worker_timeout
                 )
 
                 for message in self.consumer:
