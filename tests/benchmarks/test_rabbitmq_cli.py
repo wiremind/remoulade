@@ -7,7 +7,7 @@ import pytest
 import remoulade
 from remoulade.brokers.rabbitmq import RabbitmqBroker
 
-broker = RabbitmqBroker(host="127.0.0.1")
+broker = RabbitmqBroker()
 remoulade.set_broker(broker)
 
 

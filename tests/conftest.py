@@ -19,7 +19,6 @@ from remoulade.cancel import backends as cl_backends
 
 logfmt = "[%(asctime)s] [%(threadName)s] [%(name)s] [%(levelname)s] %(message)s"
 logging.basicConfig(level=logging.INFO, format=logfmt)
-logging.getLogger("pika").setLevel(logging.WARN)
 
 random.seed(1337)
 
@@ -55,7 +54,7 @@ def stub_broker():
 
 @pytest.fixture()
 def rabbitmq_broker():
-    broker = RabbitmqBroker(host="127.0.0.1", max_priority=10)
+    broker = RabbitmqBroker(max_priority=10)
     check_rabbitmq(broker)
     broker.emit_after("process_boot")
     remoulade.set_broker(broker)
@@ -86,15 +85,7 @@ def stub_worker(stub_broker):
 
 @pytest.fixture()
 def rabbitmq_worker(rabbitmq_broker):
-    worker = Worker(rabbitmq_broker, worker_threads=32)
-    worker.start()
-    yield worker
-    worker.stop()
-
-
-@pytest.fixture()
-def redis_worker(redis_broker):
-    worker = Worker(redis_broker, worker_threads=32)
+    worker = Worker(rabbitmq_broker, worker_timeout=100, worker_threads=32)
     worker.start()
     yield worker
     worker.stop()

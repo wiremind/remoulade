@@ -28,7 +28,7 @@ dependencies = [
 
 extra_dependencies = {
     "rabbitmq": [
-        "pika>=0.12,<0.13",
+        "amqpstorm>=2.6,<3",
     ],
 
     "redis": [

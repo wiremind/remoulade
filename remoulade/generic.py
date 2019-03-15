@@ -31,11 +31,11 @@ class generic_actor(type):
 
             clazz_instance = clazz()
             actor_instance = actor(clazz_instance, **options)
-            setattr(clazz, "__getattr__", generic_actor.__getattr__)
-            setattr(clazz_instance, "__actor__", actor_instance)
+            clazz.__getattr__ = generic_actor.__getattr__
+            clazz_instance.__actor__ = actor_instance
             return clazz_instance
 
-        setattr(meta, "abstract", False)
+        meta.abstract = False
         return clazz
 
     def __getattr__(cls, name):

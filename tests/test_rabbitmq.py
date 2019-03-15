@@ -7,7 +7,6 @@ import pytest
 
 import remoulade
 from remoulade import Message, QueueJoinTimeout, Worker, ActorNotFound
-from remoulade.brokers.rabbitmq import _IgnoreScaryLogs
 from remoulade.common import current_millis
 
 
@@ -51,13 +50,13 @@ def test_rabbitmq_queues_created_lazily(rabbitmq_broker):
     assert add.queue_name in rabbitmq_broker.queues
 
     # nothing is sent so RabbitMQ before sending a message
-    assert len(rabbitmq_broker.connections) == 0
+    assert rabbitmq_broker._connection is None
 
     # If I send that actor an async message
     add.send(1, 2)
 
     # RabbitMQ is connected to
-    assert len(rabbitmq_broker.connections) > 0
+    assert rabbitmq_broker._connection is not None
 
 
 def test_rabbitmq_actors_retry_with_backoff_on_failure(rabbitmq_broker, rabbitmq_worker):
@@ -150,17 +149,13 @@ def test_rabbitmq_actors_can_delay_messages_independent_of_each_other(rabbitmq_b
     # And this actor is declared
     rabbitmq_broker.declare_actor(append)
 
-    # When I pause the worker
-    rabbitmq_worker.pause()
-
     # And I send it a delayed message
     append.send_with_options(args=(1,), delay=1500)
 
     # And then another delayed message with a smaller delay
     append.send_with_options(args=(2,), delay=1000)
 
-    # Then resume the worker and join on the queue
-    rabbitmq_worker.resume()
+    # Then join on the queue
     rabbitmq_broker.join(append.queue_name, min_successes=20)
     rabbitmq_worker.join()
 
@@ -231,7 +226,7 @@ def test_rabbitmq_workers_handle_rabbit_failures_gracefully(rabbitmq_broker, rab
     @remoulade.actor
     def do_work():
         attempts.append(1)
-        time.sleep(1)
+        time.sleep(0.1)
 
     # And this actor is declared
     rabbitmq_broker.declare_actor(do_work)
@@ -275,25 +270,6 @@ def test_rabbitmq_consumers_ignore_unknown_messages_in_ack_and_nack(rabbitmq_bro
 
     # Likewise for nack
     assert consumer.nack(Mock(_tag=1)) is None
-
-
-def test_ignore_scary_logs_filter_ignores_logs():
-    # Given a filter that ignores scary logs
-    log_filter = _IgnoreScaryLogs("pika.adapters")
-
-    # When I ask it to filter a log message that contains a scary message
-    record = Mock()
-    record.getMessage.return_value = "ConnectionError('Broken pipe')"
-
-    # Then it should filter out that log message
-    assert not log_filter.filter(record)
-
-    # And when I ask it to filter a log message that doesn't
-    record = Mock()
-    record.getMessage.return_value = "Not scary"
-
-    # Then it should ignore that log message
-    assert log_filter.filter(record)
 
 
 def test_rabbitmq_broker_can_join_with_timeout(rabbitmq_broker, rabbitmq_worker):
