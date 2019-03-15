@@ -76,10 +76,12 @@ class RedisBackend(ResultBackend):
         timeout = int(timeout / 1000)
         if block and timeout > 0:
             if forget:
-                result = self.client.brpop(message_key, timeout=timeout)
+                result = self.client.brpoppush(message_key, message_key, timeout=timeout)
                 if result:
                     _, data = result
-                    self.client.lpush(message_key, self.encoder.encode(ForgottenResult.asdict()))
+                    with self.client.pipeline() as pipe:
+                        pipe.delete(message_key)
+                        pipe.lpush(message_key, self.encoder.encode(ForgottenResult.asdict()))
                 else:
                     data = None
             else:
