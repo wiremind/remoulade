@@ -98,8 +98,7 @@ class Pipelines(Middleware):
 
         broker.enqueue(next_message)
 
-    @staticmethod
-    def _group_completed(group_info, broker):
+    def _group_completed(self, group_info, broker):
         """ Returns true if a group is completed, and increment the completion count of the group
 
         Parameters:
@@ -115,5 +114,9 @@ class Pipelines(Middleware):
             raise NoResultBackend('Pipeline with groups are ony supported with a result backend')
 
         group_completion = result_backend.increment_group_completion(group_info.group_id)
-
-        return group_completion >= group_info.children_count
+        group_competed = group_completion >= group_info.children_count
+        if group_competed:
+            self.logger.info('Finished group %s.', group_info.group_id)
+        if group_completion == 1:
+            self.logger.info('First message of Group %s has been completed.', group_info.group_id)
+        return group_competed
