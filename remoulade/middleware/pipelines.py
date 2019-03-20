@@ -93,10 +93,23 @@ class Pipelines(Middleware):
 
         if not pipe_ignore:
             if group_info:
-                result = list(group_info.results.get())
+                result = self._group_results(group_info, broker)
             next_message = next_message.copy(args=next_message.args + (result,))
 
         broker.enqueue(next_message)
+
+    @staticmethod
+    def _group_results(group_info, broker):
+        """ Get the result of a group (fetch the group members message_ids then all the results) """
+        from ..collection_results import CollectionResults
+        try:
+            result_backend = broker.get_result_backend()
+        except NoResultBackend:
+            raise NoResultBackend('Pipeline with groups are ony supported with a result backend')
+
+        message_ids = result_backend.get_group_message_ids(group_id=group_info.group_id)
+        results = CollectionResults.from_message_ids(message_ids)
+        return list(results.get())
 
     def _group_completed(self, group_info, broker):
         """ Returns true if a group is completed, and increment the completion count of the group

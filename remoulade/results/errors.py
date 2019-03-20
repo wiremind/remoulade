@@ -41,3 +41,8 @@ class ErrorStored(ResultError):
 class ParentFailed(ResultError):
     """Error stored when a parent actor in the pipeline failed
     """
+
+
+class MessageIdsMissing(ResultError):
+    """Raised when message_ids linked to a group_id can't be found
+    """

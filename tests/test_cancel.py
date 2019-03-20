@@ -50,7 +50,7 @@ def test_cancellations_not_stored_forever(cancel_backend):
     cancel_backend.cancel('c')
 
     # the first cancellation should have been forgotten
-    assert not cancel_backend.is_canceled('a')
+    assert not cancel_backend.is_canceled('a', None)
 
 
 def test_group_are_canceled_on_actor_failure(stub_broker, stub_worker, cancel_backend):
@@ -78,7 +78,7 @@ def test_group_are_canceled_on_actor_failure(stub_broker, stub_worker, cancel_ba
     stub_worker.join()
 
     # All actors should have been canceled
-    assert all(cancel_backend.is_canceled(child.message_id) for child in g.children)
+    assert all(cancel_backend.is_canceled(child.message_id, g.group_id) for child in g.children)
 
 
 def test_cannot_cancel_on_error_if_no_cancel(stub_broker):
@@ -123,5 +123,5 @@ def test_cancel_pipeline_or_groups(stub_broker, stub_worker, cancel_backend, wit
     stub_worker.join()
 
     # All actors should have been canceled
-    assert all(cancel_backend.is_canceled(child.message_id) for child in g.children)
+    assert all(cancel_backend.is_canceled(child.message_id, None) for child in g.children)
     assert len(has_been_called) == 0
