@@ -17,11 +17,11 @@
 
 import time
 from collections import namedtuple
-from typing import Dict, Iterable, Union
+from typing import Any, Iterable, List, Union
 
 from ..common import compute_backoff
 from ..encoder import Encoder
-from .errors import ErrorStored, ResultMissing, ResultTimeout
+from .errors import ErrorStored, MessageIdsMissing, ResultMissing, ResultTimeout
 
 #: The default timeout for blocking get operations in milliseconds.
 DEFAULT_TIMEOUT = 10000
@@ -144,7 +144,7 @@ class ResultBackend:
         message_key = self.build_message_key(message_id)
         return self._store([message_key], [result._asdict()], ttl)
 
-    def forget_results(self, message_ids: str, ttl: int):
+    def forget_results(self, message_ids: List[str], ttl: int):
         """ Forget the results associated to the given message_id """
         result = ForgottenResult.asdict()
         message_keys = [self.build_message_key(message_id) for message_id in message_ids]
@@ -172,10 +172,29 @@ class ResultBackend:
         return count
 
     @staticmethod
+    def build_group_message_id_key(group_id: str) -> str:  # noqa: F821
+        return "remoulade-group-message-ids:{}".format(group_id)
+
+    def set_group_message_ids(self, group_id: str, message_ids: Iterable[str], ttl: int):
+        key = self.build_group_message_id_key(group_id)
+        return self._store([key], [message_ids], ttl)
+
+    def get_group_message_ids(self, group_id: str):
+        key = self.build_group_message_id_key(group_id)
+        message_ids = self._get(key)
+        if message_ids is Missing:
+            raise MessageIdsMissing("Could't find message_ids for group %s" % group_id)
+        return message_ids
+
+    def delete_group_message_ids(self, group_id: str):
+        key = self.build_group_message_id_key(group_id)
+        self._delete(key)
+
+    @staticmethod
     def build_group_completion_key(group_id: str) -> str:  # noqa: F821
         return "remoulade-group-completion:{}".format(group_id)
 
-    def _get(self, message_key: str, forget: bool) -> MResult:  # pragma: no cover
+    def _get(self, message_key: str, forget: bool = False) -> MResult:  # pragma: no cover
         """Get a result from the backend.  Subclasses may implement
         this method if they want to use the default, polling,
         implementation of get_result.
@@ -184,11 +203,17 @@ class ResultBackend:
             "classname": type(self).__name__,
         })
 
-    def _store(self, message_keys: Iterable[str], result: Iterable[Dict], ttl: int) -> None:  # pragma: no cover
+    def _store(self, message_keys: Iterable[str], result: Any, ttl: int) -> None:  # pragma: no cover
         """Store multiple results in the backend.  Subclasses may implement
         this method if they want to use the default implementation of
         set_result.
         """
         raise NotImplementedError("%(classname)r does not implement _store()" % {
+            "classname": type(self).__name__,
+        })
+
+    def _delete(self, key: str) -> None:  # pragma: no cover
+        """ Delete a key from the backend """
+        raise NotImplementedError("%(classname)r does not implement _delete()" % {
             "classname": type(self).__name__,
         })

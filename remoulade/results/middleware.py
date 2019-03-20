@@ -111,7 +111,12 @@ class Results(Middleware):
 
         return message_ids
 
-    def after_enqueue_pipe_target(self, broker, group_info):
+    def after_enqueue_pipe_target(self, _, group_info):
         """ After a pipe target has been enqueued, we need to forget the result of the group (if it's a group) """
         if group_info:
-            self.backend.forget_results([group_info.message_ids], self.result_ttl)
+            message_ids = self.backend.get_group_message_ids(group_info.group_id)
+            self.backend.forget_results(message_ids, self.result_ttl)
+            self.backend.delete_group_message_ids(group_info.group_id)
+
+    def before_build_group_pipeline(self, _, group_id, message_ids):
+        self.backend.set_group_message_ids(group_id, message_ids, self.result_ttl)

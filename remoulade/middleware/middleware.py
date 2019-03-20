@@ -156,3 +156,6 @@ class Middleware:
 
     def after_enqueue_pipe_target(self, broker, group_info):
         """ Called after the pipe target of a message has been enqueued """
+
+    def before_build_group_pipeline(self, broker, group_id, message_ids):
+        """ Called before a group in a group pipeline is enqueued"""

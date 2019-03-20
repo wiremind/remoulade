@@ -15,35 +15,26 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 from collections import namedtuple
-from typing import List
 
 from .broker import get_broker
 from .collection_results import CollectionResults
 from .common import flatten, generate_unique_id
 
 
-class GroupInfo(namedtuple("GroupInfo", ("group_id", "message_ids", "cancel_on_error"))):
+class GroupInfo(namedtuple("GroupInfo", ("group_id", "children_count", "cancel_on_error"))):
     """Encapsulates metadata about a group being sent to multiple actors.
 
     Parameters:
       group_id(str): The id of the group
-      message_ids(List)
+      children_count(int)
       cancel_on_error(bool)
     """
 
-    def __new__(cls, *, group_id: str, message_ids: List, cancel_on_error: bool):
-        return super().__new__(cls, group_id, message_ids, cancel_on_error)
+    def __new__(cls, *, group_id: str, children_count: int, cancel_on_error: bool):
+        return super().__new__(cls, group_id, children_count, cancel_on_error)
 
     def asdict(self):
         return self._asdict()
-
-    @property
-    def children_count(self):
-        return len(self.message_ids)
-
-    @property
-    def results(self):
-        return CollectionResults.from_message_ids(self.message_ids)
 
 
 class pipeline:
@@ -61,8 +52,8 @@ class pipeline:
         children(List[Message|group]) The sequence of messages or groups to execute as a pipeline
     """
 
-    def __init__(self, children, *, broker=None):
-        self.broker = broker or get_broker()
+    def __init__(self, children):
+        self.broker = get_broker()
 
         self.children = []
         for child in children:
@@ -167,7 +158,6 @@ class group:
 
     Parameters:
       children(Iterator[Message|pipeline]): A sequence of messages or pipelines.
-      broker(Broker): The broker to run the group on.  Defaults to the current global broker.
       cancel_on_error(boolean): True if you want to cancel all messages of a group if on of
         the actor fails, this is only possible with a Cancel middleware.
 
@@ -178,14 +168,14 @@ class group:
         NoCancelBackend: if no cancel middleware is set
     """
 
-    def __init__(self, children, *, broker=None, group_id=None, cancel_on_error=False):
+    def __init__(self, children, *, group_id=None, cancel_on_error=False):
         self.children = []
         for child in children:
             if isinstance(child, group):
                 raise ValueError('Groups of groups are not supported')
             self.children.append(child)
 
-        self.broker = broker or get_broker()
+        self.broker = get_broker()
         self.group_id = generate_unique_id() if group_id is None else group_id
         self.cancel_on_error = cancel_on_error
         if cancel_on_error:
@@ -208,6 +198,9 @@ class group:
         """ Build group for pipeline """
         if options is None:
             options = {}
+        else:
+            self.broker.emit_before('build_group_pipeline', group_id=self.group_id, message_ids=list(self.message_ids))
+
         options = {'group_info': self.info.asdict(), **options}
         messages = []
         for group_child in self.children:
@@ -222,7 +215,7 @@ class group:
     def info(self):
         """ Info used for group completion and cancel"""
         return GroupInfo(
-            group_id=self.group_id, message_ids=list(self.message_ids), cancel_on_error=self.cancel_on_error
+            group_id=self.group_id, children_count=len(self.children), cancel_on_error=self.cancel_on_error
         )
 
     @property

@@ -29,6 +29,9 @@ class LocalBackend(ResultBackend):
         for (message_key, result) in zip(message_keys, results):
             self.results[message_key] = result
 
+    def _delete(self, key: str):
+        del self.results[key]
+
     def increment_group_completion(self, group_id: str) -> int:
         group_completion_key = self.build_group_completion_key(group_id)
         completion = self.results.get(group_completion_key, 0) + 1

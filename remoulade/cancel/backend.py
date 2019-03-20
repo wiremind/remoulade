@@ -29,7 +29,7 @@ class CancelBackend:
     def __init__(self, *, cancellation_ttl=None):
         self.cancellation_ttl = cancellation_ttl or DEFAULT_CANCELLATION_TTL
 
-    def is_canceled(self, message_id: str) -> bool:
+    def is_canceled(self, message_id: str, group_id: str) -> bool:
         """ Return true if the message has been canceled """
         raise NotImplementedError("%(classname)r does not implement is_canceled" % {
             "classname": type(self).__name__,

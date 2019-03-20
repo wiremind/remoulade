@@ -5,7 +5,7 @@ import pytest
 
 import remoulade
 from remoulade import CollectionResults, group, pipeline
-from remoulade.results import ErrorStored, ResultMissing, Results, ResultTimeout
+from remoulade.results import ErrorStored, ResultMissing, Results, ResultTimeout, MessageIdsMissing
 
 
 def test_messages_can_be_piped(stub_broker):
@@ -268,6 +268,10 @@ def test_groups_execute_jobs_in_parallel(stub_broker, stub_worker, result_backen
     g = group([wait.message() for _ in range(5)])
     g.run()
 
+    # group message_ids are no stored if not needed
+    with pytest.raises(MessageIdsMissing):
+        result_backend.get_group_message_ids(g.group_id)
+
     # And wait on the group to complete
     results = list(g.results.get(block=True))
 
@@ -432,12 +436,24 @@ def test_pipelines_with_groups(stub_broker, stub_worker, result_backend):
     stub_broker.declare_actor(do_sum)
 
     # When I pipe some messages intended for that actor together and run the pipeline
-    pipe = group([do_work.message(12), do_work.message(15)]) | do_sum.message()
+    g = group([do_work.message(12), do_work.message(15)])
+    pipe = g | do_sum.message()
+
+    pipe.build()
+    assert result_backend.get_group_message_ids(g.group_id) == list(g.message_ids)
+
     pipe.run()
 
     result = pipe.result.get(block=True)
 
     assert 12 + 15 == result
+
+    # the group result has been forgotten
+    assert list(g.results.get()) == [None, None]
+
+    # the message_ids has been forgotten
+    with pytest.raises(MessageIdsMissing):
+        result_backend.get_group_message_ids(g.group_id)
 
     # Given an actor that stores results
     @remoulade.actor(store_results=True)
