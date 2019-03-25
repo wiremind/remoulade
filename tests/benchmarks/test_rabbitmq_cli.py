@@ -8,14 +8,15 @@ import remoulade
 from remoulade.brokers.rabbitmq import RabbitmqBroker
 
 broker = RabbitmqBroker(host="127.0.0.1")
+remoulade.set_broker(broker)
 
 
-@remoulade.actor(queue_name="benchmark-throughput", broker=broker)
+@remoulade.actor(queue_name="benchmark-throughput")
 def throughput():
     pass
 
 
-@remoulade.actor(queue_name="benchmark-fib", broker=broker)
+@remoulade.actor(queue_name="benchmark-fib")
 def fib(n):
     x, y = 1, 1
     while n > 2:
@@ -24,7 +25,7 @@ def fib(n):
     return x
 
 
-@remoulade.actor(queue_name="benchmark-latency", broker=broker)
+@remoulade.actor(queue_name="benchmark-latency")
 def latency():
     p = random.randint(1, 100)
     if p == 1:
@@ -38,6 +39,9 @@ def latency():
 
     for duration in durations:
         time.sleep(duration)
+
+
+remoulade.declare_actors([throughput, fib, latency])
 
 
 @pytest.mark.skipif(os.getenv("TRAVIS") == "1", reason="test skipped on Travis")
@@ -54,7 +58,7 @@ def test_rabbitmq_process_100k_messages_with_cli(benchmark, info_logging, start_
         for _ in range(100000):
             throughput.send()
 
-        start_cli("tests.benchmarks.test_rabbitmq_cli:broker")
+        start_cli("tests.benchmarks.test_rabbitmq_cli")
 
     # I expect processing those messages with the CLI to be consistently fast
     benchmark.pedantic(broker.join, args=(throughput.queue_name,), setup=setup)
@@ -74,7 +78,7 @@ def test_rabbitmq_process_10k_fib_with_cli(benchmark, info_logging, start_cli):
         for _ in range(10000):
             fib.send(random.choice([1, 512, 1024, 2048, 4096, 8192]))
 
-        start_cli("tests.benchmarks.test_rabbitmq_cli:broker")
+        start_cli("tests.benchmarks.test_rabbitmq_cli")
 
     # I expect processing those messages with the CLI to be consistently fast
     benchmark.pedantic(broker.join, args=(fib.queue_name,), setup=setup)
@@ -94,7 +98,7 @@ def test_rabbitmq_process_1k_latency_with_cli(benchmark, info_logging, start_cli
         for _ in range(1000):
             latency.send()
 
-        start_cli("tests.benchmarks.test_rabbitmq_cli:broker")
+        start_cli("tests.benchmarks.test_rabbitmq_cli")
 
     # I expect processing those messages with the CLI to be consistently fast
     benchmark.pedantic(broker.join, args=(latency.queue_name,), setup=setup)
