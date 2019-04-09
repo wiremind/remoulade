@@ -8,6 +8,21 @@ All notable changes to this project will be documented in this file.
 `Unreleased`_
 -------------
 
+`0.14.0`_ -- 2018-04-09
+----------------------
+
+Changed
+^^^^^^^
+* Use (thread safe) amqpstorm_ instead of pika (`#77`_)
+.. _#77: https://github.com/wiremind/remoulade/issues/77
+.. _amqpstorm: https://www.amqpstorm.io/
+
+Added
+^^^^^
+* Raise error when starting worker with LocalBroker (`#84`_)
+.. _#84: https://github.com/wiremind/remoulade/issues/84
+
+
 `0.13.0`_ -- 2018-03-20
 ----------------------
 
@@ -213,7 +228,8 @@ Fixed
 
 * pipe_ignore was not recovered from right message
 
-.. _Unreleased: https://github.com/wiremind/remoulade/compare/v0.12.0...HEAD
+.. _Unreleased: https://github.com/wiremind/remoulade/compare/v0.14.0...HEAD
+.. _0.14.0: https://github.com/wiremind/remoulade/releases/tag/v0.14.0
 .. _0.13.0: https://github.com/wiremind/remoulade/releases/tag/v0.13.0
 .. _0.12.0: https://github.com/wiremind/remoulade/releases/tag/v0.12.0
 .. _0.11.0: https://github.com/wiremind/remoulade/releases/tag/v0.11.0
