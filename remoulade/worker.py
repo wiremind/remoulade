@@ -24,7 +24,7 @@ from threading import Event, Thread
 
 from .cancel import MessageCanceled
 from .common import current_millis, iter_queue, join_all, q_name
-from .errors import ActorNotFound, ConnectionError, RateLimitExceeded
+from .errors import ActorNotFound, ConnectionError, RateLimitExceeded, RemouladeError
 from .logging import get_logger
 from .middleware import Middleware, SkipMessage
 
@@ -56,6 +56,8 @@ class Worker:
     def __init__(self, broker, *, queues=None, worker_timeout=1000, worker_threads=8, prefetch_multiplier=2):
         self.logger = get_logger(__name__, type(self))
         self.broker = broker
+        if broker.local:
+            raise RemouladeError('LocalBroker is not destined to be used with a Worker')
 
         self.consumers = {}
         self.consumer_whitelist = queues and set(queues)
