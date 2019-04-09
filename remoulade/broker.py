@@ -103,6 +103,10 @@ class Broker:
         for m in middleware:
             self.add_middleware(m)
 
+    @property
+    def local(self):
+        return False
+
     def emit_before(self, signal, *args, **kwargs):
         for middleware in self.middleware:
             try:

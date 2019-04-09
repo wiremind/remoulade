@@ -27,6 +27,10 @@ class LocalBroker(Broker):
     def __init__(self, middleware=None):
         super().__init__(middleware)
 
+    @property
+    def local(self):
+        return True
+
     def add_middleware(self, middleware, *, before=None, after=None):
         if isinstance(middleware, Results) and not isinstance(middleware.backend, LocalBackend):
             raise RuntimeError("LocalBroker can only be used with LocalBackend.")

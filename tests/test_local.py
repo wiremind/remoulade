@@ -1,7 +1,7 @@
 import pytest
 
 import remoulade
-from remoulade import group
+from remoulade import group, RemouladeError, Worker
 from remoulade.cancel import Cancel
 from remoulade.results import Results
 from remoulade.results.backends import LocalBackend
@@ -108,3 +108,8 @@ def test_local_broker_cancel(local_broker, stub_cancel_backend):
 
     # I can call cancel
     message.cancel()
+
+
+def test_local_broker_worker_forbidden(local_broker):
+    with pytest.raises(RemouladeError):
+        Worker(broker=local_broker)
