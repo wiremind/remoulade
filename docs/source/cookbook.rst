@@ -470,6 +470,7 @@ Cancel a message
 ^^^^^^^^^^^^^^^^
 
 You can cancel messages if you add the |Cancel| middleware to the broker.
+
 .. code-block:: python
 
    import remoulade
@@ -503,3 +504,49 @@ Basically, the id of the message to cancel is stored in a redis set.
 And before each message processing, remoulade check if the message_id
 is in the set.
 |message|, |group| and |pipeline| can be canceled.
+
+
+Progress bar
+------------
+
+tqdm_ is the recommended way if you want to make a progress bar for a |group|:
+
+.. code-block:: python
+
+    from time import time, sleep
+    import logging
+
+    from tqdm import tqdm
+    import remoulade
+
+    logger = logging.getLogger(__name__)
+
+    def blocking_remoulade_group(remoulade_group, timeout=1800):
+        actor_count = len(remoulade_group)
+        logger.info('Start group')
+        start_time = time()
+        try:
+            with tqdm(total=actor_count) as progress_bar:
+                results = remoulade_group.run().results
+                completed_count, waited_time = 0, 0
+                while waited_time < timeout and completed_count != actor_count:
+                    completed_count = results.completed_count
+                    waited_time = time() - start_time
+                    progress_bar.update(completed_count - progress_bar.n)
+                    sleep(1)
+
+                progress_bar.update(completed_count - progress_bar.n)  # final update of the progress
+
+            if waited_time > timeout:
+                raise Exception('The operation timed out')
+
+        except:
+            logger.error('Group canceled ')
+            remoulade_group.cancel()
+            raise
+
+        logger.info('Finished group')
+
+        return results
+
+.. _tqdm: https://tqdm.github.io/
