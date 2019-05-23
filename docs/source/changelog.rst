@@ -8,6 +8,15 @@ All notable changes to this project will be documented in this file.
 `Unreleased`_
 -------------
 
+`0.15.0`_ -- 2019-05-24
+----------------------
+
+Added
+^^^^^
+* Remoulade scheduler (`#86`_)
+.. _#86: https://github.com/wiremind/remoulade/pull/86
+
+
 `0.14.0`_ -- 2018-04-09
 ----------------------
 
@@ -229,6 +238,7 @@ Fixed
 * pipe_ignore was not recovered from right message
 
 .. _Unreleased: https://github.com/wiremind/remoulade/compare/v0.14.0...HEAD
+.. _0.15.0: https://github.com/wiremind/remoulade/releases/tag/v0.15.0
 .. _0.14.0: https://github.com/wiremind/remoulade/releases/tag/v0.14.0
 .. _0.13.0: https://github.com/wiremind/remoulade/releases/tag/v0.13.0
 .. _0.12.0: https://github.com/wiremind/remoulade/releases/tag/v0.12.0
