@@ -117,6 +117,23 @@ def start_cli():
 
 
 @pytest.fixture
+def start_scheduler():
+    proc = None
+
+    def run(broker_module):
+        nonlocal proc
+        args = ["remoulade-scheduler", broker_module]
+        proc = subprocess.Popen(args)
+        return proc
+
+    yield run
+
+    if proc is not None:
+        proc.terminate()
+        proc.wait()
+
+
+@pytest.fixture
 def redis_rate_limiter_backend():
     backend = rl_backends.RedisBackend()
     check_redis(backend.client)

@@ -24,6 +24,7 @@ with open(rel("remoulade", "__init__.py"), "r") as f:
 
 dependencies = [
     "prometheus-client>=0.2,<0.3",
+    "pytz<=2019.1"
 ]
 
 extra_dependencies = {
@@ -90,7 +91,10 @@ setup(
     install_requires=dependencies,
     python_requires=">=3.5",
     extras_require=extra_dependencies,
-    entry_points={"console_scripts": ["remoulade = remoulade.__main__:main"]},
+    entry_points={"console_scripts": ["remoulade = remoulade.__main__:main",
+                                      "remoulade-ls = bin.remoulade_ls:main",
+                                      "remoulade-run = bin.remoulade_run:main",
+                                      "remoulade-scheduler = bin.remoulade_scheduler:main"]},
     scripts=["bin/remoulade-gevent"],
     classifiers=[
         "Programming Language :: Python :: 3.5",
