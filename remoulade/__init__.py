@@ -68,4 +68,4 @@ __all__ = [
     "Scheduler", "ScheduledJob", "get_scheduler", "set_scheduler"
 ]
 
-__version__ = "0.14.0"
+__version__ = "0.15.0"
