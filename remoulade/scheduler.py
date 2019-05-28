@@ -79,10 +79,10 @@ class ScheduledJob:
         return {
             "actor_name": self.actor_name,
             "interval": self.interval,
-            "daily_time": None if self.daily_time is None else self.daily_time.strftime('%H:%M:%S.%f'),
+            "daily_time": None if self.daily_time is None else self.daily_time.strftime('%H:%M:%S'),
             "iso_weekday": self.iso_weekday,
             "enabled": self.enabled,
-            "last_queued": None if self.last_queued is None else self.last_queued.strftime('%Y-%m-%dT%H:%M:%S.%f'),
+            "last_queued": None if self.last_queued is None else self.last_queued.strftime('%Y-%m-%dT%H:%M:%S'),
             "tz": self.tz,
             "args": self.args,
             "kwargs": self.kwargs
@@ -98,11 +98,11 @@ class ScheduledJob:
             actor_name=data["actor_name"],
             interval=data["interval"],
             daily_time=None if data["daily_time"] is None else datetime.datetime.strptime(data["daily_time"],
-                                                                                          '%H:%M:%S.%f').time(),
+                                                                                          '%H:%M:%S').time(),
             iso_weekday=data["iso_weekday"],
             enabled=data["enabled"],
             last_queued=None if data["last_queued"] is None else datetime.datetime.strptime(data["last_queued"],
-                                                                                            '%Y-%m-%dT%H:%M:%S.%f'),
+                                                                                            '%Y-%m-%dT%H:%M:%S'),
             tz=data["tz"],
             args=data["args"],
             kwargs=data["kwargs"]
