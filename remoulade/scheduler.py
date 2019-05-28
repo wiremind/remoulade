@@ -185,16 +185,26 @@ class Scheduler:
                     if not job.enabled:
                         continue
 
-                    if job.iso_weekday is not None and job.iso_weekday != curr_isodow:
-                        continue
+                    # Tasks that are supposed to run at a specific time/day
+                    if job.iso_weekday is not None or job.daily_time is not None:
+                        if job.iso_weekday is not None and job.iso_weekday != curr_isodow:
+                            continue
 
-                    if job.daily_time is not None and now.time() < job.daily_time:
-                        continue
+                        if job.daily_time is not None and now.time() < job.daily_time:
+                            continue
 
-                    if job.last_queued is not None \
-                            and (datetime.timedelta(seconds=0) < now_utc - job.last_queued < datetime.timedelta(
-                                seconds=job.interval)):
-                        continue
+                        if job.last_queued is not None:
+                            # if task already ran today, skip it
+                            last_queued_date = job.last_queued.replace(tzinfo=pytz.UTC
+                                                                       ).astimezone(pytz.timezone(job.tz)).date()
+                            if now.date() == last_queued_date:
+                                continue
+                    # Task that should run each X seconds
+                    else:
+                        if job.last_queued is not None \
+                                and (datetime.timedelta(seconds=0) < now_utc - job.last_queued < datetime.timedelta(
+                                    seconds=job.interval)):
+                            continue
 
                     if job.actor_name not in self.broker.actors:
                         self.logger.error("Unknown %s. Cannot queue it.", job_hash)
