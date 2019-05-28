@@ -152,7 +152,7 @@ class Scheduler:
         config_schedule = {job.get_hash(): job for job in self.schedule}
 
         # loop over redis schedule
-        for job_hash in redis_schedule.values():
+        for job_hash in redis_schedule.keys():
             # if job is no longer in configured schedule, remove it
             if job_hash not in config_schedule:
                 self.logger.info("Dropping %s because it's no longer in the config", job_hash)
