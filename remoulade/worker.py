@@ -438,7 +438,7 @@ class _WorkerThread(Thread):
             else:
                 self.logger.error(
                     "Failed to process message %s with unhandled exception.", message,
-                    exc_info=True, extra={'input': {'args': message.args, 'kwargs': message.kwargs}}
+                    exc_info=True, extra={'input': {'args': str(message.args), 'kwargs': str(message.kwargs)}}
                 )
 
             self.broker.emit_after("process_message", message, exception=e)
