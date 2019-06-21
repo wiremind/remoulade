@@ -158,7 +158,7 @@ class group:
 
     Parameters:
       children(Iterator[Message|pipeline]): A sequence of messages or pipelines.
-      cancel_on_error(boolean): True if you want to cancel all messages of a group if on of
+      cancel_on_error(boolean): True if you want to cancel all messages of a group if one of
         the actor fails, this is only possible with a Cancel middleware.
 
     Attributes:
@@ -206,7 +206,10 @@ class group:
         for group_child in self.children:
             if isinstance(group_child, pipeline):
                 first = group_child.build(last_options=options)
-                messages += [first]
+                if isinstance(first, list):
+                    messages += first
+                else:
+                    messages += [first]
             else:
                 messages += [group_child.build(options)]
         return messages
@@ -248,3 +251,33 @@ class group:
         broker = get_broker()
         backend = broker.get_cancel_backend()
         backend.cancel(list(flatten(self.message_ids)))
+
+
+def reduce(messages, merge_actor, cancel_on_error=False, **kwargs):
+    """Recursively merge messages
+
+    Parameters:
+      messages(Iterator[Message|pipeline]): A sequence of messages or pipelines that needs to be merged.
+      merge_actor(Actor): The actor that will be responsible for the merge of two messages.
+      cancel_on_error(boolean): True if you want to cancel all messages of a group if one of
+        the actor fails, this is only possible with a Cancel middleware.
+      **kwargs: kwargs to be passed to each merge message.
+
+    Returns:
+      Message|pipeline: a message or a pipeline that will return the reduced result of all the given messages.
+
+    Raise:
+        NoCancelBackend: if no cancel middleware is set
+    """
+    messages = list(messages)
+    while len(messages) > 1:
+        reduced_messages = []
+        for i in range(0, len(messages), 2):
+            if i == len(messages) - 1:
+                reduced_messages.append(messages[i])
+            else:
+                grouped_message = group(messages[i:i + 2], cancel_on_error=cancel_on_error)
+                reduced_messages.append(grouped_message | merge_actor.message(**kwargs))
+        messages = reduced_messages
+
+    return messages[0]
