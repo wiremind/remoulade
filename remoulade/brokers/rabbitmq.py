@@ -15,6 +15,7 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 import time
+from queue import Queue, Empty
 from threading import Lock, local
 
 from amqpstorm import AMQPChannelError, AMQPConnectionError, AMQPError, UriConnection
@@ -31,6 +32,45 @@ DEAD_MESSAGE_TTL = 86400000 * 7
 #: The max number of times to attempt an enqueue operation in case of
 #: a connection error.
 MAX_ENQUEUE_ATTEMPTS = 6
+
+
+class LimitExceeded(Exception):
+    pass
+
+
+class ChannelPool:
+    def __init__(self, connection, limit=None):
+        self._lock = Lock()
+        self.connection = connection
+        self.limit = limit if limit is not None and limit > 0 else None
+        self._size = 0
+        self._pool = Queue()
+
+    def acquire(self, block=False, timeout=None):
+        if self.limit:
+            self._lock.acquire()
+            try:
+                try:
+                    channel = self._pool.get(block=block, timeout=timeout)
+                except Empty:
+                    if self._size >= self.limit:
+                        raise LimitExceeded()
+                    channel = self.connection.channel()
+                    self._size += 1
+            finally:
+                self._lock.release()
+
+            return channel
+
+        else:
+            return self.connection.channel()
+
+    def release(self, channel):
+        if self.limit:
+            self._pool.put(channel)
+        else:
+            channel.close()
+
 
 
 class RabbitmqBroker(Broker):
