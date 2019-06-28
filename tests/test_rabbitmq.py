@@ -241,7 +241,7 @@ def test_rabbitmq_workers_handle_rabbit_failures_gracefully(rabbitmq_broker, rab
     os.system("rabbitmqctl start_app")
 
     # And join on the queue
-    del rabbitmq_broker.channel
+    rabbitmq_broker.channel_pool.clear()
     del rabbitmq_broker.connection
     rabbitmq_broker.join(do_work.queue_name)
     rabbitmq_worker.join()
@@ -256,8 +256,8 @@ def test_rabbitmq_connections_can_be_deleted_multiple_times(rabbitmq_broker):
 
 
 def test_rabbitmq_channels_can_be_deleted_multiple_times(rabbitmq_broker):
-    del rabbitmq_broker.channel
-    del rabbitmq_broker.channel
+    rabbitmq_broker.channel_pool.clear()
+    rabbitmq_broker.channel_pool.clear()
 
 
 def test_rabbitmq_consumers_ignore_unknown_messages_in_ack_and_nack(rabbitmq_broker):

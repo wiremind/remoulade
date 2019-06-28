@@ -15,13 +15,15 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 import time
+from contextlib import contextmanager
+from queue import Queue, Empty, Full
 from threading import Lock, local
 
 from amqpstorm import AMQPChannelError, AMQPConnectionError, AMQPError, UriConnection
 
 from ..broker import Broker, Consumer, MessageProxy
 from ..common import current_millis, dq_name, xq_name
-from ..errors import ConnectionClosed, QueueJoinTimeout
+from ..errors import ChannelPoolTimeout, ConnectionClosed, QueueJoinTimeout
 from ..logging import get_logger
 from ..message import Message
 
@@ -53,7 +55,7 @@ class RabbitmqBroker(Broker):
 
     """
 
-    def __init__(self, *, confirm_delivery=False, url=None, middleware=None, max_priority=None):
+    def __init__(self, *, confirm_delivery=False, url=None, middleware=None, max_priority=None, channel_pool_size=200):
         super().__init__(middleware=middleware)
 
         if max_priority is not None and not (0 < max_priority <= 255):
@@ -65,6 +67,7 @@ class RabbitmqBroker(Broker):
         self._connection = None
         self.queues = set()
         self.state = local()
+        self.channel_pool = ChannelPool(channel_factory=self.channel_factory, pool_size=channel_pool_size)
         self.queues_declared = False
         # we need a Lock on self._connection as it can be modified by multiple threads
         self.lock = Lock()
@@ -89,32 +92,11 @@ class RabbitmqBroker(Broker):
                     pass
             self._connection = None
 
-    @property
-    def channel(self):
-        """The :class:`amqpstorm.Channel` for the current thread.
-        This property may change without notice.
-        """
-        channel = getattr(self.state, "channel", None)
-        if channel is None or channel.is_closed:
-            channel = self.connection.channel()
-            if self.confirm_delivery:
-                channel.confirm_deliveries()
-
-            self.state.channel = channel
+    def channel_factory(self):
+        channel = self.connection.channel()
+        if self.confirm_delivery:
+            channel.confirm_deliveries()
         return channel
-
-    @channel.deleter
-    def channel(self):
-        try:
-            channel = self.state.channel
-            if channel:
-                try:
-                    channel.close()
-                except AMQPError:
-                    pass
-            del self.state.channel
-        except AttributeError:
-            pass
 
     def close(self):
         """Close all open RabbitMQ connections.
@@ -126,6 +108,7 @@ class RabbitmqBroker(Broker):
         except Exception:  # pragma: no cover
             self.logger.debug("Encountered an error while connection.", exc_info=True)
         self._connection = None
+        self.channel_pool.clear()
         self.logger.debug("Channels and connections closed.")
 
     def consume(self, queue_name, prefetch=1, timeout=5000):
@@ -144,8 +127,9 @@ class RabbitmqBroker(Broker):
         except (AMQPConnectionError, AMQPChannelError) as e:
             if isinstance(e, AMQPConnectionError):
                 del self.connection
-            else:
-                del self.channel
+
+            self.channel_pool.clear()
+
             raise ConnectionClosed(e) from None
         return _RabbitmqConsumer(self.connection, queue_name, prefetch, timeout)
 
@@ -155,10 +139,11 @@ class RabbitmqBroker(Broker):
         Raises:
           AMQPConnectionError or AMQPChannelError: If the underlying channel or connection has been closed.
         """
-        for queue_name in self.queues:
-            self._declare_queue(queue_name)
-            self._declare_dq_queue(queue_name)
-            self._declare_xq_queue(queue_name)
+        with self.channel_pool.acquire() as channel:
+            for queue_name in self.queues:
+                self._declare_queue(channel, queue_name)
+                self._declare_dq_queue(channel, queue_name)
+                self._declare_xq_queue(channel, queue_name)
 
     def declare_queue(self, queue_name):
         """Declare a queue.  Has no effect if a queue with the given
@@ -190,16 +175,16 @@ class RabbitmqBroker(Broker):
 
         return arguments
 
-    def _declare_queue(self, queue_name):
+    def _declare_queue(self, channel, queue_name):
         arguments = self._build_queue_arguments(queue_name)
-        return self.channel.queue.declare(queue=queue_name, durable=True, arguments=arguments)
+        return channel.queue.declare(queue=queue_name, durable=True, arguments=arguments)
 
-    def _declare_dq_queue(self, queue_name):
+    def _declare_dq_queue(self, channel, queue_name):
         arguments = self._build_queue_arguments(queue_name)
-        return self.channel.queue.declare(queue=dq_name(queue_name), durable=True, arguments=arguments)
+        return channel.queue.declare(queue=dq_name(queue_name), durable=True, arguments=arguments)
 
-    def _declare_xq_queue(self, queue_name):
-        return self.channel.queue.declare(queue=xq_name(queue_name), durable=True, arguments={
+    def _declare_xq_queue(self, channel, queue_name):
+        return channel.queue.declare(queue=xq_name(queue_name), durable=True, arguments={
             # This HAS to be a static value since messages are expired
             # in order inside of RabbitMQ (head-first).
             "x-message-ttl": DEAD_MESSAGE_TTL,
@@ -244,12 +229,13 @@ class RabbitmqBroker(Broker):
                     self.queues_declared = True
                 self.logger.debug("Enqueueing message %r on queue %r.", message.message_id, queue_name)
                 self.emit_before("enqueue", message, delay)
-                self.channel.basic.publish(
-                    exchange="",
-                    routing_key=queue_name,
-                    body=message.encode(),
-                    properties=properties,
-                )
+                with self.channel_pool.acquire() as channel:
+                    channel.basic.publish(
+                        exchange="",
+                        routing_key=queue_name,
+                        body=message.encode(),
+                        properties=properties,
+                    )
                 self.emit_after("enqueue", message, delay)
                 return message
 
@@ -258,8 +244,8 @@ class RabbitmqBroker(Broker):
                 # next caller/attempt may initiate new ones of each.
                 if isinstance(e, AMQPConnectionError):
                     del self.connection
-                else:
-                    del self.channel
+
+                self.channel_pool.clear()
 
                 attempts += 1
                 if attempts > MAX_ENQUEUE_ATTEMPTS:
@@ -290,9 +276,11 @@ class RabbitmqBroker(Broker):
           tuple: A triple representing the number of messages in the
           queue, its delayed queue and its dead letter queue.
         """
-        queue_response = self._declare_queue(queue_name)
-        dq_queue_response = self._declare_dq_queue(queue_name)
-        xq_queue_response = self._declare_xq_queue(queue_name)
+        with self.channel_pool.acquire() as channel:
+            queue_response = self._declare_queue(channel, queue_name)
+            dq_queue_response = self._declare_dq_queue(channel, queue_name)
+            xq_queue_response = self._declare_xq_queue(channel, queue_name)
+
         return (
             queue_response['message_count'],
             dq_queue_response['message_count'],
@@ -306,7 +294,8 @@ class RabbitmqBroker(Broker):
           queue_name(str): The queue to flush.
         """
         for name in (queue_name, dq_name(queue_name), xq_name(queue_name)):
-            self.channel.queue.purge(name)
+            with self.channel_pool.acquire() as channel:
+                channel.queue.purge(name)
 
     def flush_all(self):
         """Drop all messages from all declared queues.
@@ -413,3 +402,87 @@ class _RabbitmqMessage(MessageProxy):
 
     def nack(self, requeue):
         self._rabbitmq_message.nack(requeue)
+
+
+class ChannelPool:
+    """A pool of channels that can be used by the RabbitmqBroker.
+
+    The pool uses a synchronized queue as a backend, making sure that two threads never end up sharing a channel.
+
+    The channels are created lazily as the reservation requests comes.
+
+    The ChannelPool should be used via the `acquire` context manager, to make sure that a used channel is properly put
+    back into the pool.
+
+    Examples:
+
+      >>> channel_pool = ChannelPool(channel_factory=lambda connection: connection.channel(), pool_size=5)
+      >>> with channel_pool.acquire() as channel:
+      ...     channel.basic.publish(...)
+
+    Parameters:
+      channel_factory(function): Function that will be called to create new channels.
+      pool_size(int): The max size of the pool.
+
+    """
+    def __init__(self, channel_factory, *, pool_size):
+        self._channel_factory = channel_factory
+        self._pool = Queue(pool_size)
+        self._pool_size = pool_size
+
+        for _ in range(pool_size):
+            # The goal is to create lazily the channels, so Nones are put as stand-in for the channel that can be used
+            self.put(None)
+
+    @contextmanager
+    def acquire(self, timeout=None):
+        """
+        Parameters:
+          timeout(int): The max number of second to wait when fetching a channel from the pool. If None, it will wait
+            indefinitely to get a channel. Default None.
+
+        Raises:
+          ChannelPoolTimeout: when the timeout for reserving a channel is run out.
+        """
+        channel = self.get(timeout=timeout)
+        if channel is None:
+            channel = self._channel_factory()
+        try:
+            yield channel
+        finally:
+            if channel.is_closed:
+                self.put(None)
+            else:
+                self.put(channel)
+
+    def get(self, *, timeout=None):
+        try:
+            return self._pool.get(timeout=timeout)
+        except Empty:
+            raise ChannelPoolTimeout("Could not get any channel from the pool")
+
+    def put(self, channel):
+        try:
+            return self._pool.put_nowait(channel)
+        except Full:
+            pass
+
+    def __len__(self):
+        return self._pool.qsize()
+
+    def clear(self):
+        """
+        This will empty the pool and fill it back with None.
+
+        It is best to use it inside a lock to avoid doing it multiple times.
+        """
+        while len(self) > 0:
+            channel = self._pool.get_nowait()
+            if channel is not None:
+                try:
+                    channel.close()
+                except AMQPError:
+                    pass
+
+        for _ in range(self._pool_size):
+            self.put(None)
