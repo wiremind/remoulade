@@ -3,6 +3,7 @@ import os
 import random
 import subprocess
 import sys
+from unittest.mock import Mock
 
 import pytest
 import redis
@@ -211,3 +212,13 @@ def cancel_backends(redis_cancel_backend, stub_cancel_backend):
 @pytest.fixture(params=["redis", "stub"])
 def cancel_backend(request, cancel_backends):
     return cancel_backends[request.param]
+
+
+@pytest.fixture
+def mock_channel_factory():
+    mock_generator = (Mock(id=x, is_closed=False) for x in range(10000))
+
+    def factory():
+        return next(mock_generator)
+
+    return factory

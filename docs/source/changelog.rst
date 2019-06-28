@@ -8,6 +8,15 @@ All notable changes to this project will be documented in this file.
 `Unreleased`_
 -------------
 
+`0.16.0`_ -- 2019-06-28
+----------------------
+
+Added
+^^^^^
+* Channel pool: prevent the opening of one channel per thread (`#86`_)
+.. _#86: https://github.com/wiremind/remoulade/pull/91
+
+
 `0.15.0`_ -- 2019-05-24
 ----------------------
 
@@ -238,6 +247,7 @@ Fixed
 * pipe_ignore was not recovered from right message
 
 .. _Unreleased: https://github.com/wiremind/remoulade/compare/v0.14.0...HEAD
+.. _0.16.0: https://github.com/wiremind/remoulade/releases/tag/v0.16.0
 .. _0.15.0: https://github.com/wiremind/remoulade/releases/tag/v0.15.0
 .. _0.14.0: https://github.com/wiremind/remoulade/releases/tag/v0.14.0
 .. _0.13.0: https://github.com/wiremind/remoulade/releases/tag/v0.13.0
