@@ -1,0 +1,61 @@
+version: 2
+jobs:
+  test-3.7: &template
+    docker:
+      - image: python:3.7
+
+    environment:
+      CI: 1
+      TOXENV: test
+
+    steps:
+      - checkout
+      - restore_cache:
+          key: deps-{{ .Branch }}-{{ checksum "setup.py" }}
+      - run:
+          name: Install Python deps in a venv
+          command: |
+            python3 -m venv venv
+            . venv/bin/activate
+            pip install --upgrade pip setuptools
+            pip install '.[dev]' tox
+      - save_cache:
+          key: deps-{{ .Branch }}-{{ checksum "setup.py" }}
+          paths:
+            - "venv"
+      - run:
+          name: Tests
+          command: |
+            . venv/bin/activate
+            tox
+
+  test-3.6:
+    <<: *template
+    docker:
+      - image: python:3.6
+
+  test-3.5:
+    <<: *template
+    docker:
+      - image: python:3.5
+
+  lint:
+    <<: *template
+    environment:
+      TOXENV: lint
+
+  docs:
+    <<: *template
+    environment:
+      TOXENV: docs
+
+workflows:
+  version: 2
+
+  test:
+    jobs:
+      - test-3.7
+      - test-3.6
+      - test-3.5
+      - lint
+      - docs

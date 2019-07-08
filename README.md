@@ -2,7 +2,7 @@
 
 # remoulade
 
-[![Build Status](https://travis-ci.org/wiremind/remoulade.svg?branch=master)](https://travis-ci.org/wiremind/remoulade)
+[![CircleCI](https://circleci.com/gh/wiremind/remoulade.svg?style=svg)](https://circleci.com/gh/wiremind/remoulade)
 [![PyPI version](https://badge.fury.io/py/remoulade.svg)](https://badge.fury.io/py/remoulade)
 [![Documentation](https://img.shields.io/badge/doc-latest-brightgreen.svg)](http://remoulade.readthedocs.io)
 

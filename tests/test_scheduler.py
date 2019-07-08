@@ -11,7 +11,7 @@ from remoulade.scheduler import ScheduledJob
 # - There are no /tmp/schedul* files
 
 
-@pytest.mark.skipif(os.getenv("TRAVIS") == "1", reason="test skipped on Travis")
+@pytest.mark.skipif(os.getenv("CI") == "1", reason="test skipped on CI")
 def test_simple_interval_scheduler(start_scheduler, start_cli):
     from tests.scheduler_configs.simple_1 import broker, write_loaded_at
     client = redis.Redis()
@@ -61,7 +61,7 @@ def test_simple_interval_scheduler(start_scheduler, start_cli):
     assert slow_task.last_queued == last_queued
 
 
-@pytest.mark.skipif(os.getenv("TRAVIS") == "1", reason="test skipped on Travis")
+@pytest.mark.skipif(os.getenv("CI") == "1", reason="test skipped on CI")
 def test_multiple_schedulers(start_scheduler, start_cli):
     from tests.scheduler_configs.simple_1 import broker, write_loaded_at
 
@@ -86,7 +86,7 @@ def test_multiple_schedulers(start_scheduler, start_cli):
     assert len(text) == 1
 
 
-@pytest.mark.skipif(os.getenv("TRAVIS") == "1", reason="test skipped on Travis")
+@pytest.mark.skipif(os.getenv("CI") == "1", reason="test skipped on CI")
 @pytest.mark.parametrize("suffix", ["", "_tz"])
 def test_scheduler_daily_time(start_scheduler, start_cli, suffix):
     start_scheduler("tests.scheduler_configs.daily{}".format(suffix))
@@ -123,7 +123,7 @@ def test_scheduler_daily_time(start_scheduler, start_cli, suffix):
     assert len(text) == 1
 
 
-@pytest.mark.skipif(os.getenv("TRAVIS") == "1", reason="test skipped on Travis")
+@pytest.mark.skipif(os.getenv("CI") == "1", reason="test skipped on CI")
 def test_scheduler_new_daily_time(start_scheduler, start_cli):
     start_scheduler("tests.scheduler_configs.daily")
 
@@ -141,7 +141,7 @@ def test_scheduler_new_daily_time(start_scheduler, start_cli):
             ...
 
 
-@pytest.mark.skipif(os.getenv("TRAVIS") == "1", reason="test skipped on Travis")
+@pytest.mark.skipif(os.getenv("CI") == "1", reason="test skipped on CI")
 def test_scheduler_wrong_weekday(start_scheduler, start_cli):
     start_scheduler("tests.scheduler_configs.weekday_1")
 
@@ -159,7 +159,7 @@ def test_scheduler_wrong_weekday(start_scheduler, start_cli):
             ...
 
 
-@pytest.mark.skipif(os.getenv("TRAVIS") == "1", reason="test skipped on Travis")
+@pytest.mark.skipif(os.getenv("CI") == "1", reason="test skipped on CI")
 def test_scheduler_right_weekday(start_scheduler, start_cli):
     start_scheduler("tests.scheduler_configs.weekday_2")
 

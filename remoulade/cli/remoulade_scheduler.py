@@ -4,8 +4,7 @@ import logging
 import signal
 import sys
 
-from remoulade import get_logger
-from remoulade import get_scheduler
+from remoulade import get_logger, get_scheduler
 
 logformat = "[%(asctime)s] [PID %(process)d] [%(threadName)s] [%(name)s] [%(levelname)s] %(message)s"
 

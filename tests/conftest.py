@@ -23,8 +23,7 @@ logging.basicConfig(level=logging.INFO, format=logfmt)
 
 random.seed(1337)
 
-CI = os.getenv("TRAVIS") == "true" or \
-    os.getenv("APPVEYOR") == "true"
+CI = os.getenv("CI") == "true"
 
 
 def check_rabbitmq(broker):
