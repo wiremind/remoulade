@@ -9,8 +9,8 @@ Release v\ |release|. (:doc:`installation`, :doc:`changelog`, `Source Code`_)
 
 .. image:: https://img.shields.io/badge/license-LGPL-blue.svg
    :target: license.html
-.. image:: https://travis-ci.org/wiremind/remoulade.svg?branch=master
-   :target: https://travis-ci.org/wiremind/remoulade
+.. image:: https://circleci.com/gh/wiremind/remoulade.svg?style=svg
+   :target: https://circleci.com/gh/wiremind/remoulade
 .. image:: https://badge.fury.io/py/remoulade.svg
    :target: https://badge.fury.io/py/remoulade
 

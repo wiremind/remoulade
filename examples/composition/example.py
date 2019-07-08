@@ -35,7 +35,7 @@ def main():
     arguments = parser.parse_args()
     jobs = group(request.message(uri) | count_words.message() for uri in arguments.uri).run()
     for uri, count in zip(arguments.uri, jobs.results.get(block=True)):
-        print(f" * {uri} has {count} words")
+        print(" * {uri} has {count} words".format(uri=uri, count=count))
 
     return 0
 

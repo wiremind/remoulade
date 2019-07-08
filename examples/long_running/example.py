@@ -19,13 +19,13 @@ def fib(n):
     return x
 
 
-@remoulade.actor(time_limit=86_400_000, max_retries=0)
+@remoulade.actor(time_limit=86400000, max_retries=0)
 def long_running(duration):
     deadline = time.monotonic() + duration
     while time.monotonic() < deadline:
         long_running.logger.info("%d seconds remaining.", deadline - time.monotonic())
 
-        n = random.randint(1_000, 1_000_000)
+        n = random.randint(1000, 1000000)
         long_running.logger.debug("Computing fib(%d).", n)
 
         fib(n)
@@ -37,8 +37,8 @@ def long_running(duration):
 
 
 def main(args):
-    for _ in range(1_000):
-        long_running.send(random.randint(3_600, 14_400))
+    for _ in range(1000):
+        long_running.send(random.randint(3600, 14400))
         time.sleep(random.randint(60, 3600))
 
 

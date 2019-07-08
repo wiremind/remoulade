@@ -27,7 +27,7 @@ def write_loaded_at(filename):
 broker.declare_actor(write_loaded_at)
 
 
-@pytest.mark.skipif(os.getenv("TRAVIS") == "1", reason="test skipped on Travis")
+@pytest.mark.skipif(os.getenv("CI") == "1", reason="test skipped on CI")
 @pytest.mark.skipif(CURRENT_PLATFORM == "PyPy", reason="Code reloading is not supported on PyPy.")
 @pytest.mark.skipif(CURRENT_OS == "Windows", reason="Code reloading is not supported on Windows.")
 @pytest.mark.parametrize("extra_args", [
