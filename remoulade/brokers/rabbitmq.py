@@ -16,7 +16,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 import time
 from contextlib import contextmanager
-from queue import Queue, Empty, Full
+from queue import Empty, Full, Queue
 from threading import Lock, local
 
 from amqpstorm import AMQPChannelError, AMQPConnectionError, AMQPError, UriConnection
