@@ -29,7 +29,7 @@ from .logging import get_logger
 from .message import Message, get_encoder, set_encoder
 from .middleware import Middleware
 from .result import Result
-from .scheduler import ScheduledJob, Scheduler, get_scheduler, set_scheduler
+from .scheduler import get_scheduler, set_scheduler
 from .worker import Worker
 
 __all__ = [
@@ -66,7 +66,7 @@ __all__ = [
     "Worker",
 
     # Scheduler
-    "Scheduler", "ScheduledJob", "get_scheduler", "set_scheduler"
+    "get_scheduler", "set_scheduler"
 ]
 
 __version__ = "0.16.0"

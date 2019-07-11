@@ -8,8 +8,6 @@ import redis
 
 from remoulade import Broker, get_encoder, get_logger
 
-global_scheduler = None
-
 
 DEFAULT_JOB_INTERVAL = 3600 * 24
 DEFAULT_JOB_STATUS = True
@@ -18,18 +16,6 @@ DEFAULT_TZ = 'UTC'
 DEFAULT_SCHEDULER_NAMESPACE = "remoulade-schedule"
 DEFAULT_SCHEDULER_LOCK_KEY = "remoulade-scheduler-tick"
 DEFAULT_SCHEDULER_PERIOD = 1
-
-
-def get_scheduler() -> "Scheduler":
-    global global_scheduler
-    if global_scheduler is None:
-        raise ValueError('Scheduler not found, are you sure you called set_scheduler(scheduler) ?')
-    return global_scheduler
-
-
-def set_scheduler(scheduler: "Scheduler"):
-    global global_scheduler
-    global_scheduler = scheduler
 
 
 class ScheduledJob:
