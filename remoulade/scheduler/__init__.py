@@ -16,7 +16,6 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 from .scheduler import ScheduledJob, Scheduler
-from .utils import get_scheduler, set_scheduler
 
 __all__ = [
     "Scheduler", "ScheduledJob"

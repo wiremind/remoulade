@@ -29,7 +29,7 @@ from .logging import get_logger
 from .message import Message, get_encoder, set_encoder
 from .middleware import Middleware
 from .result import Result
-from .scheduler import get_scheduler, set_scheduler
+from .utils import get_scheduler, set_scheduler
 from .worker import Worker
 
 __all__ = [

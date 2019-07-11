@@ -8,7 +8,6 @@ import redis
 
 from remoulade import Broker, get_encoder, get_logger
 
-
 DEFAULT_JOB_INTERVAL = 3600 * 24
 DEFAULT_JOB_STATUS = True
 DEFAULT_TZ = 'UTC'
