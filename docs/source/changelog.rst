@@ -8,6 +8,13 @@ All notable changes to this project will be documented in this file.
 `Unreleased`_
 -------------
 
+`0.16.1`_ -- 2019-07-11
+-----------------------
+
+Fix
+^^^
+* Scheduler: put scheduler outside of main module
+
 `0.16.0`_ -- 2019-06-28
 ----------------------
 
@@ -246,7 +253,8 @@ Fixed
 
 * pipe_ignore was not recovered from right message
 
-.. _Unreleased: https://github.com/wiremind/remoulade/compare/v0.14.0...HEAD
+.. _Unreleased: https://github.com/wiremind/remoulade/compare/v0.16.1...HEAD
+.. _0.16.1: https://github.com/wiremind/remoulade/releases/tag/v0.16.1
 .. _0.16.0: https://github.com/wiremind/remoulade/releases/tag/v0.16.0
 .. _0.15.0: https://github.com/wiremind/remoulade/releases/tag/v0.15.0
 .. _0.14.0: https://github.com/wiremind/remoulade/releases/tag/v0.14.0
