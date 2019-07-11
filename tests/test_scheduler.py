@@ -4,7 +4,7 @@ import time
 import pytest
 import redis
 
-from remoulade import ScheduledJob
+from remoulade.scheduler import ScheduledJob
 
 # For this to work you need to make sure:
 # - your redis is empty (flushall)

@@ -86,6 +86,7 @@ setup(
         "remoulade.rate_limits.backends",
         "remoulade.results",
         "remoulade.results.backends",
+        "remoulade.scheduler",
         "remoulade.cli"
     ],
     include_package_data=True,
