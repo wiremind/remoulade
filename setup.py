@@ -87,7 +87,8 @@ setup(
         "remoulade.results",
         "remoulade.results.backends",
         "remoulade.scheduler",
-        "remoulade.cli"
+        "remoulade.cli",
+        "remoulade.helpers"
     ],
     include_package_data=True,
     install_requires=dependencies,
