@@ -82,21 +82,17 @@ class Pipelines(Middleware):
         # from broker -> pipelines -> messages -> broker.
         from ..message import Message
 
-        if isinstance(pipe_target, list):
-            for message_data in pipe_target:
-                self._send_next_message(message_data, broker, result, group_info)
-            return
+        for message_data in pipe_target:
+            next_message = Message(**message_data)
+            next_actor = broker.get_actor(next_message.actor_name)
+            pipe_ignore = next_message.options.get("pipe_ignore") or next_actor.options.get("pipe_ignore")
 
-        next_message = Message(**pipe_target)
-        next_actor = broker.get_actor(next_message.actor_name)
-        pipe_ignore = next_message.options.get("pipe_ignore") or next_actor.options.get("pipe_ignore")
+            if not pipe_ignore:
+                if group_info:
+                    result = self._group_results(group_info, broker)
+                next_message = next_message.copy(args=next_message.args + (result,))
 
-        if not pipe_ignore:
-            if group_info:
-                result = self._group_results(group_info, broker)
-            next_message = next_message.copy(args=next_message.args + (result,))
-
-        broker.enqueue(next_message)
+            broker.enqueue(next_message)
 
     @staticmethod
     def _group_results(group_info, broker):

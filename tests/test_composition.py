@@ -27,12 +27,19 @@ def test_messages_can_be_piped(stub_broker):
         return {key: value for (key, value) in message.items() if key != 'options'}
 
     # If I build a pipeline
-    first_target = pipe.build()
+    targets = pipe.build()
+    assert len(targets) == 1
+    first_target = targets[0]
+    assert len(first_target.options["pipe_target"]) == 1
     # And each message in the pipeline should reference the next message in line
-    assert filter_options(first_target.options["pipe_target"]) == filter_options(pipe.children[1].asdict())
-    second_target = first_target.options["pipe_target"]
-    assert filter_options(second_target["options"]["pipe_target"]) == filter_options(pipe.children[2].asdict())
-    third_target = second_target["options"]["pipe_target"]
+    assert filter_options(first_target.options["pipe_target"][0]) == filter_options(pipe.children[1].asdict())
+
+    assert len(first_target.options["pipe_target"]) == 1
+    second_target = first_target.options["pipe_target"][0]
+    assert filter_options(second_target["options"]["pipe_target"][0]) == filter_options(pipe.children[2].asdict())
+
+    assert len(second_target["options"]["pipe_target"]) == 1
+    third_target = second_target["options"]["pipe_target"][0]
     assert "pipe_target" not in third_target["options"]
 
 

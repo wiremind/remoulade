@@ -82,14 +82,14 @@ class pipeline:
         next_child = None
         for child in reversed(self.children):
             if next_child:
-                if isinstance(next_child, list):
-                    options = {'pipe_target': [m.asdict() for m in next_child]}
-                else:
-                    options = {'pipe_target': next_child.asdict()}
+                options = {'pipe_target': [m.asdict() for m in next_child]}
             else:
                 options = last_options or {}
 
-            next_child = child.build(options)
+            if isinstance(child, group) or isinstance(child, pipeline):
+                next_child = child.build(options)
+            else:
+                next_child = [child.build(options)]
 
         return next_child
 
@@ -205,8 +205,7 @@ class group:
         messages = []
         for group_child in self.children:
             if isinstance(group_child, pipeline):
-                first = group_child.build(last_options=options)
-                messages += [first]
+                messages += group_child.build(last_options=options)
             else:
                 messages += [group_child.build(options)]
         return messages
