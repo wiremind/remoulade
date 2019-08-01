@@ -8,6 +8,13 @@ All notable changes to this project will be documented in this file.
 `Unreleased`_
 -------------
 
+`0.16.2`_ -- 2019-08-01
+-----------------------
+
+Fix
+^^^
+* Pipeline: build should be consistent
+
 `0.16.1`_ -- 2019-07-11
 -----------------------
 
@@ -254,6 +261,7 @@ Fixed
 * pipe_ignore was not recovered from right message
 
 .. _Unreleased: https://github.com/wiremind/remoulade/compare/v0.16.1...HEAD
+.. _0.16.2: https://github.com/wiremind/remoulade/releases/tag/v0.16.2
 .. _0.16.1: https://github.com/wiremind/remoulade/releases/tag/v0.16.1
 .. _0.16.0: https://github.com/wiremind/remoulade/releases/tag/v0.16.0
 .. _0.15.0: https://github.com/wiremind/remoulade/releases/tag/v0.15.0
