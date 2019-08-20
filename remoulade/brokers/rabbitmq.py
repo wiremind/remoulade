@@ -52,18 +52,33 @@ class RabbitmqBroker(Broker):
         to this broker.
       max_priority(int): Configure the queues with x-max-priority to
         support priority queue in RabbitMQ itself
+      channel_pool_size(int): Size of the channel pool
+      dead_queue_max_length(int|None): Max size of the dead queue. If None, no max size.
 
     """
 
-    def __init__(self, *, confirm_delivery=False, url=None, middleware=None, max_priority=None, channel_pool_size=200):
+    def __init__(
+            self,
+            *,
+            confirm_delivery=False,
+            url=None,
+            middleware=None,
+            max_priority=None,
+            channel_pool_size=200,
+            dead_queue_max_length=None
+    ):
         super().__init__(middleware=middleware)
 
         if max_priority is not None and not (0 < max_priority <= 255):
             raise ValueError("max_priority must be a value between 0 and 255")
 
+        if dead_queue_max_length is not None and dead_queue_max_length < 0:
+            raise ValueError("dead_queue_max_length must be above 0")
+
         self.url = url or ''
         self.confirm_delivery = confirm_delivery
         self.max_priority = max_priority
+        self.dead_queue_max_length = dead_queue_max_length
         self._connection = None
         self.queues = set()
         self.state = local()
@@ -184,11 +199,14 @@ class RabbitmqBroker(Broker):
         return channel.queue.declare(queue=dq_name(queue_name), durable=True, arguments=arguments)
 
     def _declare_xq_queue(self, channel, queue_name):
-        return channel.queue.declare(queue=xq_name(queue_name), durable=True, arguments={
+        arguments = {
             # This HAS to be a static value since messages are expired
             # in order inside of RabbitMQ (head-first).
             "x-message-ttl": DEAD_MESSAGE_TTL,
-        })
+        }
+        if self.dead_queue_max_length:
+            arguments["x-max-length"] = self.dead_queue_max_length
+        return channel.queue.declare(queue=xq_name(queue_name), durable=True, arguments=arguments)
 
     def enqueue(self, message, *, delay=None):
         """Enqueue a message.
