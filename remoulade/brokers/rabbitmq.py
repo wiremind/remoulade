@@ -16,7 +16,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 import time
 from contextlib import contextmanager
-from queue import Empty, Full, Queue
+from queue import Empty, Full, LifoQueue
 from threading import Lock, local
 
 from amqpstorm import AMQPChannelError, AMQPConnectionError, AMQPError, UriConnection
@@ -427,7 +427,7 @@ class ChannelPool:
     """
     def __init__(self, channel_factory, *, pool_size):
         self._channel_factory = channel_factory
-        self._pool = Queue(pool_size)
+        self._pool = LifoQueue(pool_size)
         self._pool_size = pool_size
 
         for _ in range(pool_size):

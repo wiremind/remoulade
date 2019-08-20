@@ -24,8 +24,27 @@ def test_channel_pool_acquire(mock_channel_factory):
         else:
             items_in_pool.append(channel)
 
-    print(items_in_pool)
-    assert items_in_pool == [None, None, None, None, None, None, None, None, 1, 0]
+    assert items_in_pool == [0, 1, None, None, None, None, None, None, None, None]
+
+
+def test_channel_pool_acquire_one_used(mock_channel_factory):
+    channel_pool = ChannelPool(channel_factory=mock_channel_factory, pool_size=10)
+
+    for _ in range(10):
+        with channel_pool.acquire() as channel_1:
+            assert channel_1.id == 0
+            assert len(channel_pool) == 9
+
+    assert len(channel_pool) == 10
+    items_in_pool = []
+    while len(channel_pool):
+        channel = channel_pool.get()
+        if channel is not None:
+            items_in_pool.append(channel.id)
+        else:
+            items_in_pool.append(channel)
+
+    assert items_in_pool == [0, None, None, None, None, None, None, None, None, None]
 
 
 def test_raise_channel_pool_timeout(mock_channel_factory):
