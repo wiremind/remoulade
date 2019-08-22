@@ -72,8 +72,8 @@ class RabbitmqBroker(Broker):
         if max_priority is not None and not (0 < max_priority <= 255):
             raise ValueError("max_priority must be a value between 0 and 255")
 
-        if dead_queue_max_length is not None and dead_queue_max_length < 0:
-            raise ValueError("dead_queue_max_length must be above 0")
+        if dead_queue_max_length is not None and dead_queue_max_length <= 0:
+            raise ValueError("dead_queue_max_length must be strictly above 0")
 
         self.url = url or ''
         self.confirm_delivery = confirm_delivery
