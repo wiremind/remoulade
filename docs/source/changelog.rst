@@ -8,6 +8,16 @@ All notable changes to this project will be documented in this file.
 `Unreleased`_
 -------------
 
+`0.17.0`_ -- 2019-08-22
+-----------------------
+Added
+^^^^^
+* Rabbimq: add dead_queue_max_length
+
+Fix
+^^^
+* Channel pool: use LIFO queue instead of FIFO queue
+
 `0.16.2`_ -- 2019-08-01
 -----------------------
 
@@ -260,7 +270,8 @@ Fixed
 
 * pipe_ignore was not recovered from right message
 
-.. _Unreleased: https://github.com/wiremind/remoulade/compare/v0.16.1...HEAD
+.. _Unreleased: https://github.com/wiremind/remoulade/compare/v0.17.0...HEAD
+.. _0.17.0: https://github.com/wiremind/remoulade/releases/tag/v0.17.0
 .. _0.16.2: https://github.com/wiremind/remoulade/releases/tag/v0.16.2
 .. _0.16.1: https://github.com/wiremind/remoulade/releases/tag/v0.16.1
 .. _0.16.0: https://github.com/wiremind/remoulade/releases/tag/v0.16.0
