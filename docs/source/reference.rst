@@ -112,6 +112,12 @@ not enabled by default and you should avoid using them until you have
 a really good use case.  Most of the time you can get by with actors
 simply updating data in your database instead of using results.
 
+Result objects
+^^^^^^^^^^^^^^
+
+.. autoclass:: remoulade.result.Result
+.. autoclass:: remoulade.collection_results.CollectionResults
+
 Middleware
 ^^^^^^^^^^
 
