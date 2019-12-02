@@ -74,7 +74,7 @@ This will enqueue 3 separate messages and, assuming there are enough
 resources available, execute them in parallel.  You can then wait for
 the whole group to finish::
 
-  g.wait(timeout=10_000)  # 10s expressed in millis
+  g.results.wait(timeout=10_000)  # 10s expressed in millis
 
 Or you can iterate over the results::
 
@@ -368,13 +368,17 @@ add the |Results| middleware to your broker.
 
    if __name__ == "__main__":
      message = add.send(1, 2)
-     print(message.result.get(block=True))
+     print(message.result.get(block=True, raise_on_error=True, forget=False))
 
 Getting a result raises |ResultMissing| when a result hasn't been
 stored yet or if it has already expired (results expire after 10
 minutes by default).  When the ``block`` parameter is ``True``,
 |ResultTimeout| is raised instead. When the ``forget`` parameter
 is ``True`` the result will be deleted from the backend when retrieved.
+
+If an exception is raised during message execution, a serialized version
+of the exception is stored in the |ResultBackend|. If ``raise_on_error``
+parameter is ``True``, an |ErrorStored| is raised when it's the case.
 
 Result
 ^^^^^^
@@ -405,6 +409,33 @@ Result
 
 The property result of |Message| return a |Result| instance which can be used to get the result.
 But you can also create a |Result| from a message_id and access to the result the same way.
+
+Group results
+^^^^^^^^^^^^^
+
+The property ``results`` of |Group| return a |CollectionResults| instance which can be used to get the result.
+You access the results with the get method, but also the completed_count of the group (the count of finished
+actors errored or not).
+
+You can also get all the message ids of a group with the message_ids property and create a |CollectionResults|
+with the from_message_ids method.
+
+
+Pipelines of groups
+^^^^^^^^^^^^^^^^^^^
+
+If you activated the result backend, remoulade can be used to create a group pipeline as follow::
+
+  group_pipeline = group([
+    do_something.message(1, 2),
+    do_something.message(2, 3),
+    do_something.message(3, 4),
+  ]) | merge_results.message()
+
+This can be handy to merge the results of parallel calculation. Under the hood, each group get a group_id and
+after each actor is finished a counter in the results backend associed to the group id is incremented. If the
+counter reach the number of message in the group, the results of each message are fetched from the result backend
+and the next message is enqueued.
 
 Scheduling
 ----------

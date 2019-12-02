@@ -6,11 +6,11 @@
 [![PyPI version](https://badge.fury.io/py/remoulade.svg)](https://badge.fury.io/py/remoulade)
 [![Documentation](https://img.shields.io/badge/doc-latest-brightgreen.svg)](http://remoulade.readthedocs.io)
 
-*A fast and reliable distributed task processing library for Python 3.*
+*A fast and reliable distributed task processing library for Python 3.* Fork of dramatiq.io
 
 <hr/>
 
-**Changelog**: https://remoulade.readthedocs.io/changelog.html <br/>
+**Changelog**: https://remoulade.readthedocs.io/en/latest/changelog.html <br/>
 **Documentation**: https://remoulade.readthedocs.io
 
 <hr/>

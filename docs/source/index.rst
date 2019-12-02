@@ -53,8 +53,7 @@ Or if you want to use it with Redis_::
 
    $ pip install -U 'remoulade[redis, watch]'
 
-Read the :doc:`motivation` behind it or the :doc:`guide` if you're
-ready to get started.
+Read the :doc:`guide` if you're ready to get started.
 
 
 User Guide
@@ -67,7 +66,6 @@ how to use Remoulade.
    :maxdepth: 2
 
    installation
-   motivation
    guide
    best_practices
    advanced

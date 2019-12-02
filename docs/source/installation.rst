@@ -14,12 +14,11 @@ To install remoulade, simply run the following command in a terminal::
 
   $ pip install -U 'remoulade[rabbitmq, watch]'
 
-RabbitMQ_ is the recommended message broker, but Remoulade also
-supports Redis_.
+Remoulade use RabbitMQ_ ad message broker.
 
-If you would like to use it with Redis_ then run::
+If you would like to use it with Redis_ to store the results then run::
 
-  $ pip install -U 'remoulade[redis, watch]'
+  $ pip install -U 'remoulade[rabbitmq, redis, watch]'
 
 If you don't have `pip`_ installed, check out `this guide`_.
 

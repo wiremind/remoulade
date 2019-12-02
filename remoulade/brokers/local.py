@@ -49,7 +49,7 @@ class LocalBroker(Broker):
         raise ValueError('LocalBroker is not destined to use with a Worker')
 
     def declare_queue(self, queue_name):
-        pass
+        self.queues[queue_name] = None
 
     def enqueue(self, message, *, delay=None):
         """Enqueue and compute a message.
