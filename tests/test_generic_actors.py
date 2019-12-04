@@ -100,3 +100,31 @@ def test_generic_actors_can_have_class_attributes(stub_broker):
     # When I access one of it class attributes
     # Then I should get back that attribute's value
     assert DoSomething.STATUS_DONE == "done"
+
+
+def test_generic_actors_can_inherite_meta(stub_broker, stub_worker):
+    # Given that I have a calls database
+    calls = set()
+
+    # And I've subclassed GenericActor
+    class BaseTask(remoulade.GenericActor):
+        # When I set abstract to True
+        class Meta:
+            abstract = True
+            retries = 10
+            queue_name = "tasks"
+
+        def perform(self):
+            calls.add(self.get_task_name())
+
+    # When I subclass BaseTask
+    class FooTask(BaseTask):
+
+        class Meta(BaseTask.Meta):
+            retries = 20
+
+    # Then both subclasses should be actors
+    # And they should inherit the parent's meta
+    assert isinstance(FooTask.__actor__, remoulade.Actor)
+    assert FooTask.queue_name == "tasks"
+    assert FooTask.options['retries'] == 20

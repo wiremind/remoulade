@@ -26,7 +26,7 @@ class generic_actor(type):
         clazz = super().__new__(metacls, name, bases, attrs)
         meta = getattr(clazz, "Meta", object())
         if not getattr(meta, "abstract", False):
-            options = {name: getattr(meta, name) for name in vars(meta) if not name.startswith("_")}
+            options = {name: getattr(meta, name) for name in dir(meta) if not name.startswith("_")}
             options.pop("abstract", False)
 
             clazz_instance = clazz()
@@ -52,7 +52,8 @@ class GenericActor(metaclass=generic_actor):
     considered abstract base classes and are not converted into
     actors.  You can't send these classes messages, you can only
     inherit from them.  Actors that subclass abstract base classes
-    inherit their parents' meta classes.
+    inherit their parents' meta classes. You can also override meta
+    in subclass using inheritance.
 
     Example:
 
@@ -73,6 +74,9 @@ class GenericActor(metaclass=generic_actor):
       ...     return "Foo"
 
       >>> class BarTask(BaseTask):
+      ...   class Meta(BaseTask.Meta):
+      ...     max_retries = 10
+      ...
       ...   def get_task_name(self):
       ...     return "Bar"
 
