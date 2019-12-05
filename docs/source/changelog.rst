@@ -8,6 +8,12 @@ All notable changes to this project will be documented in this file.
 `Unreleased`_
 -------------
 
+`0.18.0`_ -- 2019-12-05
+-----------------------
+Added
+^^^^^
+* generic: allow Meta inheritance
+
 `0.17.0`_ -- 2019-08-22
 -----------------------
 Added
@@ -270,7 +276,8 @@ Fixed
 
 * pipe_ignore was not recovered from right message
 
-.. _Unreleased: https://github.com/wiremind/remoulade/compare/v0.17.0...HEAD
+.. _Unreleased: https://github.com/wiremind/remoulade/compare/v0.18.0...HEAD
+.. _0.18.0: https://github.com/wiremind/remoulade/releases/tag/v0.18.0
 .. _0.17.0: https://github.com/wiremind/remoulade/releases/tag/v0.17.0
 .. _0.16.2: https://github.com/wiremind/remoulade/releases/tag/v0.16.2
 .. _0.16.1: https://github.com/wiremind/remoulade/releases/tag/v0.16.1
