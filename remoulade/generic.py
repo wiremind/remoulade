@@ -36,6 +36,7 @@ class generic_actor(type):
             return clazz_instance
 
         meta.abstract = False
+        clazz.__actor__ = None
         return clazz
 
     def __getattr__(cls, name):
