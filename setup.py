@@ -23,7 +23,7 @@ with open(rel("remoulade", "__init__.py"), "r") as f:
 
 
 dependencies = [
-    "prometheus-client>=0.2,<0.3",
+    "prometheus-client>=0.2",
     "pytz<=2019.1"
 ]
 
