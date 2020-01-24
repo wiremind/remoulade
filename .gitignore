@@ -115,3 +115,6 @@ dmypy.json
 /benchmark*.svg
 /.idea
 dump.rdb
+
+# Redis
+*.rdb
