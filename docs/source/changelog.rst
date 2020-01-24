@@ -8,6 +8,12 @@ All notable changes to this project will be documented in this file.
 `Unreleased`_
 -------------
 
+`0.18.2`_ -- 2019-01-24
+-----------------------
+Fix
+^^^^^
+* build: relax version limit on prometheus_client
+
 `0.18.1`_ -- 2019-12-30
 -----------------------
 Fix
@@ -283,6 +289,7 @@ Fixed
 * pipe_ignore was not recovered from right message
 
 .. _Unreleased: https://github.com/wiremind/remoulade/compare/v0.18.1...HEAD
+.. _0.18.2: https://github.com/wiremind/remoulade/releases/tag/v0.18.2
 .. _0.18.1: https://github.com/wiremind/remoulade/releases/tag/v0.18.1
 .. _0.18.0: https://github.com/wiremind/remoulade/releases/tag/v0.18.0
 .. _0.17.0: https://github.com/wiremind/remoulade/releases/tag/v0.17.0
