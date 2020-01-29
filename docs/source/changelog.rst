@@ -8,6 +8,12 @@ All notable changes to this project will be documented in this file.
 `Unreleased`_
 -------------
 
+`0.18.3`_ -- 2019-01-29
+-----------------------
+Fix
+^^^^^
+* redis: result ttl was set to null when get_result was called with block=True and forget=True
+
 `0.18.2`_ -- 2019-01-24
 -----------------------
 Fix

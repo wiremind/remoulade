@@ -49,14 +49,14 @@ class RedisBackend(ResultBackend):
 
         self.client = client or redis.Redis(**parameters)
 
-    def get_result(self, message, *, block=False, timeout=None, forget=False, raise_on_error=True):
+    def get_result(self, message_id: str, *, block=False, timeout=None, forget=False, raise_on_error=True):
         """Get a result from the backend.
 
         Warning:
           Sub-second timeouts are not respected by this backend.
 
         Parameters:
-          message(Message)
+          message_id(str)
           block(bool): Whether or not to block until a result is set.
           timeout(int): The maximum amount of time, in ms, to wait for
             a result when block is True.  Defaults to 10 seconds.
@@ -74,21 +74,23 @@ class RedisBackend(ResultBackend):
         if timeout is None:
             timeout = DEFAULT_TIMEOUT
 
-        message_key = self.build_message_key(message)
+        message_key = self.build_message_key(message_id)
         timeout = int(timeout / 1000)
         if block and timeout > 0:
             if forget:
-                result = self.client.brpop(message_key, timeout=timeout)
-                if result:
-                    _, data = result
-                    self.client.lpush(message_key, self.encoder.encode(ForgottenResult.asdict()))
+                data = self.client.brpoplpush(message_key, message_key, timeout=timeout)
+                if data:
+                    with self.client.pipeline() as pipe:
+                        pipe.lpushx(message_key, self.encoder.encode(ForgottenResult.asdict()))
+                        pipe.ltrim(message_key, 0, 0)
+                        pipe.execute()
                 else:
                     data = None
             else:
                 data = self.client.brpoplpush(message_key, message_key, timeout)
 
             if data is None:
-                raise ResultTimeout(message)
+                raise ResultTimeout(message_id)
 
         else:
             if forget:
@@ -101,9 +103,9 @@ class RedisBackend(ResultBackend):
 
         if data is None:
             if block:
-                raise ResultTimeout(message)
+                raise ResultTimeout(message_id)
             else:
-                raise ResultMissing(message)
+                raise ResultMissing(message_id)
 
         result = BackendResult(**self.encoder.decode(data))
         return self.process_result(result, raise_on_error)

@@ -286,6 +286,38 @@ def test_messages_can_get_results_and_forget(stub_broker, stub_worker, result_ba
     assert message.result.get() is None
 
 
+@pytest.mark.parametrize("block", [True, False])
+@pytest.mark.parametrize("forget", [True, False])
+def test_redis_backend_keep_ttl_all_time(stub_broker, stub_worker, redis_result_backend, block, forget):
+    # Given a result backend
+    # And a broker with the results middleware
+    stub_broker.add_middleware(Results(backend=redis_result_backend))
+
+    # And an actor that stores a result with a result_ttl
+    result_ttl = 100 * 1000
+    @remoulade.actor(store_results=True, result_ttl=result_ttl)
+    def do_work():
+        return 42
+
+    # And this actor is declared
+    stub_broker.declare_actor(do_work)
+
+    # When I send that actor a message
+    message = do_work.send()
+
+    # And wait for a result
+    if not block:
+        stub_broker.join(do_work.queue_name)
+        stub_worker.join()
+        # The result should have a TTL in redis
+        assert redis_result_backend.client.ttl(redis_result_backend.build_message_key(message.message_id)) > 0
+
+    # Then I should get that result back
+    assert message.result.get(block=block, forget=forget) == 42
+    # The forgotten result should still have a TTL in redis
+    assert redis_result_backend.client.ttl(redis_result_backend.build_message_key(message.message_id)) > 0
+
+
 @pytest.mark.parametrize("error", [True, False])
 def test_messages_can_get_completed(stub_broker, stub_worker, result_backend, error):
     # Given a result backend
