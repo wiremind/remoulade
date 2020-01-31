@@ -6,7 +6,6 @@ import remoulade
 from remoulade import Result
 from remoulade.middleware import Retries
 from remoulade.results import ErrorStored, ResultMissing, Results, ResultTimeout
-from remoulade.results.backend import FailureResult
 
 
 @pytest.mark.parametrize("forget", [True, False])
@@ -222,8 +221,10 @@ def test_store_errors(stub_broker, result_backend, stub_worker, block):
         stub_broker.join(do_work.queue_name)
         stub_worker.join()
 
-    # Then I should get a FailureResult
-    assert message.result.get(block=block, raise_on_error=False) == FailureResult
+    # Then I should get an ErrorStored
+    error_stored = message.result.get(block=block, raise_on_error=False)
+    assert isinstance(error_stored, ErrorStored)
+    assert str(error_stored) == 'ValueError()'
 
 
 def test_store_errors_after_no_more_retry(stub_broker, result_backend, stub_worker):

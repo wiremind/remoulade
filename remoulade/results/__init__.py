@@ -15,9 +15,9 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-from .backend import FailureResult, Missing, ResultBackend
+from .backend import Missing, ResultBackend
 from .errors import ErrorStored, MessageIdsMissing, ResultError, ResultMissing, ResultTimeout
 from .middleware import Results
 
-__all__ = ["ErrorStored", "Missing", "ResultBackend", "FailureResult", "ResultError", "ResultTimeout",
+__all__ = ["ErrorStored", "Missing", "ResultBackend", "ResultError", "ResultTimeout",
            "ResultMissing", "Results", "MessageIdsMissing"]
