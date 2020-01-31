@@ -54,7 +54,6 @@
 .. |ErrorStored| replace:: :class:`ErrorStored<remoulade.results.errors.ErrorStored>`
 .. |message_get_result| replace:: :meth:`get_result<remoulade.message.get_result>`
 .. |Middleware| replace:: :class:`Middleware<remoulade.Middleware>`
-.. |FailureResult| replace:: :class:`FailureResult<remoulade.results.backend.FailureResult>`
 .. |Result| replace:: :class:`Result<remoulade.Result>`
 .. |GroupResults|  replace:: :class:`GroupResults<remoulade.composition_result>`
 .. |get_result_backend|  replace:: :meth:`get_result_backend<remoulade.Broker.get_result_backend>`

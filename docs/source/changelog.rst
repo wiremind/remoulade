@@ -8,6 +8,14 @@ All notable changes to this project will be documented in this file.
 `Unreleased`_
 -------------
 
+`0.19.0`_ -- 2019-01-31
+-----------------------
+BREAKING CHANGE
+^^^^^^^^^^^^^^^
+* result: when passing raise_on_error=False to a function to get a result (message, group, backend), the returned
+object in case of error is an instance of ErrorStored instead of the FailureResult singleton value.
+
+
 `0.18.3`_ -- 2019-01-29
 -----------------------
 Fix

@@ -32,9 +32,6 @@ BACKOFF_FACTOR = 100
 #: Canary value that is returned when a result hasn't been set yet.
 Missing = type("Missing", (object,), {})()
 
-#: Canary value that is returned when a result is an error and the error is not raised
-FailureResult = type("FailureResult", (object,), {})()
-
 
 #: A type alias representing backend results.
 class BackendResult(namedtuple("BackendResult", ('result', 'error', 'forgot'))):
@@ -122,9 +119,10 @@ class ResultBackend:
           raise_on_error(boolean): raise an error if the result stored in an error
         """
         if result.error:
+            error = ErrorStored(result.error)
             if raise_on_error:
-                raise ErrorStored(result.error)
-            return FailureResult
+                raise error
+            return error
         return result.result
 
     def increment_group_completion(self, group_id: str) -> int:
