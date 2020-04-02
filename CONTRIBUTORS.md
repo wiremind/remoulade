@@ -22,3 +22,4 @@ of those changes to CLEARTYPE SRL.
 | [@xdmiodz](https://github.com/xdmiodz) | Dmitry Odzerikho |
 | [@ryansm1](https://github.com/ryansm1) | Ryan Smith |
 | [@aericson](https://github.com/aericson) | André Ericson |
+| [@xdanielsb](https://github.com/xdanielsb) | Daniel Santos |

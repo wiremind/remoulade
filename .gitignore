@@ -118,3 +118,6 @@ dump.rdb
 
 # Redis
 *.rdb
+
+# Vim
+*.swp

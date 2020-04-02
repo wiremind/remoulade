@@ -13,10 +13,10 @@ from remoulade import Worker
 from remoulade.brokers.local import LocalBroker
 from remoulade.brokers.rabbitmq import RabbitmqBroker
 from remoulade.brokers.stub import StubBroker
+from remoulade.cancel import backends as cl_backends
 from remoulade.rate_limits import backends as rl_backends
 from remoulade.results import backends as res_backends
-from remoulade.cancel import backends as cl_backends
-
+from remoulade.state import backends as state_backends
 
 logfmt = "[%(asctime)s] [%(threadName)s] [%(name)s] [%(levelname)s] %(message)s"
 logging.basicConfig(level=logging.INFO, format=logfmt)
@@ -57,6 +57,17 @@ def rabbitmq_broker():
     broker = RabbitmqBroker(max_priority=10)
     check_rabbitmq(broker)
     broker.emit_after("process_boot")
+    remoulade.set_broker(broker)
+    yield broker
+    broker.flush_all()
+    broker.emit_before("process_stop")
+    broker.close()
+
+
+@pytest.fixture()
+def rabbitmq_broker_state():
+    broker = RabbitmqBroker()
+    check_rabbitmq(broker)
     remoulade.set_broker(broker)
     yield broker
     broker.flush_all()
@@ -161,6 +172,13 @@ def rate_limiter_backend(request, rate_limiter_backends):
 @pytest.fixture
 def redis_result_backend():
     backend = res_backends.RedisBackend()
+    check_redis(backend.client)
+    return backend
+
+
+@pytest.fixture
+def redis_state_backend():
+    backend = state_backends.RedisBackend()
     check_redis(backend.client)
     return backend
 
