@@ -8,6 +8,14 @@ All notable changes to this project will be documented in this file.
 `Unreleased`_
 -------------
 
+
+`0.20.0`_ -- 2020-04-07
+-----------------------
+BREAKING CHANGE
+^^^^^^^^^^^^^^^
+* reduce: now take a `size` argument and a `merge_kwargs` argument. `size` determine the number of message that are taken
+  at each reduce (merge) step and the `merge_kwargs` are the attributes that will be passed to the merge messages.
+
 `0.19.0`_ -- 2019-01-31
 -----------------------
 BREAKING CHANGE
@@ -302,7 +310,10 @@ Fixed
 
 * pipe_ignore was not recovered from right message
 
-.. _Unreleased: https://github.com/wiremind/remoulade/compare/v0.18.1...HEAD
+.. _Unreleased: https://github.com/wiremind/remoulade/compare/v0.20.0...HEAD
+.. _0.20.0: https://github.com/wiremind/remoulade/releases/tag/v0.20.0
+.. _0.19.0: https://github.com/wiremind/remoulade/releases/tag/v0.19.0
+.. _0.18.3: https://github.com/wiremind/remoulade/releases/tag/v0.18.3
 .. _0.18.2: https://github.com/wiremind/remoulade/releases/tag/v0.18.2
 .. _0.18.1: https://github.com/wiremind/remoulade/releases/tag/v0.18.1
 .. _0.18.0: https://github.com/wiremind/remoulade/releases/tag/v0.18.0
