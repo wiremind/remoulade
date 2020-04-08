@@ -87,6 +87,7 @@ setup(
         "remoulade.results",
         "remoulade.results.backends",
         "remoulade.scheduler",
+        "remoulade.state",
         "remoulade.cli",
         "remoulade.helpers"
     ],

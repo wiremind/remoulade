@@ -13,10 +13,11 @@ from remoulade import Worker
 from remoulade.brokers.local import LocalBroker
 from remoulade.brokers.rabbitmq import RabbitmqBroker
 from remoulade.brokers.stub import StubBroker
+from remoulade.cancel import backends as cl_backends
 from remoulade.rate_limits import backends as rl_backends
 from remoulade.results import backends as res_backends
-from remoulade.cancel import backends as cl_backends
-
+from remoulade.state import MessageState
+from remoulade.state import backends as st_backends
 
 logfmt = "[%(asctime)s] [%(threadName)s] [%(name)s] [%(levelname)s] %(message)s"
 logging.basicConfig(level=logging.INFO, format=logfmt)
@@ -163,6 +164,48 @@ def redis_result_backend():
     backend = res_backends.RedisBackend()
     check_redis(backend.client)
     return backend
+
+
+@pytest.fixture
+def redis_state_backend():
+    backend = st_backends.RedisBackend()
+    check_redis(backend.client)
+    return backend
+
+
+@pytest.fixture
+def stub_state_backend():
+    return st_backends.StubBackend()
+
+
+@pytest.fixture
+def state_backends(redis_state_backend, stub_state_backend):
+    return {"redis": redis_state_backend, "stub": stub_state_backend}
+
+
+@pytest.fixture(params=["redis", "stub"])
+def state_backend(request, state_backends):
+    return state_backends[request.param]
+
+
+@pytest.fixture
+def state_middleware(state_backend):
+    broker = remoulade.get_broker()
+    middleware = MessageState(backend=state_backend)
+    broker.add_middleware(middleware)
+    return middleware
+
+
+@pytest.fixture
+def do_work():
+    broker = remoulade.get_broker()
+
+    @remoulade.actor
+    def do_work():
+        return 1
+
+    broker.declare_actor(do_work)
+    return do_work
 
 
 @pytest.fixture

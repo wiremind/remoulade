@@ -16,6 +16,29 @@ BREAKING CHANGE
 * reduce: now take a `size` argument and a `merge_kwargs` argument. `size` determine the number of message that are taken
   at each reduce (merge) step and the `merge_kwargs` are the attributes that will be passed to the merge messages.
 
+Added
+^^^^^
+* |StateNamesEnum| (type :|Enum|) contains the possible states that can have a message:
+  - |Started| a |Message| that  has not been processed
+  - |Pending| a |Message| that has been enqueued
+  - |Skipped| a |Message| that has been skipped
+  - |Canceled| a |Message| that has been cancelled
+  - |Failure| a |Message| that has been processed and raise an |Exception|
+  - |Success| a |Message| that has been processed and does not raise an |Exception|
+* Class |State| represents the current state of a message, the state is defined by:
+  - |StateNamesEnum.name| the name of the state
+  - args The arguments of the message, they are storage if they are less than  MessageState.max_size
+  - kwargs The keyword arguments of the message, they are storage if they are less than  MessageState.max_size
+* Middleware |MessageState| used to update the state of a message in a Backend, the constructor receives
+  - backend (type : |StateBackend|)
+  - state_ttl
+  - max_size
+* Abstract Backend |StateBackend| with methods |set_state| and |get_state| to set and get a |State| from the Backend
+* |RedisBackend| and |StubBackend| (type :|StateBacend|)
+* |InvalidStateError| raised when is tried to create an Invalid State
+* |TestMessageState| tests of the Middleware |MessageState|
+* |TestState| tests of the class |State|
+
 `0.19.0`_ -- 2019-01-31
 -----------------------
 BREAKING CHANGE
