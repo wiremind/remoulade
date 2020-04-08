@@ -110,17 +110,32 @@ class Prometheus(Middleware):
             "remoulade_message_duration_milliseconds",
             "The time spent processing messages.",
             ["queue_name", "actor_name"],
-            buckets=(5, 10, 25, 50, 75, 100, 250, 500, 750, 1000, 2500, 5000,
-                     7500, 10000, 30000, 60000, 600000, 900000, float("inf")),
+            buckets=(
+                5,
+                10,
+                25,
+                50,
+                75,
+                100,
+                250,
+                500,
+                750,
+                1000,
+                2500,
+                5000,
+                7500,
+                10000,
+                30000,
+                60000,
+                600000,
+                900000,
+                float("inf"),
+            ),
             registry=registry,
         )
 
         self.logger.debug("Starting exposition server...")
-        self.server = _ExpositionServer(
-            http_host=self.http_host,
-            http_port=self.http_port,
-            lockfile=LOCK_PATH,
-        )
+        self.server = _ExpositionServer(http_host=self.http_host, http_port=self.http_port, lockfile=LOCK_PATH,)
         self.server.start()
 
     def after_worker_shutdown(self, broker, worker):

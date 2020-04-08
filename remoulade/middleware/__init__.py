@@ -34,15 +34,21 @@ if CURRENT_OS != "Windows":
 
 __all__ = [
     # Basics
-    "Middleware", "MiddlewareError", "SkipMessage",
-
+    "Middleware",
+    "MiddlewareError",
+    "SkipMessage",
     # Threading
-    "Interrupt", "raise_thread_exception",
-
+    "Interrupt",
+    "raise_thread_exception",
     # Middlewares
-    "AgeLimit", "Callbacks", "Pipelines", "Retries",
-    "Shutdown", "ShutdownNotifications", "TimeLimit",
-    "TimeLimitExceeded"
+    "AgeLimit",
+    "Callbacks",
+    "Pipelines",
+    "Retries",
+    "Shutdown",
+    "ShutdownNotifications",
+    "TimeLimit",
+    "TimeLimitExceeded",
 ]
 
 if CURRENT_OS != "Windows":
@@ -50,7 +56,4 @@ if CURRENT_OS != "Windows":
 
 
 #: The list of middleware that are enabled by default.
-default_middleware = [
-    AgeLimit, TimeLimit, ShutdownNotifications,
-    Callbacks, Pipelines, Retries
-]
+default_middleware = [AgeLimit, TimeLimit, ShutdownNotifications, Callbacks, Pipelines, Retries]

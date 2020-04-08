@@ -18,14 +18,14 @@ def test_raise_thread_exception():
     def work():
         try:
             for _ in range(10):
-                time.sleep(.1)
+                time.sleep(0.1)
         except threading.Interrupt:
             caught.append(1)
 
     # When I start the thread
     t = Thread(target=work)
     t.start()
-    time.sleep(.1)
+    time.sleep(0.1)
 
     # And raise the interrupt and join on the thread
     threading.raise_thread_exception(t.ident, threading.Interrupt)
@@ -42,9 +42,7 @@ def test_raise_thread_exception_on_nonexistent_thread(caplog):
 
     # I expect a 'failed to set exception' critical message to be logged
     assert caplog.record_tuples == [
-        ("remoulade.middleware.threading", logging.CRITICAL, (
-            "Failed to set exception (Interrupt) in thread -1."
-        )),
+        ("remoulade.middleware.threading", logging.CRITICAL, ("Failed to set exception (Interrupt) in thread -1.")),
     ]
 
 
@@ -57,8 +55,9 @@ def test_raise_thread_exception_unsupported_platform(caplog, monkeypatch):
 
     # I expect a 'platform not supported' critical message to be logged
     assert caplog.record_tuples == [
-        ("remoulade.middleware.threading", logging.CRITICAL, (
-            "Setting thread exceptions (Interrupt) is not supported "
-            "for your current platform ('not supported')."
-        )),
+        (
+            "remoulade.middleware.threading",
+            logging.CRITICAL,
+            ("Setting thread exceptions (Interrupt) is not supported " "for your current platform ('not supported')."),
+        ),
     ]

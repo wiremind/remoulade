@@ -10,7 +10,7 @@ from remoulade import Broker, get_encoder, get_logger
 
 DEFAULT_JOB_INTERVAL = 3600 * 24
 DEFAULT_JOB_STATUS = True
-DEFAULT_TZ = 'UTC'
+DEFAULT_TZ = "UTC"
 
 DEFAULT_SCHEDULER_NAMESPACE = "remoulade-schedule"
 DEFAULT_SCHEDULER_LOCK_KEY = "remoulade-scheduler-tick"
@@ -18,10 +18,18 @@ DEFAULT_SCHEDULER_PERIOD = 1
 
 
 class ScheduledJob:
-
-    def __init__(self, actor_name: str, args: List = None, kwargs: Dict = None, interval: int = None,
-                 daily_time: datetime.time = None, iso_weekday: int = None, enabled: bool = None,
-                 last_queued: datetime.datetime = None, tz: str = None) -> None:
+    def __init__(
+        self,
+        actor_name: str,
+        args: List = None,
+        kwargs: Dict = None,
+        interval: int = None,
+        daily_time: datetime.time = None,
+        iso_weekday: int = None,
+        enabled: bool = None,
+        last_queued: datetime.datetime = None,
+        tz: str = None,
+    ) -> None:
         """
         Describes a job that should be run through the scheduler
         :param actor_name: The name of the actor that should be ran
@@ -35,8 +43,9 @@ class ScheduledJob:
         you should not be setting this yourself
         :param tz: timezone your daily_time is expressed in
         """
-        if (daily_time is not None and daily_time.tzinfo is not None) \
-                or (last_queued is not None and last_queued.tzinfo is not None):
+        if (daily_time is not None and daily_time.tzinfo is not None) or (
+            last_queued is not None and last_queued.tzinfo is not None
+        ):
             raise ValueError("Datetimes should be naive")
         if daily_time is not None and interval not in (3600 * 24, None):
             raise ValueError("daily_time should be used with a 24h interval")
@@ -55,8 +64,10 @@ class ScheduledJob:
         args = json.dumps(d["args"])
         kwargs = json.dumps(sorted(list(d["kwargs"].items()), key=lambda x: x[0]))
 
-        path = [str(d[k]) for k in ("actor_name", "interval", "daily_time", "iso_weekday", "enabled", "tz")
-                ] + [args, kwargs]
+        path = [str(d[k]) for k in ("actor_name", "interval", "daily_time", "iso_weekday", "enabled", "tz")] + [
+            args,
+            kwargs,
+        ]
 
         return " ".join(path)
 
@@ -64,41 +75,51 @@ class ScheduledJob:
         return {
             "actor_name": self.actor_name,
             "interval": self.interval,
-            "daily_time": None if self.daily_time is None else self.daily_time.strftime('%H:%M:%S'),
+            "daily_time": None if self.daily_time is None else self.daily_time.strftime("%H:%M:%S"),
             "iso_weekday": self.iso_weekday,
             "enabled": self.enabled,
-            "last_queued": None if self.last_queued is None else self.last_queued.strftime('%Y-%m-%dT%H:%M:%S'),
+            "last_queued": None if self.last_queued is None else self.last_queued.strftime("%Y-%m-%dT%H:%M:%S"),
             "tz": self.tz,
             "args": self.args,
-            "kwargs": self.kwargs
+            "kwargs": self.kwargs,
         }
 
     def encode(self) -> bytes:
         return get_encoder().encode(self.as_dict())
 
     @classmethod
-    def decode(cls, data: bytes) -> 'ScheduledJob':
+    def decode(cls, data: bytes) -> "ScheduledJob":
         data = get_encoder().decode(data)
         return ScheduledJob(
             actor_name=data["actor_name"],
             interval=data["interval"],
-            daily_time=None if data["daily_time"] is None else datetime.datetime.strptime(data["daily_time"],
-                                                                                          '%H:%M:%S').time(),
+            daily_time=None
+            if data["daily_time"] is None
+            else datetime.datetime.strptime(data["daily_time"], "%H:%M:%S").time(),
             iso_weekday=data["iso_weekday"],
             enabled=data["enabled"],
-            last_queued=None if data["last_queued"] is None else datetime.datetime.strptime(data["last_queued"],
-                                                                                            '%Y-%m-%dT%H:%M:%S'),
+            last_queued=None
+            if data["last_queued"] is None
+            else datetime.datetime.strptime(data["last_queued"], "%Y-%m-%dT%H:%M:%S"),
             tz=data["tz"],
             args=data["args"],
-            kwargs=data["kwargs"]
+            kwargs=data["kwargs"],
         )
 
 
 class Scheduler:
-
-    def __init__(self, broker: Broker, schedule: List[ScheduledJob], *,
-                 namespace: str = None, lock_key: str = None, period: Union[int, float] = None,
-                 client: redis.Redis = None, url: str = None, **redis_parameters):
+    def __init__(
+        self,
+        broker: Broker,
+        schedule: List[ScheduledJob],
+        *,
+        namespace: str = None,
+        lock_key: str = None,
+        period: Union[int, float] = None,
+        client: redis.Redis = None,
+        url: str = None,
+        **redis_parameters
+    ):
         """
         The class that takes care of scheduling tasks
         :param broker: The broker for the remoulade app
@@ -148,8 +169,9 @@ class Scheduler:
             if job_hash not in redis_schedule:
                 # Do not queue task if daily time is already passed
                 if job.daily_time is not None and job.daily_time < datetime.datetime.now(pytz.timezone(job.tz)).time():
-                    self.logger.info("Will not run %s today, because daily time has already passed. Wait for tomorrow",
-                                     job_hash)
+                    self.logger.info(
+                        "Will not run %s today, because daily time has already passed. Wait for tomorrow", job_hash
+                    )
                     job.last_queued = datetime.datetime.utcnow()
                 # Add to redis
                 self.logger.info("Adding new job %s to schedule", job_hash)
@@ -180,15 +202,18 @@ class Scheduler:
 
                         if job.last_queued is not None:
                             # if task already ran today, skip it
-                            last_queued_date = job.last_queued.replace(tzinfo=pytz.UTC
-                                                                       ).astimezone(pytz.timezone(job.tz)).date()
+                            last_queued_date = (
+                                job.last_queued.replace(tzinfo=pytz.UTC).astimezone(pytz.timezone(job.tz)).date()
+                            )
                             if now.date() == last_queued_date:
                                 continue
                     # Task that should run each X seconds
                     else:
-                        if job.last_queued is not None \
-                                and (datetime.timedelta(seconds=0) < now_utc - job.last_queued < datetime.timedelta(
-                                    seconds=job.interval)):
+                        if job.last_queued is not None and (
+                            datetime.timedelta(seconds=0)
+                            < now_utc - job.last_queued
+                            < datetime.timedelta(seconds=job.interval)
+                        ):
                             continue
 
                     if job.actor_name not in self.broker.actors:

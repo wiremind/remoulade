@@ -67,6 +67,7 @@ def actor(fn=None, *, actor_name=None, queue_name="default", priority=0, **optio
     Returns:
       Actor: The decorated function.
     """
+
     def decorator(fn):
         nonlocal actor_name
         actor_name = actor_name or fn.__name__
@@ -159,7 +160,8 @@ class Actor:
         return Message(
             queue_name=self.queue_name,
             actor_name=self.actor_name,
-            args=args or (), kwargs=kwargs or {},
+            args=args or (),
+            kwargs=kwargs or {},
             options=options,
         )
 

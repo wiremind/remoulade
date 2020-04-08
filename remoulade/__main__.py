@@ -104,56 +104,50 @@ def parse_arguments():
         epilog=HELP_EPILOG,
     )
     parser.add_argument(
-        "modules", metavar="module", nargs="*",
-        help="additional python modules to import",
+        "modules", metavar="module", nargs="*", help="additional python modules to import",
     )
     parser.add_argument(
-        "--processes", "-p", default=cpus, type=int,
-        help="the number of worker processes to run (default: %s)" % cpus,
+        "--processes", "-p", default=cpus, type=int, help="the number of worker processes to run (default: %s)" % cpus,
     )
     parser.add_argument(
-        "--threads", "-t", default=8, type=int,
-        help="the number of worker threads per process (default: 8)",
+        "--threads", "-t", default=8, type=int, help="the number of worker threads per process (default: 8)",
     )
     parser.add_argument(
-        "--prefetch-multiplier", default=2, type=int,
+        "--prefetch-multiplier",
+        default=2,
+        type=int,
         help="""
             the number of messages to prefetch at a time to be multiplied by the number of concurrent processes
             (default:2)
         """,
     )
+    parser.add_argument("--path", "-P", default=".", nargs="*", type=str, help="the module import path (default: .)")
     parser.add_argument(
-        "--path", "-P", default=".", nargs="*", type=str,
-        help="the module import path (default: .)"
+        "--queues", "-Q", nargs="*", type=str, help="listen to a subset of queues (default: all queues)",
     )
     parser.add_argument(
-        "--queues", "-Q", nargs="*", type=str,
-        help="listen to a subset of queues (default: all queues)",
+        "--pid-file", type=str, help="write the PID of the master process to a file (default: no pid file)",
     )
     parser.add_argument(
-        "--pid-file", type=str,
-        help="write the PID of the master process to a file (default: no pid file)",
-    )
-    parser.add_argument(
-        "--log-file", type=argparse.FileType(mode="a", encoding="utf-8"),
+        "--log-file",
+        type=argparse.FileType(mode="a", encoding="utf-8"),
         help="write all logs to a file (default: sys.stderr)",
     )
 
     if HAS_WATCHDOG:
         parser.add_argument(
-            "--watch", type=folder_path, metavar="DIR",
+            "--watch",
+            type=folder_path,
+            metavar="DIR",
             help=(
                 "watch a directory and reload the workers when any source files "
                 "change (this feature must only be used during development)"
-            )
+            ),
         )
         parser.add_argument(
             "--watch-use-polling",
             action="store_true",
-            help=(
-                "poll the filesystem for changes rather than using a "
-                "system-dependent filesystem event emitter"
-            )
+            help=("poll the filesystem for changes rather than using a " "system-dependent filesystem event emitter"),
         )
 
     parser.add_argument("--version", action="version", version=__version__)
@@ -239,8 +233,9 @@ def worker_process(args, worker_id, logging_fd):
         broker = get_broker()
         broker.emit_after("process_boot")
 
-        worker = Worker(broker, queues=args.queues, worker_threads=args.threads,
-                        prefetch_multiplier=args.prefetch_multiplier)
+        worker = Worker(
+            broker, queues=args.queues, worker_threads=args.threads, prefetch_multiplier=args.prefetch_multiplier
+        )
         worker.start()
     except ImportError:
         logger.exception("Failed to import module.")
@@ -317,8 +312,7 @@ def main():  # noqa
     # inherit the blocking behaviour.
     if hasattr(signal, "pthread_sigmask"):
         signal.pthread_sigmask(
-            signal.SIG_BLOCK,
-            {signal.SIGINT, signal.SIGTERM, signal.SIGHUP},
+            signal.SIG_BLOCK, {signal.SIGINT, signal.SIGTERM, signal.SIGHUP},
         )
 
     if HAS_WATCHDOG and args.watch:
@@ -349,8 +343,8 @@ def main():  # noqa
                     if index == -1:
                         break
 
-                    line = buffers[key.fd][:index + 1]
-                    buffers[key.fd] = buffers[key.fd][index + 1:]
+                    line = buffers[key.fd][: index + 1]
+                    buffers[key.fd] = buffers[key.fd][index + 1 :]
                     log_file.write(line)
                     log_file.flush()
 
@@ -363,11 +357,7 @@ def main():  # noqa
     def sighandler(signum, frame):
         nonlocal reload_process, worker_processes
         reload_process = signum == signal.SIGHUP
-        signum = {
-            signal.SIGINT: signal.SIGTERM,
-            signal.SIGTERM: signal.SIGTERM,
-            signal.SIGHUP: signal.SIGHUP,
-        }[signum]
+        signum = {signal.SIGINT: signal.SIGTERM, signal.SIGTERM: signal.SIGTERM, signal.SIGHUP: signal.SIGHUP,}[signum]
 
         logger.info("Sending %r to worker processes...", signum.name)
         for pid in worker_processes:
@@ -380,8 +370,7 @@ def main():  # noqa
     # safe to unblock the signals that were previously blocked.
     if hasattr(signal, "pthread_sigmask"):
         signal.pthread_sigmask(
-            signal.SIG_UNBLOCK,
-            {signal.SIGINT, signal.SIGTERM, signal.SIGHUP},
+            signal.SIG_UNBLOCK, {signal.SIGINT, signal.SIGTERM, signal.SIGHUP},
         )
 
     retcode = RET_OK

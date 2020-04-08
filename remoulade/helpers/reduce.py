@@ -43,7 +43,7 @@ def reduce(messages, merge_actor, cancel_on_error=False, size=2, merge_kwargs=No
             if i == len(messages) - (size - 1):
                 reduced_messages.append(messages[i])
             else:
-                grouped_message = group(messages[i:i + size], cancel_on_error=cancel_on_error)
+                grouped_message = group(messages[i : i + size], cancel_on_error=cancel_on_error)
                 reduced_messages.append(grouped_message | merge_actor.message(**merge_kwargs))
         messages = reduced_messages
 

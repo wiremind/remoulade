@@ -21,7 +21,7 @@ global_scheduler = None
 def get_scheduler():
     global global_scheduler
     if global_scheduler is None:
-        raise ValueError('Scheduler not found, are you sure you called set_scheduler(scheduler) ?')
+        raise ValueError("Scheduler not found, are you sure you called set_scheduler(scheduler) ?")
     return global_scheduler
 
 

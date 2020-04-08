@@ -13,25 +13,12 @@ def parse_arguments():
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument(
-        "modules", metavar="module", nargs="*",
-        help="additional python modules to import",
+        "modules", metavar="module", nargs="*", help="additional python modules to import",
     )
-    parser.add_argument(
-        "--path", "-P", default=".", nargs="*", type=str,
-        help="the module import path (default: .)"
-    )
-    parser.add_argument(
-        "--actor-name", "-N", type=str,
-        help="The actor to be ran"
-    )
-    parser.add_argument(
-        "--args", "-A", type=json.loads,
-        help="The actor's args"
-    )
-    parser.add_argument(
-        "--kwargs", "-K", type=json.loads,
-        help="The actor's kwargs"
-    )
+    parser.add_argument("--path", "-P", default=".", nargs="*", type=str, help="the module import path (default: .)")
+    parser.add_argument("--actor-name", "-N", type=str, help="The actor to be ran")
+    parser.add_argument("--args", "-A", type=json.loads, help="The actor's args")
+    parser.add_argument("--kwargs", "-K", type=json.loads, help="The actor's kwargs")
     return parser.parse_args()
 
 

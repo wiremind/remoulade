@@ -53,6 +53,7 @@ class Results(Middleware):
         allowed to exist in the backend.  Defaults to 10 minutes and
         can be set on a per-actor basis.
     """
+
     # Warning: Results need to be before Retries to work
     default_before = Retries
 
@@ -64,17 +65,14 @@ class Results(Middleware):
 
     @property
     def actor_options(self):
-        return {
-            "store_results",
-            "result_ttl"
-        }
+        return {"store_results", "result_ttl"}
 
     def after_process_message(self, broker, message, *, result=None, exception=None):
         actor = broker.get_actor(message.actor_name)
 
         store_results = actor.options.get("store_results", self.store_results)
         result_ttl = actor.options.get("result_ttl", self.result_ttl)
-        message_failed = getattr(message, 'failed', False)
+        message_failed = getattr(message, "failed", False)
 
         if store_results:
             if exception is None:

@@ -3,22 +3,25 @@ import datetime
 import pytz
 
 import remoulade
-from remoulade.scheduler import Scheduler, ScheduledJob
 from remoulade.brokers.rabbitmq import RabbitmqBroker
+from remoulade.scheduler import ScheduledJob, Scheduler
 
 broker = RabbitmqBroker(max_priority=10)
 remoulade.set_broker(broker)
 timezone = pytz.timezone("Europe/Paris")
 remoulade.set_scheduler(
-    Scheduler(broker,
-              [
-                  ScheduledJob(
-                      actor_name="write_loaded_at",
-                      kwargs={"filename": "/tmp/scheduler-daily_tz", "text": "simple schedule\n"},
-                      daily_time=(datetime.datetime.now(timezone) + datetime.timedelta(seconds=5)).time(),
-                      tz="Europe/Paris"
-                  )
-              ], period=0.1)
+    Scheduler(
+        broker,
+        [
+            ScheduledJob(
+                actor_name="write_loaded_at",
+                kwargs={"filename": "/tmp/scheduler-daily_tz", "text": "simple schedule\n"},
+                daily_time=(datetime.datetime.now(timezone) + datetime.timedelta(seconds=5)).time(),
+                tz="Europe/Paris",
+            )
+        ],
+        period=0.1,
+    )
 )
 
 

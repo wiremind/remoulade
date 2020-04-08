@@ -1,6 +1,5 @@
 import os
 import xml.etree.ElementTree as ET
-
 from datetime import datetime
 
 
@@ -30,7 +29,7 @@ def collect_pages(basedir):
             stat = os.stat(path)
             last_mod = datetime.fromtimestamp(stat.st_mtime).date().isoformat()
 
-            page_path = path[len(basedir):].lstrip("/")
+            page_path = path[len(basedir) :].lstrip("/")
             yield page_path, last_mod, priority
 
 

@@ -24,6 +24,7 @@ class LocalBroker(Broker):
 
     It can only be used with LocalBackend as a result backend
     """
+
     def __init__(self, middleware=None):
         super().__init__(middleware)
 
@@ -46,7 +47,7 @@ class LocalBroker(Broker):
             getattr(middleware, "after_" + signal)(self, *args, **kwargs)
 
     def consume(self, queue_name, prefetch=1, timeout=100):
-        raise ValueError('LocalBroker is not destined to use with a Worker')
+        raise ValueError("LocalBroker is not destined to use with a Worker")
 
     def declare_queue(self, queue_name):
         self.queues[queue_name] = None

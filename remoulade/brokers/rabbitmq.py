@@ -58,14 +58,14 @@ class RabbitmqBroker(Broker):
     """
 
     def __init__(
-            self,
-            *,
-            confirm_delivery=False,
-            url=None,
-            middleware=None,
-            max_priority=None,
-            channel_pool_size=200,
-            dead_queue_max_length=None
+        self,
+        *,
+        confirm_delivery=False,
+        url=None,
+        middleware=None,
+        max_priority=None,
+        channel_pool_size=200,
+        dead_queue_max_length=None
     ):
         super().__init__(middleware=middleware)
 
@@ -75,7 +75,7 @@ class RabbitmqBroker(Broker):
         if dead_queue_max_length is not None and dead_queue_max_length <= 0:
             raise ValueError("dead_queue_max_length must be strictly above 0")
 
-        self.url = url or ''
+        self.url = url or ""
         self.confirm_delivery = confirm_delivery
         self.max_priority = max_priority
         self.dead_queue_max_length = dead_queue_max_length
@@ -222,19 +222,11 @@ class RabbitmqBroker(Broker):
         """
         queue_name = message.queue_name
         actor = self.get_actor(message.actor_name)
-        properties = {
-            'delivery_mode': 2,
-            'priority': message.options.get("priority", actor.options.get("priority"))
-        }
+        properties = {"delivery_mode": 2, "priority": message.options.get("priority", actor.options.get("priority"))}
         if delay is not None:
             queue_name = dq_name(queue_name)
             message_eta = current_millis() + delay
-            message = message.copy(
-                queue_name=queue_name,
-                options={
-                    "eta": message_eta,
-                },
-            )
+            message = message.copy(queue_name=queue_name, options={"eta": message_eta,},)
 
         attempts = 1
         while True:
@@ -249,10 +241,7 @@ class RabbitmqBroker(Broker):
                 self.emit_before("enqueue", message, delay)
                 with self.channel_pool.acquire() as channel:
                     channel.basic.publish(
-                        exchange="",
-                        routing_key=queue_name,
-                        body=message.encode(),
-                        properties=properties,
+                        exchange="", routing_key=queue_name, body=message.encode(), properties=properties,
                     )
                 self.emit_after("enqueue", message, delay)
                 return message
@@ -270,8 +259,7 @@ class RabbitmqBroker(Broker):
                     raise ConnectionClosed(e) from None
 
                 self.logger.debug(
-                    "Retrying enqueue due to closed connection. [%d/%d]",
-                    attempts, MAX_ENQUEUE_ATTEMPTS,
+                    "Retrying enqueue due to closed connection. [%d/%d]", attempts, MAX_ENQUEUE_ATTEMPTS,
                 )
 
     def get_declared_queues(self):
@@ -300,9 +288,9 @@ class RabbitmqBroker(Broker):
             xq_queue_response = self._declare_xq_queue(channel, queue_name)
 
         return (
-            queue_response['message_count'],
-            dq_queue_response['message_count'],
-            xq_queue_response['message_count'],
+            queue_response["message_count"],
+            dq_queue_response["message_count"],
+            xq_queue_response["message_count"],
         )
 
     def flush(self, queue_name):
@@ -443,6 +431,7 @@ class ChannelPool:
       pool_size(int): The max size of the pool.
 
     """
+
     def __init__(self, channel_factory, *, pool_size):
         self._channel_factory = channel_factory
         self._pool = LifoQueue(pool_size)

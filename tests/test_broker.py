@@ -25,7 +25,7 @@ def test_broker_uses_rabbitmq_if_not_set():
     with pytest.raises(ValueError) as e:
         remoulade.get_broker()
 
-    assert str(e.value) == 'Broker not found, are you sure you called set_broker(broker) ?'
+    assert str(e.value) == "Broker not found, are you sure you called set_broker(broker) ?"
 
 
 def test_change_broker(stub_broker):

@@ -57,7 +57,7 @@ class Worker:
         self.logger = get_logger(__name__, type(self))
         self.broker = broker
         if broker.local:
-            raise RemouladeError('LocalBroker is not destined to be used with a Worker')
+            raise RemouladeError("LocalBroker is not destined to be used with a Worker")
 
         self.consumers = {}
         self.consumer_whitelist = queues and set(queues)
@@ -181,10 +181,7 @@ class Worker:
 
     def _add_worker(self):
         worker = _WorkerThread(
-            broker=self.broker,
-            consumers=self.consumers,
-            work_queue=self.work_queue,
-            worker_timeout=self.worker_timeout
+            broker=self.broker, consumers=self.consumers, work_queue=self.work_queue, worker_timeout=self.worker_timeout
         )
         worker.start()
         self.workers.append(worker)
@@ -232,9 +229,7 @@ class _ConsumerThread(Thread):
 
             try:
                 self.consumer = self.broker.consume(
-                    queue_name=self.queue_name,
-                    prefetch=self.prefetch,
-                    timeout=self.worker_timeout
+                    queue_name=self.queue_name, prefetch=self.prefetch, timeout=self.worker_timeout
                 )
 
                 for message in self.consumer:
@@ -303,8 +298,7 @@ class _ConsumerThread(Thread):
                 self.work_queue.put((-actor.priority, message))
         except ActorNotFound:
             self.logger.error(
-                "Received message for undefined actor %r. Moving it to the DLQ.",
-                message.actor_name, exc_info=True,
+                "Received message for undefined actor %r. Moving it to the DLQ.", message.actor_name, exc_info=True,
             )
             message.fail()
             self.post_process_message(message)
@@ -437,8 +431,10 @@ class _WorkerThread(Thread):
                 self.logger.warning("Rate limit exceeded in message %s: %s.", message, e)
             else:
                 self.logger.error(
-                    "Failed to process message %s with unhandled exception.", message,
-                    exc_info=True, extra={'input': {'args': str(message.args), 'kwargs': str(message.kwargs)}}
+                    "Failed to process message %s with unhandled exception.",
+                    message,
+                    exc_info=True,
+                    extra={"input": {"args": str(message.args), "kwargs": str(message.kwargs)}},
                 )
 
             self.broker.emit_after("process_message", message, exception=e)
@@ -465,12 +461,12 @@ class _WorkerThread(Thread):
         actor = self.broker.get_actor(message.actor_name)
         message_id = message.message_id
         try:
-            self.logger.info("Started Actor %s", message, extra={'message_id': message_id})
+            self.logger.info("Started Actor %s", message, extra={"message_id": message_id})
             start = time.perf_counter()
             return actor(*message.args, **message.kwargs)
         finally:
             runtime = (time.perf_counter() - start) * 1000
-            extra = {'message_id': message_id, 'runtime': runtime}
+            extra = {"message_id": message_id, "runtime": runtime}
             self.logger.info("Finished Actor %s after %.02fms.", message, runtime, extra=extra)
 
     def pause(self):

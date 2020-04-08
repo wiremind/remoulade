@@ -34,7 +34,7 @@ Missing = type("Missing", (object,), {})()
 
 
 #: A type alias representing backend results.
-class BackendResult(namedtuple("BackendResult", ('result', 'error', 'forgot'))):
+class BackendResult(namedtuple("BackendResult", ("result", "error", "forgot"))):
     def __new__(cls, *, result, error, forgot=False):
         return super().__new__(cls, result, error, forgot)
 
@@ -64,8 +64,15 @@ class ResultBackend:
         self.namespace = namespace
         self.encoder = encoder or get_encoder()
 
-    def get_result(self, message_id: str, *, block: bool = False, timeout: int = None,  # noqa: F821
-                   forget: bool = False, raise_on_error: bool = True) -> BackendResult:
+    def get_result(
+        self,
+        message_id: str,
+        *,
+        block: bool = False,
+        timeout: int = None,  # noqa: F821
+        forget: bool = False,
+        raise_on_error: bool = True
+    ) -> BackendResult:
         """Get a result from the backend.
 
         Parameters:
@@ -126,9 +133,9 @@ class ResultBackend:
         return result.result
 
     def increment_group_completion(self, group_id: str) -> int:
-        raise NotImplementedError("%(classname)r does not implement increment_group_completion()" % {
-            "classname": type(self).__name__,
-        })
+        raise NotImplementedError(
+            "%(classname)r does not implement increment_group_completion()" % {"classname": type(self).__name__,}
+        )
 
     def store_result(self, message_id: str, result: BackendResult, ttl: int) -> None:  # noqa: F821
         """Store a result in the backend.
@@ -197,21 +204,21 @@ class ResultBackend:
         this method if they want to use the default, polling,
         implementation of get_result.
         """
-        raise NotImplementedError("%(classname)r does not implement _get()" % {
-            "classname": type(self).__name__,
-        })
+        raise NotImplementedError(
+            "%(classname)r does not implement _get()" % {"classname": type(self).__name__,}
+        )
 
     def _store(self, message_keys: Iterable[str], result: Any, ttl: int) -> None:  # pragma: no cover
         """Store multiple results in the backend.  Subclasses may implement
         this method if they want to use the default implementation of
         set_result.
         """
-        raise NotImplementedError("%(classname)r does not implement _store()" % {
-            "classname": type(self).__name__,
-        })
+        raise NotImplementedError(
+            "%(classname)r does not implement _store()" % {"classname": type(self).__name__,}
+        )
 
     def _delete(self, key: str) -> None:  # pragma: no cover
         """ Delete a key from the backend """
-        raise NotImplementedError("%(classname)r does not implement _delete()" % {
-            "classname": type(self).__name__,
-        })
+        raise NotImplementedError(
+            "%(classname)r does not implement _delete()" % {"classname": type(self).__name__,}
+        )

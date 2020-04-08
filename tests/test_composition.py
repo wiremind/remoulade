@@ -5,7 +5,7 @@ import pytest
 
 import remoulade
 from remoulade import CollectionResults, group, pipeline
-from remoulade.results import ErrorStored, ResultMissing, Results, ResultTimeout, MessageIdsMissing
+from remoulade.results import ErrorStored, MessageIdsMissing, ResultMissing, Results, ResultTimeout
 
 
 def test_messages_can_be_piped(stub_broker):
@@ -24,7 +24,7 @@ def test_messages_can_be_piped(stub_broker):
     assert isinstance(pipe, pipeline)
 
     def filter_options(message):
-        return {key: value for (key, value) in message.items() if key != 'options'}
+        return {key: value for (key, value) in message.items() if key != "options"}
 
     # If I build a pipeline
     targets = pipe.build()
@@ -245,17 +245,17 @@ def test_pipelines_store_results_error(stub_broker, result_backend, stub_worker,
     if store_results:
         with pytest.raises(ErrorStored) as e:
             pipe.children[0].result.get()
-        assert str(e.value) == 'ValueError()'
+        assert str(e.value) == "ValueError()"
 
     for i in [1, 3]:
         with pytest.raises(ErrorStored) as e:
             pipe.children[i].result.get()
-        assert str(e.value).startswith('ParentFailed')
+        assert str(e.value).startswith("ParentFailed")
 
     for child in g.children:
         with pytest.raises(ErrorStored) as e:
             child.result.get()
-        assert str(e.value).startswith('ParentFailed')
+        assert str(e.value).startswith("ParentFailed")
 
 
 def test_groups_execute_jobs_in_parallel(stub_broker, stub_worker, result_backend):
@@ -301,6 +301,7 @@ def test_inner_groups_forbidden(stub_broker, stub_worker, result_backend):
     @remoulade.actor()
     def do_work():
         return 1
+
     # And this actor is declared
     stub_broker.declare_actor(do_work)
 
@@ -569,11 +570,9 @@ def test_multiple_groups_pipelines(stub_broker, stub_worker, result_backend):
     stub_broker.declare_actor(do_work)
     stub_broker.declare_actor(do_sum)
 
-    pipe = pipeline([
-        group([do_work.message(), do_work.message()]),
-        group([do_sum.message(), do_sum.message()]),
-        do_sum.message()
-    ]).run()
+    pipe = pipeline(
+        [group([do_work.message(), do_work.message()]), group([do_sum.message(), do_sum.message()]), do_sum.message()]
+    ).run()
 
     result = pipe.result.get(block=True)
 

@@ -19,5 +19,13 @@ from .backend import Missing, ResultBackend
 from .errors import ErrorStored, MessageIdsMissing, ResultError, ResultMissing, ResultTimeout
 from .middleware import Results
 
-__all__ = ["ErrorStored", "Missing", "ResultBackend", "ResultError", "ResultTimeout",
-           "ResultMissing", "Results", "MessageIdsMissing"]
+__all__ = [
+    "ErrorStored",
+    "Missing",
+    "ResultBackend",
+    "ResultError",
+    "ResultTimeout",
+    "ResultMissing",
+    "Results",
+    "MessageIdsMissing",
+]

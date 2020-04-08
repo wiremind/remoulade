@@ -34,8 +34,9 @@ class StubBackend(CancelBackend):
 
     def is_canceled(self, message_id: str, group_id: str) -> bool:
         return any(
-            self.cancellations.get(key, -float('inf')) > time.time() - self.cancellation_ttl
-            for key in [message_id, group_id] if key
+            self.cancellations.get(key, -float("inf")) > time.time() - self.cancellation_ttl
+            for key in [message_id, group_id]
+            if key
         )
 
     def cancel(self, message_ids: Iterable[str]) -> None:

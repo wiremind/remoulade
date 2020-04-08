@@ -21,8 +21,17 @@ from .collection_results import CollectionResults
 from .composition import group, pipeline
 from .encoder import Encoder, JSONEncoder, PickleEncoder
 from .errors import (
-    ActorNotFound, BrokerError, ChannelPoolTimeout, ConnectionClosed, ConnectionError, ConnectionFailed,
-    NoResultBackend, QueueJoinTimeout, QueueNotFound, RateLimitExceeded, RemouladeError
+    ActorNotFound,
+    BrokerError,
+    ChannelPoolTimeout,
+    ConnectionClosed,
+    ConnectionError,
+    ConnectionFailed,
+    NoResultBackend,
+    QueueJoinTimeout,
+    QueueNotFound,
+    RateLimitExceeded,
+    RemouladeError,
 )
 from .generic import GenericActor
 from .logging import get_logger
@@ -34,39 +43,51 @@ from .worker import Worker
 
 __all__ = [
     # Actors
-    "Actor", "GenericActor", "actor",
-
+    "Actor",
+    "GenericActor",
+    "actor",
     # Brokers
-    "Broker", "Consumer", "MessageProxy", "get_broker", "set_broker", "change_broker", "declare_actors",
-
+    "Broker",
+    "Consumer",
+    "MessageProxy",
+    "get_broker",
+    "set_broker",
+    "change_broker",
+    "declare_actors",
     # Composition
-    "group", "pipeline", "CollectionResults",
-
+    "group",
+    "pipeline",
+    "CollectionResults",
     # Encoding
-    "Encoder", "JSONEncoder", "PickleEncoder",
-
+    "Encoder",
+    "JSONEncoder",
+    "PickleEncoder",
     # Errors
     "RemouladeError",
     "BrokerError",
-    "ActorNotFound", "QueueNotFound", "QueueJoinTimeout",
-    "ConnectionError", "ConnectionClosed", "ConnectionFailed",
-    "RateLimitExceeded", "NoResultBackend",
+    "ActorNotFound",
+    "QueueNotFound",
+    "QueueJoinTimeout",
+    "ConnectionError",
+    "ConnectionClosed",
+    "ConnectionFailed",
+    "RateLimitExceeded",
+    "NoResultBackend",
     "ChannelPoolTimeout",
-
     # Logging
     "get_logger",
-
     # Messages
-    "Message", "get_encoder", "set_encoder", "Result",
-
+    "Message",
+    "get_encoder",
+    "set_encoder",
+    "Result",
     # Middlware
     "Middleware",
-
     # Workers
     "Worker",
-
     # Scheduler
-    "get_scheduler", "set_scheduler"
+    "get_scheduler",
+    "set_scheduler",
 ]
 
 __version__ = "0.20.0"
