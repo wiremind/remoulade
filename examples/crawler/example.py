@@ -8,9 +8,8 @@ from contextlib import closing
 from threading import local
 
 import pylibmc
-import requests
-
 import remoulade
+import requests
 
 logger = logging.getLogger("example")
 memcache_client = pylibmc.Client(["localhost"], binary=True)
@@ -20,6 +19,7 @@ state = local()
 
 if os.getenv("REDIS") == "1":
     from remoulade.brokers.redis import RedisBroker
+
     broker = RedisBroker()
     remoulade.set_broker(broker)
 

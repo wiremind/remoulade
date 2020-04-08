@@ -35,7 +35,7 @@ def get_broker() -> "Broker":
     """
     global global_broker
     if global_broker is None:
-        raise ValueError('Broker not found, are you sure you called set_broker(broker) ?')
+        raise ValueError("Broker not found, are you sure you called set_broker(broker) ?")
     return global_broker
 
 
@@ -132,7 +132,7 @@ class Broker:
         Returns:
             ResultBackend: the result backend
         """
-        return self._get_backend('results')
+        return self._get_backend("results")
 
     def get_cancel_backend(self) -> CancelBackend:
         """ Get the CancelBackend associated with the broker
@@ -143,14 +143,14 @@ class Broker:
         Returns:
             CancelBackend: the cancel backend
         """
-        return self._get_backend('cancel')
+        return self._get_backend("cancel")
 
     def _get_backend(self, name: str):
         """ Get the backend associated with the broker either cancel or results """
         message = "The default broker doesn't have a %s backend."
         backends = {
-            'results': (Results, NoResultBackend(message % 'results')),
-            'cancel': (Cancel, NoCancelBackend(message % 'cancel'))
+            "results": (Results, NoResultBackend(message % "results")),
+            "cancel": (Cancel, NoCancelBackend(message % "cancel")),
         }
         try:
             middleware_class, exception = backends[name]
@@ -160,7 +160,7 @@ class Broker:
             else:
                 raise exception
         except KeyError:
-            raise ValueError('invalid backend name')
+            raise ValueError("invalid backend name")
 
     def add_middleware(self, middleware, *, before=None, after=None):
         """Add a middleware object to this broker.  The middleware is
@@ -182,8 +182,7 @@ class Broker:
         before = before or middleware.default_before
         after = after or middleware.default_after
 
-        assert not (before and after), \
-            "provide either 'before' or 'after', but not both"
+        assert not (before and after), "provide either 'before' or 'after', but not both"
 
         if before or after:
             for i, m in enumerate(self.middleware):  # noqa

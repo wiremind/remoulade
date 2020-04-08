@@ -15,9 +15,7 @@ class StateNamesEnum(Enum):
     Skipped = "Skipped"  # a `Message` that has been skipped
     Canceled = "Canceled"  # a `Message` that has been canceled
     Failure = "Failure"  # a `Message` that has been processed and raised an Exception
-    Success = (
-        "Success"  # a `Message` that has been processed and does not raise an Exception
-    )
+    Success = "Success"  # a `Message` that has been processed and does not raise an Exception
 
     def __get__(self, instance, owner):
         return self.value
@@ -78,10 +76,7 @@ class StateBackend:
              message_id(str)
 
          """
-        raise NotImplementedError(
-            "%(classname)r does not implement cancel"
-            % {"classname": type(self).__name__}
-        )
+        raise NotImplementedError("%(classname)r does not implement cancel" % {"classname": type(self).__name__})
 
     def set_state(self, message_id: str, state: State, ttl: int) -> State:
         """ Set a message in the backend.
@@ -92,7 +87,4 @@ class StateBackend:
             ttl(seconds): The time to keep that state in the backend
              default is one hour(3600 seconds)
         """
-        raise NotImplementedError(
-            "%(classname)r does not implement cancel"
-            % {"classname": type(self).__name__}
-        )
+        raise NotImplementedError("%(classname)r does not implement cancel" % {"classname": type(self).__name__})

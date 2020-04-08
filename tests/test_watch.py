@@ -30,21 +30,13 @@ broker.declare_actor(write_loaded_at)
 @pytest.mark.skipif(os.getenv("CI") == "1", reason="test skipped on CI")
 @pytest.mark.skipif(CURRENT_PLATFORM == "PyPy", reason="Code reloading is not supported on PyPy.")
 @pytest.mark.skipif(CURRENT_OS == "Windows", reason="Code reloading is not supported on Windows.")
-@pytest.mark.parametrize("extra_args", [
-    (),
-    ("--watch-use-polling",),
-])
+@pytest.mark.parametrize("extra_args", [(), ("--watch-use-polling",),])
 def test_cli_can_watch_for_source_code_changes(start_cli, extra_args):
     # Given that I have a shared file the processes can use to communicate with
     filename = "/tmp/remoulade-loaded-at"
 
     # When I start my workers
-    start_cli("tests.test_watch", extra_args=[
-        "--processes", "1",
-        "--threads", "1",
-        "--watch", "tests",
-        *extra_args,
-    ])
+    start_cli("tests.test_watch", extra_args=["--processes", "1", "--threads", "1", "--watch", "tests", *extra_args,])
 
     # And enqueue a task to write the loaded timestamp
     write_loaded_at.send(filename)

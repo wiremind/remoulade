@@ -23,8 +23,9 @@ def test_shutdown_notifications_platform_not_supported(recwarn, monkeypatch):
 
     # A platform support warning is issued
     assert len(recwarn) == 1
-    assert str(recwarn[0].message) == ("ShutdownNotifications cannot kill threads "
-                                       "on your current platform ('not supported').")
+    assert str(recwarn[0].message) == (
+        "ShutdownNotifications cannot kill threads " "on your current platform ('not supported')."
+    )
 
 
 @mock.patch("remoulade.middleware.shutdown.raise_thread_exception")
@@ -43,31 +44,45 @@ def test_shutdown_notifications_worker_shutdown_messages(raise_thread_exception,
     broker.emit_before("worker_shutdown", None)
 
     # Shutdown interrupts are raised in both threads
-    raise_thread_exception.assert_has_calls([
-        mock.call(1, shutdown.Shutdown),
-        mock.call(2, shutdown.Shutdown),
-    ])
+    raise_thread_exception.assert_has_calls(
+        [mock.call(1, shutdown.Shutdown), mock.call(2, shutdown.Shutdown),]
+    )
 
     # And shutdown notifications are logged
     assert len(caplog.record_tuples) == 3
     assert caplog.record_tuples == [
-        ("remoulade.middleware.shutdown.ShutdownNotifications", logging.DEBUG, (
-            "Sending shutdown notification to worker threads..."
-        )),
-        ("remoulade.middleware.shutdown.ShutdownNotifications", logging.INFO, (
-            "Worker shutdown notification. Raising exception in worker thread 1."
-        )),
-        ("remoulade.middleware.shutdown.ShutdownNotifications", logging.INFO, (
-            "Worker shutdown notification. Raising exception in worker thread 2."
-        )),
+        (
+            "remoulade.middleware.shutdown.ShutdownNotifications",
+            logging.DEBUG,
+            ("Sending shutdown notification to worker threads..."),
+        ),
+        (
+            "remoulade.middleware.shutdown.ShutdownNotifications",
+            logging.INFO,
+            ("Worker shutdown notification. Raising exception in worker thread 1."),
+        ),
+        (
+            "remoulade.middleware.shutdown.ShutdownNotifications",
+            logging.INFO,
+            ("Worker shutdown notification. Raising exception in worker thread 2."),
+        ),
     ]
 
 
-@pytest.mark.parametrize("actor_opt, message_opt, should_notify", [
-    (True,  True, True), (True,  False, False), (True,  None, True),   # noqa: E241
-    (False, True, True), (False, False, False), (False, None, False),  # noqa: E241
-    (None,  True, True), (None,  False, False), (None,  None, False),  # noqa: E241
-])
+@pytest.mark.parametrize(
+    "actor_opt, message_opt, should_notify",
+    [
+        (True, True, True),
+        (True, False, False),
+        (True, None, True),  # noqa: E241
+        (False, True, True),
+        (False, False, False),
+        (False, None, False),  # noqa: E241
+        (None, True, True),
+        (None, False, False),
+        (None, None, False),  # noqa: E241
+    ],
+)
 def test_shutdown_notifications_options(stub_broker, actor_opt, message_opt, should_notify):
     # Given the shutdown notifications middleware
     middleware = shutdown.ShutdownNotifications()
@@ -97,7 +112,7 @@ def test_shutdown_notifications_are_received(stub_broker, stub_worker):
     def do_work():
         try:
             for _ in range(10):
-                time.sleep(.1)
+                time.sleep(0.1)
         except shutdown.Shutdown:
             shutdowns.append(1)
             raise
@@ -110,7 +125,7 @@ def test_shutdown_notifications_are_received(stub_broker, stub_worker):
     do_work.send()
 
     # Then wait and signal the worker to terminate
-    time.sleep(.1)
+    time.sleep(0.1)
     stub_worker.stop()
 
     # Then join on the queue
@@ -131,7 +146,7 @@ def test_shutdown_notifications_can_be_ignored(stub_broker, stub_worker):
     @remoulade.actor(max_retries=0)
     def do_work():
         try:
-            time.sleep(.2)
+            time.sleep(0.2)
         except shutdown.Shutdown:
             shutdowns.append(1)
         else:
@@ -144,7 +159,7 @@ def test_shutdown_notifications_can_be_ignored(stub_broker, stub_worker):
     do_work.send()
 
     # Then wait and signal the worker to terminate
-    time.sleep(.1)
+    time.sleep(0.1)
     stub_worker.stop()
 
     # Then join on the queue
@@ -163,7 +178,7 @@ def test_shutdown_notifications_dont_notify_completed_threads(stub_broker, stub_
 
     # And an actor that handles shutdown interrupts
     @remoulade.actor(notify_shutdown=True, max_retries=0)
-    def do_work(n=10, i=.1):
+    def do_work(n=10, i=0.1):
         try:
             for _ in range(n):
                 time.sleep(i)
@@ -180,7 +195,7 @@ def test_shutdown_notifications_dont_notify_completed_threads(stub_broker, stub_
     do_work.send(n=10)
 
     # Then wait for one message to complete
-    time.sleep(.5)
+    time.sleep(0.5)
 
     # Then signal the worker to terminate
     stub_worker.stop()

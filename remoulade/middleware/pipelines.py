@@ -43,7 +43,7 @@ class Pipelines(Middleware):
     def after_process_message(self, broker, message, *, result=None, exception=None):
         from ..composition import GroupInfo
 
-        if exception is not None or getattr(message, 'failed', False):
+        if exception is not None or getattr(message, "failed", False):
             return
 
         pipe_target = message.options.get("pipe_target")
@@ -59,7 +59,7 @@ class Pipelines(Middleware):
 
                 self._send_next_message(pipe_target, broker, result, group_info)
 
-                broker.emit_after('enqueue_pipe_target', group_info)
+                broker.emit_after("enqueue_pipe_target", group_info)
 
             except NoResultBackend as e:
                 self.logger.error(str(e))
@@ -98,10 +98,11 @@ class Pipelines(Middleware):
     def _group_results(group_info, broker):
         """ Get the result of a group (fetch the group members message_ids then all the results) """
         from ..collection_results import CollectionResults
+
         try:
             result_backend = broker.get_result_backend()
         except NoResultBackend:
-            raise NoResultBackend('Pipeline with groups are ony supported with a result backend')
+            raise NoResultBackend("Pipeline with groups are ony supported with a result backend")
 
         message_ids = result_backend.get_group_message_ids(group_id=group_info.group_id)
         results = CollectionResults.from_message_ids(message_ids)
@@ -120,12 +121,12 @@ class Pipelines(Middleware):
         try:
             result_backend = broker.get_result_backend()
         except NoResultBackend:
-            raise NoResultBackend('Pipeline with groups are ony supported with a result backend')
+            raise NoResultBackend("Pipeline with groups are ony supported with a result backend")
 
         group_completion = result_backend.increment_group_completion(group_info.group_id)
         group_competed = group_completion >= group_info.children_count
         if group_competed:
-            self.logger.info('Finished group %s.', group_info.group_id)
+            self.logger.info("Finished group %s.", group_info.group_id)
         if group_completion == 1:
-            self.logger.info('First message of Group %s has been completed.', group_info.group_id)
+            self.logger.info("First message of Group %s has been completed.", group_info.group_id)
         return group_competed

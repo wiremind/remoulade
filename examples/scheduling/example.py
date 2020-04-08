@@ -1,10 +1,9 @@
 import sys
 from datetime import datetime
 
+import remoulade
 from apscheduler.schedulers.blocking import BlockingScheduler
 from apscheduler.triggers.cron import CronTrigger
-
-import remoulade
 
 
 @remoulade.actor
@@ -15,8 +14,7 @@ def print_current_date():
 def main(args):
     scheduler = BlockingScheduler()
     scheduler.add_job(
-        print_current_date.send,
-        CronTrigger.from_crontab("* * * * *"),
+        print_current_date.send, CronTrigger.from_crontab("* * * * *"),
     )
     try:
         scheduler.start()

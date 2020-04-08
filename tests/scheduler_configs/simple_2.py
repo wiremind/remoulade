@@ -1,20 +1,18 @@
 import remoulade
-from remoulade.scheduler import Scheduler, ScheduledJob
 from remoulade.brokers.rabbitmq import RabbitmqBroker
+from remoulade.scheduler import ScheduledJob, Scheduler
 
 broker = RabbitmqBroker(max_priority=10)
 remoulade.set_broker(broker)
 remoulade.set_scheduler(
-    Scheduler(broker,
-              [
-                  ScheduledJob(
-                      actor_name="add", kwargs={"x": 1, "y": 2},
-                      interval=1
-                  ),
-                  ScheduledJob(
-                      actor_name="mul", kwargs={"x": 1, "y": 2}, interval=3600
-                  )
-              ], period=0.1)
+    Scheduler(
+        broker,
+        [
+            ScheduledJob(actor_name="add", kwargs={"x": 1, "y": 2}, interval=1),
+            ScheduledJob(actor_name="mul", kwargs={"x": 1, "y": 2}, interval=3600),
+        ],
+        period=0.1,
+    )
 )
 
 

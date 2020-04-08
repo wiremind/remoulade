@@ -6,7 +6,7 @@ from unittest.mock import Mock
 import pytest
 
 import remoulade
-from remoulade import Message, QueueJoinTimeout, Worker, ActorNotFound
+from remoulade import ActorNotFound, Message, QueueJoinTimeout, Worker
 from remoulade.common import current_millis
 
 
@@ -187,12 +187,7 @@ def test_rabbitmq_actors_can_have_retry_limits(rabbitmq_broker, rabbitmq_worker)
 def test_rabbitmq_messages_belonging_to_missing_actors_are_rejected(rabbitmq_broker, rabbitmq_worker):
     # Given that I have a broker without actors
     # If I send it a message
-    message = Message(
-        queue_name="some-queue",
-        actor_name="some-actor",
-        args=(), kwargs={},
-        options={},
-    )
+    message = Message(queue_name="some-queue", actor_name="some-actor", args=(), kwargs={}, options={},)
     rabbitmq_broker.declare_queue(message.queue_name)
     with pytest.raises(ActorNotFound):
         rabbitmq_broker.enqueue(message)
@@ -313,7 +308,7 @@ def test_rabbitmq_broker_can_flush_queues(rabbitmq_broker):
 def test_rabbitmq_broker_can_enqueue_messages_with_priority(rabbitmq_broker):
     max_priority = 10
     message_processing_order = []
-    queue_name = 'prioritized'
+    queue_name = "prioritized"
 
     # Given that I have an actor that store priorities
     @remoulade.actor(queue_name=queue_name)

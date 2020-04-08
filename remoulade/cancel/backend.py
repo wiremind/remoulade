@@ -26,17 +26,18 @@ class CancelBackend:
           cancellation_ttl(int): The minimal amount of seconds message cancellations
             should be kept in the backend (default 1h).
         """
+
     def __init__(self, *, cancellation_ttl=None):
         self.cancellation_ttl = cancellation_ttl or DEFAULT_CANCELLATION_TTL
 
     def is_canceled(self, message_id: str, group_id: str) -> bool:
         """ Return true if the message has been canceled """
-        raise NotImplementedError("%(classname)r does not implement is_canceled" % {
-            "classname": type(self).__name__,
-        })
+        raise NotImplementedError(
+            "%(classname)r does not implement is_canceled" % {"classname": type(self).__name__,}
+        )
 
     def cancel(self, message_ids: Iterable[str]) -> None:
         """ Mark a message as canceled """
-        raise NotImplementedError("%(classname)r does not implement cancel" % {
-            "classname": type(self).__name__,
-        })
+        raise NotImplementedError(
+            "%(classname)r does not implement cancel" % {"classname": type(self).__name__,}
+        )

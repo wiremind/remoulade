@@ -69,8 +69,13 @@ class Retries(Middleware):
         retries = message.options.setdefault("retries", 0)
         max_retries = actor.options.get("max_retries", self.max_retries)
         retry_when = actor.options.get("retry_when", self.retry_when)
-        if retry_when is not None and not retry_when(retries, exception) or \
-           retry_when is None and max_retries is not None and retries >= max_retries:
+        if (
+            retry_when is not None
+            and not retry_when(retries, exception)
+            or retry_when is None
+            and max_retries is not None
+            and retries >= max_retries
+        ):
             if max_retries > 0:
                 self.logger.warning("Retries exceeded for message %r.", message.message_id)
             message.fail()

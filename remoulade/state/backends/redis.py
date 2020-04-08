@@ -20,15 +20,7 @@ class RedisBackend(StateBackend):
     .. _redis: https://redis.io
     """
 
-    def __init__(
-        self,
-        *,
-        namespace="remoulade-state",
-        encoder=None,
-        client=None,
-        url=None,
-        **parameters
-    ):
+    def __init__(self, *, namespace="remoulade-state", encoder=None, client=None, url=None, **parameters):
         super().__init__(namespace=namespace, encoder=encoder)
         if url:
             parameters["connection_pool"] = redis.ConnectionPool.from_url(url)

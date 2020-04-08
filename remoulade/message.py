@@ -49,10 +49,9 @@ def set_encoder(encoder: Encoder):
     global_encoder = encoder
 
 
-class Message(namedtuple("Message", (
-        "queue_name", "actor_name", "args", "kwargs",
-        "options", "message_id", "message_timestamp",
-))):
+class Message(
+    namedtuple("Message", ("queue_name", "actor_name", "args", "kwargs", "options", "message_id", "message_timestamp",))
+):
     """Encapsulates metadata about messages being sent to individual actors.
 
     Parameters:
@@ -68,7 +67,12 @@ class Message(namedtuple("Message", (
 
     def __new__(cls, *, queue_name, actor_name, args, kwargs, options, message_id=None, message_timestamp=None):
         return super().__new__(
-            cls, queue_name, actor_name, tuple(args), kwargs, options,
+            cls,
+            queue_name,
+            actor_name,
+            tuple(args),
+            kwargs,
+            options,
             message_id=message_id or generate_unique_id(),
             message_timestamp=message_timestamp or int(time.time() * 1000),
         )

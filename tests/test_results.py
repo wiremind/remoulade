@@ -196,7 +196,7 @@ def test_raise_on_error(stub_broker, result_backend, stub_worker, block):
     # It should raise an error
     with pytest.raises(ErrorStored) as e:
         message.result.get(block=block)
-    assert str(e.value) == 'ValueError()'
+    assert str(e.value) == "ValueError()"
 
 
 @pytest.mark.parametrize("block", [True, False])
@@ -224,7 +224,7 @@ def test_store_errors(stub_broker, result_backend, stub_worker, block):
     # Then I should get an ErrorStored
     error_stored = message.result.get(block=block, raise_on_error=False)
     assert isinstance(error_stored, ErrorStored)
-    assert str(error_stored) == 'ValueError()'
+    assert str(error_stored) == "ValueError()"
 
 
 def test_store_errors_after_no_more_retry(stub_broker, result_backend, stub_worker):
@@ -252,7 +252,7 @@ def test_store_errors_after_no_more_retry(stub_broker, result_backend, stub_work
     # I get an error
     with pytest.raises(Exception) as e:
         message.result.get(block=True)
-    assert str(e.value) == 'ValueError()'
+    assert str(e.value) == "ValueError()"
 
     # all the retries have been made
     assert sum(failures) == 4
@@ -296,6 +296,7 @@ def test_redis_backend_keep_ttl_all_time(stub_broker, stub_worker, redis_result_
 
     # And an actor that stores a result with a result_ttl
     result_ttl = 100 * 1000
+
     @remoulade.actor(store_results=True, result_ttl=result_ttl)
     def do_work():
         return 42

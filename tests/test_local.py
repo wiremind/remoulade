@@ -1,7 +1,7 @@
 import pytest
 
 import remoulade
-from remoulade import group, RemouladeError, Worker
+from remoulade import RemouladeError, Worker, group
 from remoulade.cancel import Cancel
 from remoulade.results import Results
 from remoulade.results.backends import LocalBackend

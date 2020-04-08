@@ -17,6 +17,4 @@
 
 from .scheduler import ScheduledJob, Scheduler
 
-__all__ = [
-    "Scheduler", "ScheduledJob"
-]
+__all__ = ["Scheduler", "ScheduledJob"]

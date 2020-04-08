@@ -89,12 +89,7 @@ class StubBroker(Broker):
         if delay is not None:
             queue_name = dq_name(queue_name)
             message_eta = current_millis() + delay
-            message = message.copy(
-                queue_name=queue_name,
-                options={
-                    "eta": message_eta,
-                },
-            )
+            message = message.copy(queue_name=queue_name, options={"eta": message_eta,},)
 
         self.emit_before("enqueue", message, delay)
 

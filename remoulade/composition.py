@@ -82,7 +82,7 @@ class pipeline:
         next_child = None
         for child in reversed(self.children):
             if next_child:
-                options = {'pipe_target': [m.asdict() for m in next_child]}
+                options = {"pipe_target": [m.asdict() for m in next_child]}
             else:
                 options = last_options or {}
 
@@ -172,7 +172,7 @@ class group:
         self.children = []
         for child in children:
             if isinstance(child, group):
-                raise ValueError('Groups of groups are not supported')
+                raise ValueError("Groups of groups are not supported")
             self.children.append(child)
 
         self.broker = get_broker()
@@ -199,9 +199,9 @@ class group:
         if options is None:
             options = {}
         else:
-            self.broker.emit_before('build_group_pipeline', group_id=self.group_id, message_ids=list(self.message_ids))
+            self.broker.emit_before("build_group_pipeline", group_id=self.group_id, message_ids=list(self.message_ids))
 
-        options = {'group_info': self.info.asdict(), **options}
+        options = {"group_info": self.info.asdict(), **options}
         messages = []
         for group_child in self.children:
             if isinstance(group_child, pipeline):

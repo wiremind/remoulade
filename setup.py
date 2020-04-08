@@ -22,24 +22,12 @@ with open(rel("remoulade", "__init__.py"), "r") as f:
         raise RuntimeError("Version marker not found.")
 
 
-dependencies = [
-    "prometheus-client>=0.2",
-    "pytz<=2019.1"
-]
+dependencies = ["prometheus-client>=0.2", "pytz<=2019.1"]
 
 extra_dependencies = {
-    "rabbitmq": [
-        "amqpstorm>=2.6,<3",
-    ],
-
-    "redis": [
-        "redis>=3.0.1,<4.0",
-    ],
-
-    "watch": [
-        "watchdog>=0.8,<0.9",
-        "watchdog_gevent==0.1",
-    ],
+    "rabbitmq": ["amqpstorm>=2.6,<3",],
+    "redis": ["redis>=3.0.1,<4.0",],
+    "watch": ["watchdog>=0.8,<0.9", "watchdog_gevent==0.1",],
 }
 
 extra_dependencies["all"] = list(set(sum(extra_dependencies.values(), [])))
@@ -49,18 +37,15 @@ extra_dependencies["dev"] = extra_dependencies["all"] + [
     "sphinx<1.8",
     "sphinxcontrib-napoleon",
     "sphinxcontrib-versioning",
-
     # Linting
     "flake8",
     "flake8-bugbear",
     "flake8-quotes",
     "isort",
-
     # Misc
     "bumpversion",
     "hiredis",
     "twine",
-
     # Testing
     "pytest",
     "pytest-benchmark[histogram]",
@@ -89,16 +74,20 @@ setup(
         "remoulade.scheduler",
         "remoulade.state",
         "remoulade.cli",
-        "remoulade.helpers"
+        "remoulade.helpers",
     ],
     include_package_data=True,
     install_requires=dependencies,
     python_requires=">=3.5",
     extras_require=extra_dependencies,
-    entry_points={"console_scripts": ["remoulade = remoulade.__main__:main",
-                                      "remoulade-ls = remoulade.cli.remoulade_ls:main",
-                                      "remoulade-run = remoulade.cli.remoulade_run:main",
-                                      "remoulade-scheduler = remoulade.cli.remoulade_scheduler:main"]},
+    entry_points={
+        "console_scripts": [
+            "remoulade = remoulade.__main__:main",
+            "remoulade-ls = remoulade.cli.remoulade_ls:main",
+            "remoulade-run = remoulade.cli.remoulade_run:main",
+            "remoulade-scheduler = remoulade.cli.remoulade_scheduler:main",
+        ]
+    },
     scripts=["bin/remoulade-gevent"],
     classifiers=[
         "Programming Language :: Python :: 3.5",

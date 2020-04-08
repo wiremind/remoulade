@@ -7,6 +7,7 @@ import remoulade
 
 if os.getenv("REDIS") == "1":
     from remoulade.brokers.redis import RedisBroker
+
     broker = RedisBroker()
     remoulade.set_broker(broker)
 

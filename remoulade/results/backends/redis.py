@@ -19,7 +19,13 @@ from typing import List
 import redis
 
 from ..backend import (
-    DEFAULT_TIMEOUT, BackendResult, ForgottenResult, Missing, ResultBackend, ResultMissing, ResultTimeout
+    DEFAULT_TIMEOUT,
+    BackendResult,
+    ForgottenResult,
+    Missing,
+    ResultBackend,
+    ResultMissing,
+    ResultTimeout,
 )
 
 

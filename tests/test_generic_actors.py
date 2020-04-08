@@ -122,7 +122,6 @@ def test_generic_actors_can_inherite_meta(stub_broker, stub_worker):
 
     # When I subclass BaseTask
     class FooTask(BaseTask):
-
         class Meta(BaseTask.Meta):
             retries = 20
 
@@ -130,4 +129,4 @@ def test_generic_actors_can_inherite_meta(stub_broker, stub_worker):
     # And they should inherit the parent's meta
     assert isinstance(FooTask.__actor__, remoulade.Actor)
     assert FooTask.queue_name == "tasks"
-    assert FooTask.options['retries'] == 20
+    assert FooTask.options["retries"] == 20

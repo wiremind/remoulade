@@ -71,6 +71,7 @@ def test_actors_fail_given_invalid_queue_names(stub_broker):
     # If I define an actor with an invalid queue name
     # I expect a ValueError to be raised
     with pytest.raises(ValueError):
+
         @remoulade.actor(queue_name="$2@!@#")
         def foo():
             pass
@@ -113,7 +114,7 @@ def test_actors_no_broker():
     # I expect an error explaining it has no broker
     with pytest.raises(ValueError) as e:
         do_work.send()
-    assert str(e.value) == 'No broker is set, did you forget to call set_broker ?'
+    assert str(e.value) == "No broker is set, did you forget to call set_broker ?"
 
 
 def test_actors_can_perform_work(stub_broker, stub_worker):
@@ -372,12 +373,7 @@ def test_actors_can_delay_messages_independent_of_each_other(stub_broker, stub_w
 def test_messages_belonging_to_missing_actors_are_rejected(stub_broker, stub_worker):
     # Given that I have a broker without actors
     # If I send it a message
-    message = Message(
-        queue_name="some-queue",
-        actor_name="some-actor",
-        args=(), kwargs={},
-        options={},
-    )
+    message = Message(queue_name="some-queue", actor_name="some-actor", args=(), kwargs={}, options={},)
     stub_broker.declare_queue("some-queue")
     stub_broker.enqueue(message)
 

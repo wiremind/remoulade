@@ -63,5 +63,5 @@ class RedisBackend(CancelBackend):
         timestamp = time.time()
         with self.client.pipeline() as pipe:
             pipe.zadd(self.key, {message_id: timestamp for message_id in message_ids})
-            pipe.zremrangebyscore(self.key, '-inf', timestamp - self.cancellation_ttl)
+            pipe.zremrangebyscore(self.key, "-inf", timestamp - self.cancellation_ttl)
             pipe.execute()

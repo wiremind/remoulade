@@ -43,14 +43,14 @@ def test_cancellations_not_stored_forever(cancel_backend):
     cancel_backend.cancellation_ttl = 1
 
     # If we cancel some messages
-    cancel_backend.cancel('a')
+    cancel_backend.cancel("a")
     # Then wait some time
     time.sleep(1)
     # And call again cancel
-    cancel_backend.cancel('c')
+    cancel_backend.cancel("c")
 
     # the first cancellation should have been forgotten
-    assert not cancel_backend.is_canceled('a', None)
+    assert not cancel_backend.is_canceled("a", None)
 
 
 def test_group_are_canceled_on_actor_failure(stub_broker, stub_worker, cancel_backend):

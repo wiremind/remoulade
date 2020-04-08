@@ -6,7 +6,8 @@ except ImportError:
     sys.stderr.write("error: gevent is missing. Run `pip install gevent`.")
     sys.exit(1)
 
-import remoulade.__main__
 import sys
+
+import remoulade.__main__
 
 sys.exit(remoulade.__main__.main())
