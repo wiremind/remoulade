@@ -55,7 +55,7 @@ class pipeline:
     def __init__(self, children):
         self.broker = get_broker()
 
-        self.children = []
+        self.children = []  # type: ignore
         for child in children:
             if isinstance(child, pipeline):
                 self.children += child.children
@@ -87,7 +87,7 @@ class pipeline:
                 options = last_options or {}
 
             if isinstance(child, group) or isinstance(child, pipeline):
-                next_child = child.build(options)
+                next_child = child.build(options)  # type: ignore
             else:
                 next_child = [child.build(options)]
 

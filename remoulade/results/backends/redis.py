@@ -144,5 +144,5 @@ class RedisBackend(ResultBackend):
 
         return group_completion
 
-    def get_status(self, message_ids: List[str]) -> int:
+    def get_status(self, message_ids: List[str]) -> int:  # type: ignore
         return self.client.exists(*[self.build_message_key(message_id) for message_id in message_ids])

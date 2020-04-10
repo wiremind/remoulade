@@ -18,10 +18,10 @@
 import abc
 import json
 import pickle
-import typing
+from typing import Any, Dict
 
 #: Represents the contents of a Message object as a dict.
-MessageData = typing.Dict[str, typing.Any]
+MessageData = Dict[str, Any]
 
 
 class Encoder(abc.ABC):
@@ -60,5 +60,5 @@ class PickleEncoder(Encoder):
       Use it at your own risk.
     """
 
-    encode = pickle.dumps
-    decode = pickle.loads
+    encode = pickle.dumps  # type: ignore
+    decode = pickle.loads  # type: ignore

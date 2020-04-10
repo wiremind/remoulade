@@ -14,6 +14,7 @@
 #
 # You should have received a copy of the GNU Lesser General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
+from typing import Type
 
 
 class MiddlewareError(Exception):
@@ -35,8 +36,8 @@ class Middleware:
 
     # Used to placed the middleware in the middleware list.
     # Warning: should not be both set and should belong to default middleware
-    default_before = None
-    default_after = None
+    default_before = None  # type: Type[Middleware]
+    default_after = None  # type: Type[Middleware]
 
     @property
     def actor_options(self):

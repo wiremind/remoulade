@@ -1,4 +1,5 @@
 import time
+from typing import Dict
 
 from ..backend import State, StateBackend
 
@@ -12,19 +13,19 @@ class StubBackend(StateBackend):
         result data.  Defaults to :class:`.JSONEncoder`.
     """
 
-    states = {}
+    states = {}  # type: Dict[str, bytes]
 
     def get_state(self, message_id):
         message_key = self._build_message_key(message_id)
         data = self.states.get(message_key)
+        state = None
         if data:
-            data = self.encoder.decode(data)
-            if time.monotonic() > data["expiration"]:
+            decoded_data = self.encoder.decode(data)
+            if time.monotonic() > decoded_data["expiration"]:
                 self._delete(message_key)
-                data = None
             else:
-                data = State.from_dict(**data["state"])
-        return data
+                state = State.from_dict(decoded_data["state"])
+        return state
 
     def set_state(self, message_id, state, ttl):
         message_key = self._build_message_key(message_id)

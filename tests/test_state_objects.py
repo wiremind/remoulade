@@ -27,5 +27,6 @@ class TestState:
 
     def test_check_conversion_dict_to_object(self):
         dict_state = {"name": "Success", "args": [1, 2, 3], "kwargs": {"key": "value"}}
-        stateobj = State.from_dict(**dict_state)
+        print(*dict_state)
+        stateobj = State.from_dict(dict_state)
         assert stateobj.asdict() == dict_state

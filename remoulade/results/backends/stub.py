@@ -29,7 +29,7 @@ class StubBackend(ResultBackend):
         result data.  Defaults to :class:`.JSONEncoder`.
     """
 
-    results = {}
+    results = {}  # type: ignore
 
     def _get(self, message_key, forget: bool = False):
         if forget:

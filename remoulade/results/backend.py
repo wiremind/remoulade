@@ -45,7 +45,7 @@ class BackendResult(namedtuple("BackendResult", ("result", "error", "forgot"))):
 ForgottenResult = BackendResult(result=None, error=None, forgot=True)
 
 #: A union representing a Result that may or may not be there.
-MResult = Union[type(Missing), BackendResult]
+MResult = Union[type(Missing), BackendResult]  # type: ignore
 
 
 class ResultBackend:
@@ -199,7 +199,7 @@ class ResultBackend:
     def build_group_completion_key(group_id: str) -> str:  # noqa: F821
         return "remoulade-group-completion:{}".format(group_id)
 
-    def _get(self, message_key: str, forget: bool = False) -> MResult:  # pragma: no cover
+    def _get(self, message_key: str, forget: bool = False) -> MResult:  # type: ignore # pragma: no cover
         """Get a result from the backend.  Subclasses may implement
         this method if they want to use the default, polling,
         implementation of get_result.

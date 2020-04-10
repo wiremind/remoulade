@@ -31,7 +31,7 @@ class RedisBackend(StateBackend):
         data = self.client.get(key)
         if data:
             json_data = self.encoder.decode(data)
-            data = State.from_dict(**json_data)
+            data = State.from_dict(json_data)
         return data
 
     def set_state(self, message_id, state, ttl):

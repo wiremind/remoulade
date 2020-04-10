@@ -35,8 +35,8 @@ class State(namedtuple("State", ("name", "args", "kwargs"))):
         return super().__new__(cls, name, args, kwargs)
 
     @classmethod
-    def from_dict(cls, name, *args, **kwargs):
-        return cls(name=name, *args, **kwargs)
+    def from_dict(cls, dict):
+        return cls(**dict)
 
     def asdict(self):
         return {**self._asdict(), "name": self.name}

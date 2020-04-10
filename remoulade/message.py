@@ -25,7 +25,7 @@ from .encoder import Encoder, JSONEncoder
 from .result import Result
 
 #: The global encoder instance.
-global_encoder = JSONEncoder()
+global_encoder = JSONEncoder()  # type: Encoder
 
 
 def get_encoder() -> Encoder:
@@ -104,7 +104,7 @@ class Message(
         updated_options = attributes.pop("options", {})
         options = self.options.copy()
         options.update(updated_options)
-        return self._replace(**attributes, options=options)
+        return self._replace(**attributes, options=options)  # type: ignore
 
     def build(self, options):
         """ Build message for pipeline """
