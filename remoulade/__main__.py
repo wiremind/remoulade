@@ -28,6 +28,7 @@ import sys
 import time
 from collections import defaultdict
 from threading import Thread
+from typing import Dict
 
 from remoulade import ConnectionError, Worker, __version__, get_broker, get_logger
 
@@ -245,7 +246,7 @@ def worker_process(args, worker_id, logging_fd):
         return os._exit(RET_CONNECT)
 
     def termhandler(signum, frame):
-        nonlocal running
+        nonlocal running  # type: ignore
         if running:
             logger.info("Stopping worker process...")
             running = False
@@ -326,7 +327,7 @@ def main():  # noqa
         for pipe in [parent_read_pipe] + worker_pipes:
             selector.register(pipe, selectors.EVENT_READ)
 
-        buffers = defaultdict(str)
+        buffers = defaultdict(str)  # type: Dict[int, str]
         while running:
             events = selector.select(timeout=1)
             for key, _ in events:

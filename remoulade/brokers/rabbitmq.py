@@ -80,7 +80,7 @@ class RabbitmqBroker(Broker):
         self.max_priority = max_priority
         self.dead_queue_max_length = dead_queue_max_length
         self._connection = None
-        self.queues = set()
+        self.queues = set()  # type: ignore
         self.state = local()
         self.channel_pool = ChannelPool(channel_factory=self.channel_factory, pool_size=channel_pool_size)
         self.queues_declared = False
@@ -173,7 +173,7 @@ class RabbitmqBroker(Broker):
         """
         if queue_name not in self.queues:
             self.emit_before("declare_queue", queue_name)
-            self.queues.add(queue_name)
+            self.queues.add(queue_name)  # type: ignore
             self.emit_after("declare_queue", queue_name)
 
             delayed_name = dq_name(queue_name)
@@ -434,7 +434,7 @@ class ChannelPool:
 
     def __init__(self, channel_factory, *, pool_size):
         self._channel_factory = channel_factory
-        self._pool = LifoQueue(pool_size)
+        self._pool = LifoQueue(pool_size)  # type: LifoQueue
         self._pool_size = pool_size
 
         for _ in range(pool_size):

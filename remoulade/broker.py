@@ -156,7 +156,7 @@ class Broker:
             middleware_class, exception = backends[name]
             for middleware in self.middleware:
                 if isinstance(middleware, middleware_class):
-                    return middleware.backend
+                    return middleware.backend  # type: ignore
             else:
                 raise exception
         except KeyError:

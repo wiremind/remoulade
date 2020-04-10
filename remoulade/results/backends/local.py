@@ -1,3 +1,5 @@
+from typing import Dict, Set
+
 from ..backend import ForgottenResult, Missing, ResultBackend
 
 
@@ -8,8 +10,8 @@ class LocalBackend(ResultBackend):
     and never delete it. Resulting in a memory leak.
     """
 
-    results = {}
-    forgotten_results = set()
+    results = {}  # type: Dict[str,int]
+    forgotten_results = set()  # type: Set[str]
 
     def _get(self, message_key, forget: bool = False):
         if message_key in self.forgotten_results:

@@ -30,13 +30,13 @@ class generic_actor(type):
             options.pop("abstract", False)
 
             clazz_instance = clazz()
-            actor_instance = actor(clazz_instance, **options)
-            clazz.__getattr__ = generic_actor.__getattr__
+            actor_instance = actor(clazz_instance, **options)  # type: ignore
+            clazz.__getattr__ = generic_actor.__getattr__  # type: ignore
             clazz_instance.__actor__ = actor_instance
             return clazz_instance
 
         meta.abstract = False
-        clazz.__actor__ = None
+        clazz.__actor__ = None  # type: ignore
         return clazz
 
     def __getattr__(cls, name):
@@ -104,7 +104,7 @@ class GenericActor(metaclass=generic_actor):
         return type(self).__name__
 
     def __call__(self, *args, **kwargs):
-        return self.perform(*args, **kwargs)
+        return self.perform(*args, **kwargs)  # type: ignore
 
     def perform(self):
         """This is the method that gets called when the actor receives

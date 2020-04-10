@@ -21,6 +21,7 @@ from collections import defaultdict
 from itertools import chain
 from queue import Empty, PriorityQueue
 from threading import Event, Thread
+from typing import List
 
 from .cancel import MessageCanceled
 from .common import current_millis, iter_queue, join_all, q_name
@@ -69,8 +70,8 @@ class Worker:
         # workers as those messages could have far-future etas.
         self.delay_prefetch = min(worker_threads * 1000, 65535)
 
-        self.workers = []
-        self.work_queue = PriorityQueue()
+        self.workers = []  # type: List
+        self.work_queue = PriorityQueue()  # type: PriorityQueue
         self.worker_timeout = worker_timeout
         self.worker_threads = worker_threads
 
@@ -215,7 +216,7 @@ class _ConsumerThread(Thread):
         self.queue_name = queue_name
         self.work_queue = work_queue
         self.worker_timeout = worker_timeout
-        self.delay_queue = PriorityQueue()
+        self.delay_queue = PriorityQueue()  # type: PriorityQueue
 
     def run(self):
         self.logger.debug("Running consumer thread...")
