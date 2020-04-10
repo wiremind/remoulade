@@ -17,7 +17,7 @@
 
 import time
 from collections import namedtuple
-from typing import Any, Iterable, List, Union
+from typing import Any, Dict, Iterable, List, Type, Union
 
 from ..common import compute_backoff
 from ..encoder import Encoder
@@ -29,8 +29,10 @@ DEFAULT_TIMEOUT = 10000
 #: The minimum amount of time in ms to wait between polls.
 BACKOFF_FACTOR = 100
 
+
 #: Canary value that is returned when a result hasn't been set yet.
-Missing = type("Missing", (object,), {})()
+class Missing:
+    pass
 
 
 #: A type alias representing backend results.
@@ -43,9 +45,6 @@ class BackendResult(namedtuple("BackendResult", ("result", "error", "forgot"))):
 
 
 ForgottenResult = BackendResult(result=None, error=None, forgot=True)
-
-#: A union representing a Result that may or may not be there.
-MResult = Union[type(Missing), BackendResult]  # type: ignore
 
 
 class ResultBackend:
@@ -114,8 +113,8 @@ class ResultBackend:
                 raise ResultMissing(message_id)
 
             else:
-                result = BackendResult(**result)
-                return self.process_result(result, raise_on_error)
+                backend_result = BackendResult(**result)  # type: ignore
+                return self.process_result(backend_result, raise_on_error)
 
     @staticmethod
     def process_result(result: BackendResult, raise_on_error: bool):
@@ -199,7 +198,7 @@ class ResultBackend:
     def build_group_completion_key(group_id: str) -> str:  # noqa: F821
         return "remoulade-group-completion:{}".format(group_id)
 
-    def _get(self, message_key: str, forget: bool = False) -> MResult:  # type: ignore # pragma: no cover
+    def _get(self, message_key: str, forget: bool = False) -> Union[Type[Missing], Dict]:  # pragma: no cover
         """Get a result from the backend.  Subclasses may implement
         this method if they want to use the default, polling,
         implementation of get_result.

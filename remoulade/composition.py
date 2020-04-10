@@ -15,10 +15,14 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 from collections import namedtuple
+from typing import TYPE_CHECKING, List, Union
 
 from .broker import get_broker
 from .collection_results import CollectionResults
 from .common import flatten, generate_unique_id
+
+if TYPE_CHECKING:
+    from .message import Message  # noqa
 
 
 class GroupInfo(namedtuple("GroupInfo", ("group_id", "children_count", "cancel_on_error"))):
@@ -55,7 +59,7 @@ class pipeline:
     def __init__(self, children):
         self.broker = get_broker()
 
-        self.children = []  # type: ignore
+        self.children = []  # type: List[Union["Message", "group"]]
         for child in children:
             if isinstance(child, pipeline):
                 self.children += child.children
@@ -87,7 +91,7 @@ class pipeline:
                 options = last_options or {}
 
             if isinstance(child, group) or isinstance(child, pipeline):
-                next_child = child.build(options)  # type: ignore
+                next_child = child.build(options)
             else:
                 next_child = [child.build(options)]
 

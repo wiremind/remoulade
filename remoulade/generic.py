@@ -104,9 +104,9 @@ class GenericActor(metaclass=generic_actor):
         return type(self).__name__
 
     def __call__(self, *args, **kwargs):
-        return self.perform(*args, **kwargs)  # type: ignore
+        return self.perform(*args, **kwargs)
 
-    def perform(self):
+    def perform(self, *args, **kwargs):
         """This is the method that gets called when the actor receives
         a message.  All non-abstract subclasses must implement this
         method.
