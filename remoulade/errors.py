@@ -78,6 +78,11 @@ class NoCancelBackend(BrokerError):
     """
 
 
+class NoStateBackend(BrokerError):
+    """Raised when trying to access the state backend on a broker without it
+    """
+
+
 class ChannelPoolTimeout(BrokerError):
     """Raised when the broker has wait for tool long to fetch a channel from its channel pool.
     """

@@ -16,9 +16,11 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 import uuid
 from collections import Iterable
+from itertools import islice
 from queue import Empty
 from random import uniform
 from time import time
+from typing import Iterator, List
 
 from .errors import QueueJoinTimeout
 
@@ -147,3 +149,13 @@ def flatten(l):
             yield from flatten(el)
         else:
             yield el
+
+
+def chunk(iterable: Iterable, size: int) -> Iterator[List]:
+    """Returns an iterator of a list of length size
+    """
+    i = iter(iterable)
+    piece = list(islice(i, size))
+    while piece:
+        yield piece
+        piece = list(islice(i, size))

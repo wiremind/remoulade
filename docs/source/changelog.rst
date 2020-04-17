@@ -8,6 +8,21 @@ All notable changes to this project will be documented in this file.
 `Unreleased`_
 -------------
 
+`0.21.0`_ -- (unreleased)
+-------------------------
+
+Added
+^^^^^
+* Error |NoStateBackend| raised when is tried to access a |StateBackend| in a broker without it
+* Attribute ``messaged_id`` in Class |State|
+* Method ``get_states`` which returns the states storage in a |StateBackend|
+* Method ``get_state_backend`` in ``broker.py``
+* Module ``api`` with methods to get the state of a message by HTTP request:
+   - url ``/messages/states`` returns all states in the backend
+   - url ``/messages/states?name=NameState`` returns all states in the backend whose state is equal to NameState, this should be defined in |StateNamesEnum|
+   - url ``/messages/state/message_id`` return the state of a given ``message_id``
+* Class |TestMessageStateAPI| responsible to test the API of |StateBackend|
+* Add |Flask| as an extra dependency
 
 `0.20.0`_ -- 2020-04-07
 -----------------------
@@ -19,22 +34,22 @@ BREAKING CHANGE
 Added
 ^^^^^
 * |StateNamesEnum| (type :|Enum|) contains the possible states that can have a message:
-  - |Started| a |Message| that  has not been processed
-  - |Pending| a |Message| that has been enqueued
-  - |Skipped| a |Message| that has been skipped
-  - |Canceled| a |Message| that has been cancelled
-  - |Failure| a |Message| that has been processed and raise an |Exception|
-  - |Success| a |Message| that has been processed and does not raise an |Exception|
+   - |Started| a |Message| that  has not been processed
+   - |Pending| a |Message| that has been enqueued
+   - |Skipped| a |Message| that has been skipped
+   - |Canceled| a |Message| that has been cancelled
+   - |Failure| a |Message| that has been processed and raise an |Exception|
+   - |Success| a |Message| that has been processed and does not raise an |Exception|
 * Class |State| represents the current state of a message, the state is defined by:
-  - |StateNamesEnum.name| the name of the state
-  - args The arguments of the message, they are storage if they are less than  MessageState.max_size
-  - kwargs The keyword arguments of the message, they are storage if they are less than  MessageState.max_size
+   - |StateNamesEnum.name| the name of the state
+   - args The arguments of the message, they are storage if they are less than  MessageState.max_size
+   - kwargs The keyword arguments of the message, they are storage if they are less than  MessageState.max_size
 * Middleware |MessageState| used to update the state of a message in a Backend, the constructor receives
-  - backend (type : |StateBackend|)
-  - state_ttl
-  - max_size
+   - backend (type : |StateBackend|)
+   - state_ttl
+   - max_size
 * Abstract Backend |StateBackend| with methods |set_state| and |get_state| to set and get a |State| from the Backend
-* |RedisBackend| and |StubBackend| (type :|StateBacend|)
+* |RedisBackend| and |StubBackend| (type :|StateBackend|)
 * |InvalidStateError| raised when is tried to create an Invalid State
 * |TestMessageState| tests of the Middleware |MessageState|
 * |TestState| tests of the class |State|

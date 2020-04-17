@@ -1,5 +1,6 @@
 from collections import namedtuple
 from enum import Enum
+from typing import List
 
 from ..encoder import Encoder
 from .errors import InvalidStateError
@@ -17,29 +18,27 @@ class StateNamesEnum(Enum):
     Failure = "Failure"  # a `Message` that has been processed and raised an Exception
     Success = "Success"  # a `Message` that has been processed and does not raise an Exception
 
-    def __get__(self, instance, owner):
-        return self.value
-
 
 #: A type alias representing states in the database
-class State(namedtuple("State", ("name", "args", "kwargs"))):
+class State(namedtuple("State", ("message_id", "name", "args", "kwargs"))):
     """Catalog Class, it storages the state
         Parameters:
             name: Name of the state
             args: List of arguments in the state(name)
     """
 
-    def __new__(cls, name, args, kwargs):
-        if not any(state for state in StateNamesEnum if state.name == name):
+    def __new__(cls, message_id, name, args, kwargs):
+        if name not in list(StateNamesEnum):
             raise InvalidStateError("The {} State is not defined".format(name))
-        return super().__new__(cls, name, args, kwargs)
+        return super().__new__(cls, message_id, name, args, kwargs)
 
     @classmethod
     def from_dict(cls, dict):
+        dict["name"] = StateNamesEnum(dict["name"])
         return cls(**dict)
 
     def asdict(self):
-        return {**self._asdict(), "name": self.name}
+        return {**self._asdict(), "name": self.name.value}
 
 
 class StateBackend:
@@ -51,6 +50,8 @@ class StateBackend:
       encoder(Encoder): The encoder to use when storing and retrieving
         result data.  Defaults to :class:`.JSONEncoder`.
     """
+
+    namespace = "remoulade-state*"
 
     def __init__(self, *, namespace: str = "remoulade-state", encoder: Encoder = None):
         from ..message import get_encoder
@@ -69,22 +70,29 @@ class StateBackend:
         """
         return "{}:{}".format(self.namespace, message_id)
 
-    def get_state(self, message_id: str) -> None:
+    def get_state(self, message_id: str) -> State:
         """ Get the state with a message_id from the backend.
 
          Parameters:
              message_id(str)
 
          """
-        raise NotImplementedError("%(classname)r does not implement cancel" % {"classname": type(self).__name__})
+        raise NotImplementedError("%(classname)r does not implement get_state" % {"classname": type(self).__name__})
 
-    def set_state(self, message_id: str, state: State, ttl: int) -> State:
-        """ Set a message in the backend.
+    def set_state(self, state: State, ttl: int) -> None:
+        """ Save a message in the backend.
 
         Parameters:
-            message_id(str)
             state(State)
             ttl(seconds): The time to keep that state in the backend
              default is one hour(3600 seconds)
         """
-        raise NotImplementedError("%(classname)r does not implement cancel" % {"classname": type(self).__name__})
+        raise NotImplementedError("%(classname)r does not implement set_state" % {"classname": type(self).__name__})
+
+    def get_states(self) -> List[State]:
+        """ Return all the states in the backend
+
+        """
+        raise NotImplementedError(
+            "%(classname)r does not implement get_all_messages" % {"classname": type(self).__name__}
+        )
