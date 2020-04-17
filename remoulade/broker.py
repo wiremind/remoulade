@@ -15,10 +15,11 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 from .cancel import Cancel, CancelBackend
-from .errors import ActorNotFound, NoCancelBackend, NoResultBackend
+from .errors import ActorNotFound, NoCancelBackend, NoResultBackend, NoStateBackend
 from .logging import get_logger
 from .middleware import MiddlewareError, default_middleware
 from .results import ResultBackend, Results
+from .state import MessageState, StateBackend
 
 #: The global broker instance.
 global_broker = None
@@ -145,12 +146,24 @@ class Broker:
         """
         return self._get_backend("cancel")
 
+    def get_state_backend(self) -> StateBackend:
+        """ Get the StateBackend associated with the broker
+
+        Raises:
+            NoStateBackend: if there is no StateBackend
+
+        Returns:
+            StateBackend: the state backend
+        """
+        return self._get_backend("state")
+
     def _get_backend(self, name: str):
         """ Get the backend associated with the broker either cancel or results """
         message = "The default broker doesn't have a %s backend."
         backends = {
             "results": (Results, NoResultBackend(message % "results")),
             "cancel": (Cancel, NoCancelBackend(message % "cancel")),
+            "state": (MessageState, NoStateBackend(message % "state")),
         }
         try:
             middleware_class, exception = backends[name]

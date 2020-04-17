@@ -23,6 +23,7 @@ class MessageState(Middleware):
     def save(self, message, state):
         args = message.args
         kwargs = message.kwargs
+        message_id = message.message_id
         if sys.getsizeof(args) > self.max_size:
             # Arguments exceed maximum size to display
             #  do not save them.
@@ -31,7 +32,7 @@ class MessageState(Middleware):
             # Keyword arguments exceed maximum size to
             #  display do not save them
             kwargs = {}
-        self.backend.set_state(message.message_id, State(state, args, kwargs), self.state_ttl)
+        self.backend.set_state(State(message_id, state, args, kwargs), self.state_ttl)
 
     def after_enqueue(self, broker, message, delay):
         self.save(message, state=StateNamesEnum.Pending)

@@ -13,7 +13,9 @@ class StubBackend(StateBackend):
         result data.  Defaults to :class:`.JSONEncoder`.
     """
 
-    states = {}  # type: Dict[str, bytes]
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.states = {}  # type: Dict[str, bytes]
 
     def get_state(self, message_id):
         message_key = self._build_message_key(message_id)
@@ -27,11 +29,21 @@ class StubBackend(StateBackend):
                 state = State.from_dict(decoded_data["state"])
         return state
 
-    def set_state(self, message_id, state, ttl):
-        message_key = self._build_message_key(message_id)
+    def set_state(self, state, ttl):
+        message_key = self._build_message_key(state.message_id)
         ttl = ttl + time.monotonic()
         payload = {"state": state.asdict(), "expiration": ttl}
         self.states[message_key] = self.encoder.encode(payload)
 
     def _delete(self, message_key):
         del self.states[message_key]
+
+    def get_states(self):
+        time_now = time.monotonic()
+        for (message_key, data) in self.states.items():
+            decoded_data = self.encoder.decode(data)
+            if time_now > decoded_data["expiration"]:
+                self._delete(message_key)
+                continue
+            state = State.from_dict(decoded_data["state"])
+            yield state
