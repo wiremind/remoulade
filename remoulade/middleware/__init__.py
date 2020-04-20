@@ -19,6 +19,7 @@ import platform
 
 from .age_limit import AgeLimit
 from .callbacks import Callbacks
+from .current_message import CurrentMessage
 from .middleware import Middleware, MiddlewareError, SkipMessage
 from .pipelines import Pipelines
 from .retries import Retries
@@ -43,6 +44,7 @@ __all__ = [
     # Middlewares
     "AgeLimit",
     "Callbacks",
+    "CurrentMessage",
     "Pipelines",
     "Retries",
     "Shutdown",
@@ -56,4 +58,4 @@ if CURRENT_OS != "Windows":
 
 
 #: The list of middleware that are enabled by default.
-default_middleware = [AgeLimit, TimeLimit, ShutdownNotifications, Callbacks, Pipelines, Retries]
+default_middleware = [AgeLimit, TimeLimit, ShutdownNotifications, Callbacks, Pipelines, Retries, CurrentMessage]
