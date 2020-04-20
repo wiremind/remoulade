@@ -23,7 +23,8 @@ Added
    - url ``/messages/state/message_id`` return the state of a given ``message_id``
 * Class |TestMessageStateAPI| responsible to test the API of |StateBackend|
 * Add |Flask| as an extra dependency
-
+* Add |CurrentMessage| Middleware that exposes the current message via a thread local variable, useful to access the message within the actor
+* Add |CurrentMessage| to the list of ``default_middleware``
 `0.20.0`_ -- 2020-04-07
 -----------------------
 BREAKING CHANGE
