@@ -40,8 +40,8 @@ class StubBackend(StateBackend):
 
     def get_states(self):
         time_now = time.monotonic()
-        for (message_key, data) in self.states.items():
-            decoded_data = self.encoder.decode(data)
+        for message_key in list(self.states.keys()):
+            decoded_data = self.encoder.decode(self.states[message_key])
             if time_now > decoded_data["expiration"]:
                 self._delete(message_key)
                 continue
