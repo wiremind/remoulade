@@ -3,6 +3,7 @@ from random import choice, randint, sample
 import pytest
 
 from remoulade.api.main import app
+from remoulade.cancel import Cancel
 from remoulade.state import State, StateNamesEnum
 
 
@@ -63,3 +64,15 @@ class TestMessageStateAPI:
         # check integrity
         for state in states:
             assert state in random_states
+
+    def test_request_cancel(self, stub_broker, api_client, cancel_backend):
+        message_id = "3141516"
+        stub_broker.add_middleware(Cancel(backend=cancel_backend))
+        api_client.post("/messages/cancel/{}".format(message_id))
+        assert cancel_backend.is_canceled(message_id, None)
+
+    def test_request_cancel_without_backend(self, stub_broker, api_client):
+        res = api_client.post("/messages/cancel/{}".format("id"))
+        # if there is not cancel backend should raise an error
+        assert res.json["error"] == "The default broker doesn't have a cancel backend."
+        assert res.status_code == 500

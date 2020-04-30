@@ -3,6 +3,7 @@ from flask import Flask, request
 from werkzeug.exceptions import BadRequest, HTTPException, NotFound
 
 import remoulade
+from remoulade.errors import RemouladeError
 from remoulade.state import StateNamesEnum
 
 app = Flask(__name__)
@@ -30,6 +31,18 @@ def get_state(message_id):
     if data is None:
         raise NotFound("message_id = {} does not exist".format(message_id))
     return data.asdict()
+
+
+@app.route("/messages/cancel/<message_id>", methods=["POST"])
+def cancel_message(message_id):
+    backend = remoulade.get_broker().get_cancel_backend()
+    backend.cancel([message_id])
+    return {"result": True}
+
+
+@app.errorhandler(RemouladeError)
+def remoulade_exception(e):
+    return {"error": str(e)}, 500
 
 
 @app.errorhandler(HTTPException)
