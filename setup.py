@@ -74,6 +74,7 @@ setup(
         "remoulade.results.backends",
         "remoulade.scheduler",
         "remoulade.state",
+        "remoulade.state.backends",
         "remoulade.cli",
         "remoulade.helpers",
         "remoulade.api",
