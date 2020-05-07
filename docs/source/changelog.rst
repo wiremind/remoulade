@@ -8,7 +8,7 @@ All notable changes to this project will be documented in this file.
 `Unreleased`_
 -------------
 
-`0.21.0`_ -- (unreleased)
+`0.21.0`_ -- 2020-05-07
 -------------------------
 
 Added
