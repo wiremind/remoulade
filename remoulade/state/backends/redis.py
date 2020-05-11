@@ -30,21 +30,30 @@ class RedisBackend(StateBackend):
 
     def get_state(self, message_id):
         key = self._build_message_key(message_id)
-        data = self.client.get(key)
-        if data:
-            data = self._parse_state(data)
-        return data
+        data = self.client.hgetall(key)
+        if not data:
+            return None
+        return self._parse_state(data)
 
     def set_state(self, state, ttl):
         message_key = self._build_message_key(state.message_id)
-        self.client.set(message_key, self.encoder.encode(state.asdict()), ex=ttl)
+        with self.client.pipeline() as pipe:
+            encoded_state = self._encode_dict(state.as_dict())
+            pipe.hmset(message_key, encoded_state)
+            pipe.expire(message_key, ttl)
+            pipe.execute()
 
     def get_states(self):
         size = 1000
         for keys in chunk(self.client.scan_iter(match="{}*".format(StateBackend.namespace), count=size), size):
-            for data in self.client.mget(keys):
-                yield self._parse_state(data)
+            with self.client.pipeline() as pipe:
+                for key in keys:
+                    pipe.hgetall(key)
+                data = pipe.execute()
+                for state in data:
+                    if state:
+                        yield self._parse_state(state)
 
     def _parse_state(self, data):
-        json_data = self.encoder.decode(data)
-        return State.from_dict(json_data)
+        decoded_state = self._decode_dict(data)
+        return State.from_dict(decoded_state)

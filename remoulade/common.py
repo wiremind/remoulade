@@ -142,9 +142,9 @@ def generate_unique_id() -> str:
     return str(uuid.uuid4())
 
 
-def flatten(l):
+def flatten(iterable):
     """ Flatten deep an iterable """
-    for el in l:
+    for el in iterable:
         if isinstance(el, Iterable) and not isinstance(el, (str, bytes)):
             yield from flatten(el)
         else:

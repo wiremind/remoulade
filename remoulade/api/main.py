@@ -13,7 +13,7 @@ app = Flask(__name__)
 def get_states():
     name_state = request.args.get("name")
     backend = remoulade.get_broker().get_state_backend()
-    data = [s.asdict() for s in backend.get_states()]
+    data = [s.as_dict() for s in backend.get_states()]
     if name_state is not None:
         name_state = name_state.lower().capitalize()
         try:
@@ -30,7 +30,7 @@ def get_state(message_id):
     data = backend.get_state(message_id)
     if data is None:
         raise NotFound("message_id = {} does not exist".format(message_id))
-    return data.asdict()
+    return data.as_dict()
 
 
 @app.route("/messages/cancel/<message_id>", methods=["POST"])

@@ -31,17 +31,17 @@ class TestMessageStateAPI:
 
     @pytest.mark.parametrize("name_state", [StateNamesEnum.Skipped, StateNamesEnum.Success])
     def test_get_state_by_name(self, name_state, stub_broker, state_middleware, api_client):
-        state = State("3141516", name_state, [], {})
+        state = State("3141516", name_state)
         state_middleware.backend.set_state(state, ttl=1000)
         res = api_client.get("/messages/states?name={}".format(name_state.value))
-        assert res.json["result"] == [state.asdict()]
+        assert res.json["result"] == [state.as_dict()]
 
     def test_get_by_message_id(self, stub_broker, state_middleware, api_client):
         message_id = "2718281"
-        state = State(message_id, StateNamesEnum.Pending, [], {})
+        state = State(message_id, StateNamesEnum.Pending)
         state_middleware.backend.set_state(state, ttl=1000)
         res = api_client.get("/messages/state/{}".format(message_id))
-        assert res.json == state.asdict()
+        assert res.json == state.as_dict()
 
     @pytest.mark.parametrize("n", [0, 10, 50, 100])
     def test_get_states_by_name(self, n, stub_broker, state_middleware, api_client):
@@ -51,10 +51,10 @@ class TestMessageStateAPI:
             random_state = State(
                 "id{}".format(i),
                 choice(list(StateNamesEnum)),  # random state
-                sample(range(1, 10), randint(0, 5)),  # random args
-                {str(i): str(i) for i in range(randint(0, 5))},  # random kwargs
+                args=sample(range(1, 10), randint(0, 5)),  # random args
+                kwargs={str(i): str(i) for i in range(randint(0, 5))},  # random kwargs
             )
-            random_states.append(random_state.asdict())
+            random_states.append(random_state.as_dict())
             state_middleware.backend.set_state(random_state, ttl=1000)
 
         # check storage

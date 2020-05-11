@@ -2,6 +2,8 @@ from collections import namedtuple
 from enum import Enum
 from typing import List
 
+from dateutil.parser import parse
+
 from ..encoder import Encoder
 from .errors import InvalidStateError
 
@@ -20,25 +22,72 @@ class StateNamesEnum(Enum):
 
 
 #: A type alias representing states in the database
-class State(namedtuple("State", ("message_id", "name", "args", "kwargs"))):
+class State(
+    namedtuple(
+        "State",
+        (
+            "message_id",
+            "name",
+            "actor_name",
+            "args",
+            "kwargs",
+            "priority",
+            "enqueued_datetime",
+            "started_datetime",
+            "end_datetime",
+        ),
+    )
+):
     """Catalog Class, it storages the state
         Parameters:
             name: Name of the state
             args: List of arguments in the state(name)
     """
 
-    def __new__(cls, message_id, name, args, kwargs):
+    def __new__(
+        cls,
+        message_id,
+        name,
+        *,
+        actor_name=None,
+        args=None,
+        kwargs=None,
+        priority=None,
+        enqueued_datetime=None,
+        started_datetime=None,
+        end_datetime=None
+    ):
         if name not in list(StateNamesEnum):
             raise InvalidStateError("The {} State is not defined".format(name))
-        return super().__new__(cls, message_id, name, args, kwargs)
+        return super().__new__(
+            cls,
+            message_id,
+            name,
+            actor_name,
+            args,
+            kwargs,
+            priority,
+            enqueued_datetime,
+            started_datetime,
+            end_datetime,
+        )
+
+    def as_dict(self):
+        as_dict = {key: value for (key, value) in self._asdict().items() if value is not None}
+        datetime_keys = ["enqueued_datetime", "started_datetime", "end_datetime"]
+        for key in datetime_keys:
+            if key in as_dict:
+                as_dict[key] = as_dict[key].isoformat()
+        return {**as_dict, "name": self.name.value}
 
     @classmethod
     def from_dict(cls, dict):
         dict["name"] = StateNamesEnum(dict["name"])
+        datetime_keys = ["enqueued_datetime", "started_datetime", "end_datetime"]
+        for key in datetime_keys:
+            if key in dict:
+                dict[key] = parse(dict[key])
         return cls(**dict)
-
-    def asdict(self):
-        return {**self._asdict(), "name": self.name.value}
 
 
 class StateBackend:
@@ -80,7 +129,8 @@ class StateBackend:
         raise NotImplementedError("%(classname)r does not implement get_state" % {"classname": type(self).__name__})
 
     def set_state(self, state: State, ttl: int) -> None:
-        """ Save a message in the backend.
+        """ Save a message in the backend if it does not exist,
+            otherwise update it.
 
         Parameters:
             state(State)
@@ -96,3 +146,19 @@ class StateBackend:
         raise NotImplementedError(
             "%(classname)r does not implement get_all_messages" % {"classname": type(self).__name__}
         )
+
+    def _encode_dict(self, data):
+        """ Return the (keys, values) of a dictionary encoded
+        """
+        encoded_data = {}
+        for (key, value) in data.items():
+            encoded_data[self.encoder.encode(key)] = self.encoder.encode(value)
+        return encoded_data
+
+    def _decode_dict(self, data):
+        """ Return the (keys, values) of a dictionary decoded
+        """
+        decoded_data = {}
+        for (key, value) in data.items():
+            decoded_data[self.encoder.decode(key)] = self.encoder.decode(value)
+        return decoded_data

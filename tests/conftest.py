@@ -7,6 +7,7 @@ from unittest.mock import Mock
 
 import pytest
 import redis
+from freezegun import freeze_time
 
 import remoulade
 from remoulade import Worker
@@ -264,3 +265,9 @@ def mock_channel_factory():
         return next(mock_generator)
 
     return factory
+
+
+@pytest.fixture
+def frozen_datetime():
+    with freeze_time("2020-02-03") as frozen_datetime:
+        yield frozen_datetime

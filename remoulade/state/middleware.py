@@ -1,4 +1,5 @@
 import sys
+from datetime import datetime, timezone
 
 from ..middleware import Middleware
 from .backend import State, StateNamesEnum
@@ -20,33 +21,42 @@ class MessageState(Middleware):
         self.state_ttl = state_ttl
         self.max_size = max_size
 
-    def save(self, message, state):
+    def save(self, message, state_name, **kwargs):
         args = message.args
-        kwargs = message.kwargs
+        kwargs_state = message.kwargs
         message_id = message.message_id
+        actor_name = message.actor_name
         if sys.getsizeof(args) > self.max_size:
             # Arguments exceed maximum size to display
             #  do not save them.
             args = []
-        if sys.getsizeof(kwargs) > self.max_size:
+        if sys.getsizeof(kwargs_state) > self.max_size:
             # Keyword arguments exceed maximum size to
             #  display do not save them
-            kwargs = {}
-        self.backend.set_state(State(message_id, state, args, kwargs), self.state_ttl)
+            kwargs_state = {}
+        self.backend.set_state(
+            State(message_id, state_name, actor_name=actor_name, args=args, kwargs=kwargs_state, **kwargs),
+            self.state_ttl,
+        )
+
+    def _get_current_time(self):
+        return datetime.now(timezone.utc)
 
     def after_enqueue(self, broker, message, delay):
-        self.save(message, state=StateNamesEnum.Pending)
+        self.save(message, state_name=StateNamesEnum.Pending, enqueued_datetime=self._get_current_time())
 
     def after_skip_message(self, broker, message):
-        self.save(message, state=StateNamesEnum.Skipped)
+        self.save(message, state_name=StateNamesEnum.Skipped)
 
     def after_message_canceled(self, broker, message):
-        self.save(message, state=StateNamesEnum.Canceled)
+        self.save(message, state_name=StateNamesEnum.Canceled)
 
     def after_process_message(self, broker, message, *, result=None, exception=None):
         self.save(
-            message, state=StateNamesEnum.Success if exception is None else StateNamesEnum.Failure,
+            message,
+            state_name=StateNamesEnum.Success if exception is None else StateNamesEnum.Failure,
+            end_datetime=self._get_current_time(),
         )
 
     def before_process_message(self, broker, message):
-        self.save(message, state=StateNamesEnum.Started)
+        self.save(message, state_name=StateNamesEnum.Started, started_datetime=self._get_current_time())

@@ -6,7 +6,7 @@ import remoulade
 from remoulade.cancel import Cancel
 from remoulade.middleware import Middleware, SkipMessage
 from remoulade.state.backend import State, StateNamesEnum
-from remoulade.state.middleware import MessageState
+from remoulade.state.middleware import MessageState, State
 
 
 class TestMessageState:
@@ -14,17 +14,32 @@ class TestMessageState:
     MessageState
     """
 
-    def test_pending_state_message(self, stub_broker, state_middleware, do_work):
+    def test_pending_state_message(self, stub_broker, state_middleware, do_work, frozen_datetime):
         msg = do_work.send()
-        assert state_middleware.backend.get_state(msg.message_id).name == StateNamesEnum.Pending
+        state = state_middleware.backend.get_state(msg.message_id)
+        assert state.message_id == msg.message_id
+        assert state.name == StateNamesEnum.Pending
+        assert state.enqueued_datetime.isoformat() == "2020-02-03T00:00:00+00:00"
 
-    def test_success_state_message(self, stub_broker, stub_worker, state_middleware, do_work):
+    def test_success_state_message(self, stub_broker, stub_worker, state_middleware, frozen_datetime):
+        @remoulade.actor
+        def do_work():
+            frozen_datetime.tick(delta=15)
+
+        stub_broker.declare_actor(do_work)
+        stub_worker.pause()
         msg = do_work.send()
+        frozen_datetime.tick(delta=15)
+        stub_worker.resume()
         stub_broker.join(do_work.queue_name)
         stub_worker.join()
-        assert state_middleware.backend.get_state(msg.message_id).name == StateNamesEnum.Success
+        state = state_middleware.backend.get_state(msg.message_id)
+        assert state.name == StateNamesEnum.Success
+        assert state.enqueued_datetime.isoformat() == "2020-02-03T00:00:00+00:00"
+        assert state.started_datetime.isoformat() == "2020-02-03T00:00:15+00:00"
+        assert state.end_datetime.isoformat() == "2020-02-03T00:00:30+00:00"
 
-    def test_started_state_message(self, stub_broker, state_middleware, stub_worker):
+    def test_started_state_message(self, stub_broker, state_middleware, stub_worker, frozen_datetime):
         @remoulade.actor
         def wait():
             time.sleep(0.3)
@@ -33,9 +48,11 @@ class TestMessageState:
         msg = wait.send()
         # We wait the message be emited
         time.sleep(0.1)
-        assert state_middleware.backend.get_state(msg.message_id).name == StateNamesEnum.Started
+        state = state_middleware.backend.get_state(msg.message_id)
+        assert state.name == StateNamesEnum.Started
+        assert state.started_datetime.isoformat() == "2020-02-03T00:00:00+00:00"
 
-    def test_failure_state_message(self, stub_broker, stub_worker, state_middleware):
+    def test_failure_state_message(self, stub_broker, stub_worker, state_middleware, frozen_datetime):
         @remoulade.actor
         def error():
             raise Exception()
@@ -44,7 +61,9 @@ class TestMessageState:
         msg = error.send()
         stub_broker.join(error.queue_name)
         stub_worker.join()
-        assert state_middleware.backend.get_state(msg.message_id).name == StateNamesEnum.Failure
+        state = state_middleware.backend.get_state(msg.message_id)
+        assert state.name == StateNamesEnum.Failure
+        assert state.end_datetime.isoformat() == "2020-02-03T00:00:00+00:00"
 
     def test_cancel_state_message(
         self, stub_broker, stub_worker, cancel_backend, state_middleware, do_work,
@@ -58,7 +77,10 @@ class TestMessageState:
         stub_worker.resume()
         stub_broker.join(do_work.queue_name)
         stub_worker.join()
-        assert state_middleware.backend.get_state(msg.message_id).name == StateNamesEnum.Canceled
+        state = state_middleware.backend.get_state(msg.message_id)
+        assert state.name == StateNamesEnum.Canceled
+        # should not finish, since is cancelled
+        assert state.end_datetime is None
 
     def test_skip_state_message(self, stub_broker, stub_worker, state_middleware, do_work):
         class SkipMiddleware(Middleware):
@@ -69,7 +91,11 @@ class TestMessageState:
         msg = do_work.send()
         stub_broker.join(do_work.queue_name)
         stub_worker.join()
-        assert state_middleware.backend.get_state(msg.message_id).name == StateNamesEnum.Skipped
+        state = state_middleware.backend.get_state(msg.message_id)
+        assert state.name == StateNamesEnum.Skipped
+        # should not finish, since is skipped and does not
+        # try again
+        assert state.end_datetime is None
 
     @pytest.mark.parametrize(
         "ttl, result_type", [pytest.param(1000, State), pytest.param(1, type(None)),],
@@ -77,7 +103,7 @@ class TestMessageState:
     def test_expiration_data_backend(self, ttl, result_type, stub_broker, state_backend):
         @remoulade.actor
         def wait():
-            time.sleep(0.3)
+            pass
 
         stub_broker.add_middleware(MessageState(backend=state_backend, state_ttl=ttl))
         stub_broker.declare_actor(wait)
@@ -88,9 +114,9 @@ class TestMessageState:
         assert type(data) == result_type
 
     @pytest.mark.parametrize(
-        "max_size,expected", [pytest.param(0, []), pytest.param(1000, [5])],
+        "max_size,expected", [pytest.param(0, []), pytest.param(100, [5])],
     )
-    def test_maximum_size(self, max_size, expected, stub_broker, state_backend, do_work):
+    def test_maximum_size_args(self, max_size, expected, stub_broker, state_backend, do_work):
         @remoulade.actor
         def do_work(x):
             return x
@@ -99,5 +125,5 @@ class TestMessageState:
         stub_broker.declare_actor(do_work)
         msg = do_work.send(5)
         args = state_backend.get_state(msg.message_id).args
-        # if the max_size = 0, then should not storage nothing
-        assert args == expected
+        # if the max_size == 0, then should not storage nothing
+        assert list(args) == expected
