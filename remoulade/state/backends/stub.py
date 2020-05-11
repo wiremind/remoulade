@@ -15,25 +15,32 @@ class StubBackend(StateBackend):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.states = {}  # type: Dict[str, bytes]
+        self.states = {}  # type: Dict[str, Dict[str, str]]
 
     def get_state(self, message_id):
         message_key = self._build_message_key(message_id)
         data = self.states.get(message_key)
         state = None
         if data:
-            decoded_data = self.encoder.decode(data)
-            if time.monotonic() > decoded_data["expiration"]:
+            if time.monotonic() > float(data["expiration"]):
                 self._delete(message_key)
             else:
-                state = State.from_dict(decoded_data["state"])
+                state = State.from_dict(self._decode_dict(data["state"]))
         return state
 
     def set_state(self, state, ttl):
         message_key = self._build_message_key(state.message_id)
         ttl = ttl + time.monotonic()
-        payload = {"state": state.asdict(), "expiration": ttl}
-        self.states[message_key] = self.encoder.encode(payload)
+        encoded_state = self._encode_dict(state.as_dict())
+        if message_key not in self.states.keys():
+            payload = {"state": encoded_state, "expiration": ttl}
+            self.states[message_key] = payload
+        else:
+            state = self.states[message_key]["state"]
+            for (key, value) in encoded_state.items():
+                state[key] = value
+            self.states[message_key]["state"] = state
+            self.states[message_key]["expiration"] = ttl
 
     def _delete(self, message_key):
         del self.states[message_key]
@@ -41,9 +48,9 @@ class StubBackend(StateBackend):
     def get_states(self):
         time_now = time.monotonic()
         for message_key in list(self.states.keys()):
-            decoded_data = self.encoder.decode(self.states[message_key])
-            if time_now > decoded_data["expiration"]:
+            data = self.states[message_key]
+            if time_now > float(data["expiration"]):
                 self._delete(message_key)
                 continue
-            state = State.from_dict(decoded_data["state"])
+            state = State.from_dict(self._decode_dict(data["state"]))
             yield state

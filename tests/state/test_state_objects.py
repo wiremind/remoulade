@@ -10,17 +10,17 @@ class TestState:
 
     @pytest.mark.parametrize("defined_state", StateNamesEnum)
     def test_create_valid_state(self, defined_state):
-        assert State("id", defined_state, [], {})
+        assert State("id", defined_state, args=[], kwargs={})
 
     @pytest.mark.parametrize("undefined_state", ["UndefinedState", "pending"])
     def test_raise_exception_when_invalid_state(self, undefined_state):
         # if I send a state not defined in StateNamesEnum
         #  it should raise an exception
         with pytest.raises(InvalidStateError):
-            State("id", undefined_state, [], {})
+            State("id", undefined_state, args=[], kwargs={})
 
     def test_check_conversion_object_to_dict(self):
-        dict_state = State("id", StateNamesEnum.Success, [1, 2, 3], {"key": "value"}).asdict()
+        dict_state = State("id", StateNamesEnum.Success, args=[1, 2, 3], kwargs={"key": "value"}).as_dict()
         assert dict_state["name"] == StateNamesEnum.Success.name
         assert dict_state["args"] == [1, 2, 3]
         assert dict_state["kwargs"] == {"key": "value"}

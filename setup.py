@@ -22,7 +22,7 @@ with open(rel("remoulade", "__init__.py"), "r") as f:
         raise RuntimeError("Version marker not found.")
 
 
-dependencies = ["prometheus-client>=0.2", "pytz<=2019.1"]
+dependencies = ["prometheus-client>=0.2", "pytz<=2019.1", "python-dateutil>=2.8.0"]
 
 extra_dependencies = {
     "rabbitmq": ["amqpstorm>=2.6,<3",],
@@ -52,6 +52,7 @@ extra_dependencies["dev"] = extra_dependencies["all"] + [
     "pytest-benchmark[histogram]",
     "pytest-cov",
     "tox",
+    "freezegun",
 ]
 
 setup(

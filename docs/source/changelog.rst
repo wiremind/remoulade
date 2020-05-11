@@ -8,6 +8,24 @@ All notable changes to this project will be documented in this file.
 `Unreleased`_
 -------------
 
+Added
+^^^^^
+* Add attributes ``actor_name(str)``, ``priority(int)``, ``enqueued_datetime(date)``, ``started_datetime(date)``, ``end_datetime(date)``  to the class |State|
+* Use of ``pipelines`` in ``get_state`` and ``set_state`` for |RedisBackend|
+
+Changed
+^^^^^^^
+
+* Signature ``asdict`` of Class |State| to ``as_dict``
+* Location of ``_encoded_dict`` and ``_decoded_dict``, now is in the class |StateBackend|
+* ``set`` to ``hmset`` in class |RedisBackend|
+* Behaviour of ``set_state`` of classes type ``StateBackend``. If the message_id does not exist, a new register is created, if not it updates the fields in the state, without deleting those who are not present.
+* Save the datetime for states
+   - |Pending|, datetime of enqueued saved in ``enqueued_datetime``
+   - if |Started| datetime saved in ``started_datetime``
+   - if |Failure| datetime saved in ``end_datetime``
+   - if |Success| datetime saved in ``end_datetime``
+
 `0.21.0`_ -- 2020-05-07
 -------------------------
 
