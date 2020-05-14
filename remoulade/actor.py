@@ -60,7 +60,7 @@ def actor(fn=None, *, actor_name=None, queue_name="default", priority=0, **optio
       priority(int): The actor's global priority.  If two tasks have
         been pulled on a worker concurrently and one has a higher
         priority than the other then it will be processed first.
-        Lower numbers represent higher priorities.
+        Higher numbers represent higher priorities.
       **options(dict): Arbitrary options that vary with the set of
         middleware that you use.  See ``get_broker().actor_options``.
 
