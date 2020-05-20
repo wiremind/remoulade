@@ -28,7 +28,7 @@ class StubBackend(StateBackend):
                 state = State.from_dict(self._decode_dict(data["state"]))
         return state
 
-    def set_state(self, state, ttl):
+    def set_state(self, state, ttl=3600):
         message_key = self._build_message_key(state.message_id)
         ttl = ttl + time.monotonic()
         encoded_state = self._encode_dict(state.as_dict())

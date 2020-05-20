@@ -35,7 +35,7 @@ class RedisBackend(StateBackend):
             return None
         return self._parse_state(data)
 
-    def set_state(self, state, ttl):
+    def set_state(self, state, ttl=3600):
         message_key = self._build_message_key(state.message_id)
         with self.client.pipeline() as pipe:
             encoded_state = self._encode_dict(state.as_dict())
