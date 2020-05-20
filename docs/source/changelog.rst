@@ -10,8 +10,16 @@ All notable changes to this project will be documented in this file.
 
 Added
 ^^^^^
-* Add attributes ``actor_name(str)``, ``priority(int)``, ``enqueued_datetime(date)``, ``started_datetime(date)``, ``end_datetime(date)``  to the class |State|
+* Attributes to the class |State|
+   - ``actor_name(str)``
+   - ``priority(int)``
+   - ``enqueued_datetime(date)``
+   - ``started_datetime(date)``
+   - ``end_datetime(date)``
+   - ``progress``
 * Use of ``pipelines`` in ``get_state`` and ``set_state`` for |RedisBackend|
+* Method ``set_progress`` in Class |Message|, the progress is update using ``set_state`` of Classes type |StateBackend|
+* |InvalidProgress| raised when is tried to set a progress less than 0 or greater than 1
 
 Changed
 ^^^^^^^
@@ -25,6 +33,7 @@ Changed
    - if |Started| datetime saved in ``started_datetime``
    - if |Failure| datetime saved in ``end_datetime``
    - if |Success| datetime saved in ``end_datetime``
+* Allow to define States with `name=None`, to be able to update the `progress` without passing the name again
 
 `0.21.0`_ -- 2020-05-07
 -------------------------

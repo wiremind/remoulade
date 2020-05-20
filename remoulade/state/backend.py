@@ -32,6 +32,7 @@ class State(
             "args",
             "kwargs",
             "priority",
+            "progress",
             "enqueued_datetime",
             "started_datetime",
             "end_datetime",
@@ -47,17 +48,18 @@ class State(
     def __new__(
         cls,
         message_id,
-        name,
+        name=None,
         *,
         actor_name=None,
         args=None,
         kwargs=None,
         priority=None,
+        progress=None,
         enqueued_datetime=None,
         started_datetime=None,
         end_datetime=None
     ):
-        if name not in list(StateNamesEnum):
+        if name and name not in list(StateNamesEnum):
             raise InvalidStateError("The {} State is not defined".format(name))
         return super().__new__(
             cls,
@@ -67,6 +69,7 @@ class State(
             args,
             kwargs,
             priority,
+            progress,
             enqueued_datetime,
             started_datetime,
             end_datetime,
@@ -78,11 +81,14 @@ class State(
         for key in datetime_keys:
             if key in as_dict:
                 as_dict[key] = as_dict[key].isoformat()
-        return {**as_dict, "name": self.name.value}
+        if self.name:
+            as_dict["name"] = self.name.value
+        return as_dict
 
     @classmethod
     def from_dict(cls, dict):
-        dict["name"] = StateNamesEnum(dict["name"])
+        if "name" in dict:
+            dict["name"] = StateNamesEnum(dict["name"])
         datetime_keys = ["enqueued_datetime", "started_datetime", "end_datetime"]
         for key in datetime_keys:
             if key in dict:
@@ -128,7 +134,7 @@ class StateBackend:
          """
         raise NotImplementedError("%(classname)r does not implement get_state" % {"classname": type(self).__name__})
 
-    def set_state(self, state: State, ttl: int) -> None:
+    def set_state(self, state: State, ttl: int = 3600) -> None:
         """ Save a message in the backend if it does not exist,
             otherwise update it.
 

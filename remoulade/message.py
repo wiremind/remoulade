@@ -18,10 +18,13 @@
 import time
 from collections import namedtuple
 
+from remoulade.state import State
+
 from .broker import get_broker
 from .common import generate_unique_id
 from .composition import pipeline
 from .encoder import Encoder, JSONEncoder
+from .errors import InvalidProgress
 from .result import Result
 
 #: The global encoder instance.
@@ -115,6 +118,20 @@ class Message(
         broker = get_broker()
         backend = broker.get_cancel_backend()
         backend.cancel([self.message_id])
+
+    def set_progress(self, progress):
+        """ Set the progress of the message.
+            progress(float) number between 0 and 1 inclusive
+
+            :raises:
+                InvalidProgress: when not( 0 <= progress <= 1)
+        """
+        if not (0 <= progress <= 1):
+            raise InvalidProgress("Progress {} is not between 0 and 1.".format(progress))
+
+        broker = get_broker()
+        backend = broker.get_state_backend()
+        backend.set_state(State(self.message_id, progress=progress))
 
     @property
     def result(self):

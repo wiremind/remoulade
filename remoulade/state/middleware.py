@@ -21,7 +21,7 @@ class MessageState(Middleware):
         self.state_ttl = state_ttl
         self.max_size = max_size
 
-    def save(self, message, state_name, **kwargs):
+    def save(self, message, state_name, priority=None, **kwargs):
         args = message.args
         kwargs_state = message.kwargs
         message_id = message.message_id
@@ -35,7 +35,15 @@ class MessageState(Middleware):
             #  display do not save them
             kwargs_state = {}
         self.backend.set_state(
-            State(message_id, state_name, actor_name=actor_name, args=args, kwargs=kwargs_state, **kwargs),
+            State(
+                message_id,
+                state_name,
+                actor_name=actor_name,
+                args=args,
+                priority=priority,
+                kwargs=kwargs_state,
+                **kwargs,
+            ),
             self.state_ttl,
         )
 
@@ -43,7 +51,10 @@ class MessageState(Middleware):
         return datetime.now(timezone.utc)
 
     def after_enqueue(self, broker, message, delay):
-        self.save(message, state_name=StateNamesEnum.Pending, enqueued_datetime=self._get_current_time())
+        priority = broker.get_actor(message.actor_name).priority
+        self.save(
+            message, state_name=StateNamesEnum.Pending, enqueued_datetime=self._get_current_time(), priority=priority
+        )
 
     def after_skip_message(self, broker, message):
         self.save(message, state_name=StateNamesEnum.Skipped)
