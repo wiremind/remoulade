@@ -3,6 +3,7 @@ from flask import Flask, request
 from werkzeug.exceptions import BadRequest, HTTPException, NotFound
 
 import remoulade
+from remoulade import get_scheduler
 from remoulade.errors import RemouladeError
 from remoulade.state import StateNamesEnum
 
@@ -38,6 +39,12 @@ def cancel_message(message_id):
     backend = remoulade.get_broker().get_cancel_backend()
     backend.cancel([message_id])
     return {"result": True}
+
+
+@app.route("/scheduled/jobs")
+def get_scheduled_jobs():
+    scheduled_jobs = get_scheduler().get_redis_schedule()
+    return {"result": [job.as_dict() for job in scheduled_jobs.values()]}
 
 
 @app.errorhandler(RemouladeError)

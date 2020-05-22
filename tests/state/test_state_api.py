@@ -1,9 +1,12 @@
+import datetime
 from random import choice, randint, sample
 
 import pytest
+import pytz
 
 from remoulade.api.main import app
 from remoulade.cancel import Cancel
+from remoulade.scheduler import ScheduledJob
 from remoulade.state import State, StateNamesEnum
 
 
@@ -76,3 +79,28 @@ class TestMessageStateAPI:
         # if there is not cancel backend should raise an error
         assert res.json["error"] == "The default broker doesn't have a cancel backend."
         assert res.status_code == 500
+
+    def test_scheduled_jobs(self, scheduler, api_client, do_work, frozen_datetime):
+        timezone = pytz.timezone("Europe/Paris")
+        scheduler.schedule = [
+            ScheduledJob(
+                actor_name=do_work.actor_name, daily_time=(datetime.datetime.now(timezone)).time(), tz="Europe/Paris",
+            )
+        ]
+        scheduler.sync_config()
+
+        res = api_client.get("/scheduled/jobs")
+        jobs = res.json["result"]
+        assert jobs == [
+            {
+                "actor_name": "do_work",
+                "args": [],
+                "daily_time": "01:00:00",
+                "enabled": True,
+                "interval": 86400,
+                "iso_weekday": None,
+                "kwargs": {},
+                "last_queued": None,
+                "tz": "Europe/Paris",
+            }
+        ]

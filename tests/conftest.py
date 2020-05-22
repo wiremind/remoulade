@@ -17,6 +17,7 @@ from remoulade.brokers.stub import StubBroker
 from remoulade.cancel import backends as cl_backends
 from remoulade.rate_limits import backends as rl_backends
 from remoulade.results import backends as res_backends
+from remoulade.scheduler import Scheduler
 from remoulade.state import MessageState
 from remoulade.state import backends as st_backends
 
@@ -149,10 +150,7 @@ def stub_rate_limiter_backend():
 
 @pytest.fixture
 def rate_limiter_backends(redis_rate_limiter_backend, stub_rate_limiter_backend):
-    return {
-        "redis": redis_rate_limiter_backend,
-        "stub": stub_rate_limiter_backend,
-    }
+    return {"redis": redis_rate_limiter_backend, "stub": stub_rate_limiter_backend}
 
 
 @pytest.fixture(params=["redis", "stub"])
@@ -221,10 +219,7 @@ def local_result_backend():
 
 @pytest.fixture
 def result_backends(redis_result_backend, stub_result_backend):
-    return {
-        "redis": redis_result_backend,
-        "stub": stub_result_backend,
-    }
+    return {"redis": redis_result_backend, "stub": stub_result_backend}
 
 
 @pytest.fixture(params=["redis", "stub"])
@@ -246,10 +241,7 @@ def stub_cancel_backend():
 
 @pytest.fixture
 def cancel_backends(redis_cancel_backend, stub_cancel_backend):
-    return {
-        "redis": redis_cancel_backend,
-        "stub": stub_cancel_backend,
-    }
+    return {"redis": redis_cancel_backend, "stub": stub_cancel_backend}
 
 
 @pytest.fixture(params=["redis", "stub"])
@@ -271,3 +263,11 @@ def mock_channel_factory():
 def frozen_datetime():
     with freeze_time("2020-02-03") as frozen_datetime:
         yield frozen_datetime
+
+
+@pytest.fixture
+def scheduler(stub_broker):
+    scheduler = Scheduler(stub_broker, [], period=0.1,)
+    check_redis(scheduler.client)
+    remoulade.set_scheduler(scheduler)
+    return scheduler

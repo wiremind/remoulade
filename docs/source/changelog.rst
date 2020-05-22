@@ -18,6 +18,8 @@ Added
    - ``end_datetime(date)``
    - ``progress``
 * Use of ``pipelines`` in ``get_state`` and ``set_state`` for |RedisBackend|
+* Url to ``api`` to get all scheduled jobs
+   - url ``/scheduled/jobs``
 * Method ``set_progress`` in Class |Message|, the progress is update using ``set_state`` of Classes type |StateBackend|
 * |InvalidProgress| raised when is tried to set a progress less than 0 or greater than 1
 
