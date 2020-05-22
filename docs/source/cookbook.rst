@@ -442,34 +442,34 @@ Scheduling
 
 Scheduling messages
 ^^^^^^^^^^^^^^^^^^^
-
-APScheduler_ is the recommended scheduler to use with Remoulade:
+There is a scheduler integrated into remoulade:
 
 .. code-block:: python
 
-   import remoulade
-   import sys
+import remoulade
+from datetime import datetime
+from remoulade.brokers.rabbitmq import RabbitmqBroker
+from remoulade.scheduler import ScheduledJob, Scheduler
 
-   from apscheduler.schedulers.blocking import BlockingScheduler
-   from apscheduler.triggers.cron import CronTrigger
-   from datetime import datetime
+broker = RabbitmqBroker()
 
-   @remoulade.actor
-   def print_current_date():
-     print(datetime.now())
+remoulade.set_broker(broker)
+remoulade.set_scheduler(
+    Scheduler(
+        broker,
+        [
+            ScheduledJob(actor_name="print_current_date", interval=86400),
+        ]
+    )
+)
 
-   if __name__ == "__main__":
-     scheduler = BlockingScheduler()
-     scheduler.add_job(
-       print_current_date.send,
-       CronTrigger.from_crontab("* * * * *"),
-     )
-     try:
-       scheduler.start()
-     except KeyboardInterrupt:
-       scheduler.shutdown()
+@remoulade.actor()
+def print_current_date():
+    print(datetime.datetime.now())
 
-.. _APScheduler: https://apscheduler.readthedocs.io
+broker.declare_actor(count_words)
+
+..
 
 
 Optimizing
