@@ -22,6 +22,9 @@ Added
    - url ``/scheduled/jobs``
 * Method ``set_progress`` in Class |Message|, the progress is update using ``set_state`` of Classes type |StateBackend|
 * |InvalidProgress| raised when is tried to set a progress less than 0 or greater than 1
+* POST method to ``api`` to enqueue a message
+   - url ``/messages``
+* Class |MessageSchema| to load the data sent to enqueue a message.
 
 Changed
 ^^^^^^^

@@ -1,5 +1,7 @@
 import datetime
+import json
 from random import choice, randint, sample
+from unittest.mock import MagicMock
 
 import pytest
 import pytz
@@ -104,3 +106,48 @@ class TestMessageStateAPI:
                 "tz": "Europe/Paris",
             }
         ]
+
+    def test_enqueue_message(self, stub_broker, do_work, api_client):
+        data = {
+            "actor_name": "do_work",
+            "args": ["1", "2"],
+            "kwargs": {},
+            "options": {},
+            "delay": 100,
+        }
+        do_work.send_with_options = MagicMock()
+        res = api_client.post("/messages", data=json.dumps(data), content_type="application/json")
+        del data["actor_name"]
+        do_work.send_with_options.assert_called_with(**data)
+        assert res.status_code == 200
+
+    @pytest.mark.parametrize(
+        "actor_name,error",
+        [
+            (None, "Field may not be null."),
+            ("", "Shorter than minimum length 1."),
+            (111, "Not a valid string."),
+            ([], "Not a valid string."),
+        ],
+    )
+    def test_invalid_actor_name_to_enqueue(self, actor_name, error, stub_broker, do_work, api_client):
+        data = {
+            "actor_name": actor_name,
+        }
+        res = api_client.post("/messages", data=json.dumps(data), content_type="application/json")
+        validation_error = res.json["error"]
+        assert validation_error["actor_name"] == [error]
+        assert res.status_code == 400
+
+    @pytest.mark.parametrize(
+        "delay,error", [(-1, "Must be greater than or equal to 1."), ("str", "Not a valid number.")]
+    )
+    def test_invalid_delay_to_enqueue(self, delay, error, stub_broker, do_work, api_client):
+        data = {
+            "actor_name": "some_actor_name",
+            "delay": delay,
+        }
+        res = api_client.post("/messages", data=json.dumps(data), content_type="application/json")
+        validation_error = res.json["error"]
+        assert validation_error["delay"] == [error]
+        assert res.status_code == 400

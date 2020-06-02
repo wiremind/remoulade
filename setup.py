@@ -28,7 +28,7 @@ extra_dependencies = {
     "rabbitmq": ["amqpstorm>=2.6,<3",],
     "redis": ["redis>=3.0.1,<4.0",],
     "watch": ["watchdog>=0.8,<0.9", "watchdog_gevent==0.1",],
-    "server": ["flask>=1.1,<2"],
+    "server": ["flask>=1.1,<2", "marshmallow>=3"],
 }
 
 extra_dependencies["all"] = list(set(sum(extra_dependencies.values(), [])))
