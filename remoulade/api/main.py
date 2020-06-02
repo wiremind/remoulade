@@ -1,11 +1,14 @@
 """ This file describe the API to get the state of messages """
 from flask import Flask, request
+from marshmallow import ValidationError
 from werkzeug.exceptions import BadRequest, HTTPException, NotFound
 
 import remoulade
-from remoulade import get_scheduler
+from remoulade import get_broker, get_scheduler
 from remoulade.errors import RemouladeError
 from remoulade.state import StateNamesEnum
+
+from .schema import MessageSchema
 
 app = Flask(__name__)
 
@@ -47,6 +50,15 @@ def get_scheduled_jobs():
     return {"result": [job.as_dict() for job in scheduled_jobs.values()]}
 
 
+@app.route("/messages", methods=["POST"])
+def enqueue_message():
+    payload = MessageSchema().load(request.json)
+    actor = get_broker().get_actor(payload["actor_name"])
+    del payload["actor_name"]
+    actor.send_with_options(**payload)
+    return {"result": "ok"}
+
+
 @app.errorhandler(RemouladeError)
 def remoulade_exception(e):
     return {"error": str(e)}, 500
@@ -55,3 +67,8 @@ def remoulade_exception(e):
 @app.errorhandler(HTTPException)
 def http_exception(e):
     return {"error": str(e)}, e.code
+
+
+@app.errorhandler(ValidationError)
+def validation_error(e):
+    return {"error": e.normalized_messages()}, 400
