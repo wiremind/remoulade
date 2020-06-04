@@ -8,6 +8,9 @@ All notable changes to this project will be documented in this file.
 `Unreleased`_
 -------------
 
+`0.22.0`_ -- 2020-06-04
+-------------------------
+
 Added
 ^^^^^
 * Attributes to the class |State|
