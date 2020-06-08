@@ -53,10 +53,15 @@ def get_scheduled_jobs():
 @app.route("/messages", methods=["POST"])
 def enqueue_message():
     payload = MessageSchema().load(request.json)
-    actor = get_broker().get_actor(payload["actor_name"])
-    del payload["actor_name"]
-    actor.send_with_options(**payload)
+    actor = get_broker().get_actor(payload.pop("actor_name"))
+    options = payload.pop("options") or {}
+    actor.send_with_options(**payload, **options)
     return {"result": "ok"}
+
+
+@app.route("/actors")
+def get_actors():
+    return {"result": [actor.as_dict() for actor in get_broker().actors.values()]}
 
 
 @app.errorhandler(RemouladeError)

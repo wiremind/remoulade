@@ -198,6 +198,9 @@ class Actor:
         message = self.message_with_options(args=args, kwargs=kwargs, **options)
         return self.broker.enqueue(message, delay=delay)
 
+    def as_dict(self):
+        return {"name": self.actor_name, "queue_name": self.queue_name, "priority": self.priority}
+
     def __call__(self, *args, **kwargs):
         """Synchronously call this actor.
 

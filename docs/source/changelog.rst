@@ -7,6 +7,13 @@ All notable changes to this project will be documented in this file.
 
 `Unreleased`_
 -------------
+Added
+^^^^^
+* Class |MessageSchema| to load the data sent to enqueue a message.
+* GET method to ``api`` to get the  declared actors
+   - url ``/actors``
+* Method ``as_dict`` to class |Actor|
+
 
 `0.22.0`_ -- 2020-06-04
 -------------------------
@@ -27,7 +34,6 @@ Added
 * |InvalidProgress| raised when is tried to set a progress less than 0 or greater than 1
 * POST method to ``api`` to enqueue a message
    - url ``/messages``
-* Class |MessageSchema| to load the data sent to enqueue a message.
 
 Changed
 ^^^^^^^
