@@ -1,13 +1,16 @@
 import datetime
 import json
 from random import choice, randint, sample
+from unittest import mock
 from unittest.mock import MagicMock
 
 import pytest
 import pytz
 
+import remoulade
 from remoulade.api.main import app
 from remoulade.cancel import Cancel
+from remoulade.message import Message
 from remoulade.scheduler import ScheduledJob
 from remoulade.state import State, StateNamesEnum
 
@@ -112,13 +115,23 @@ class TestMessageStateAPI:
             "actor_name": "do_work",
             "args": ["1", "2"],
             "kwargs": {},
-            "options": {},
-            "delay": 100,
+            "options": {"time_limit": 1000},
+            "delay": None,
         }
-        do_work.send_with_options = MagicMock()
+        stub_broker.enqueue = MagicMock()
+        stub_broker.join(do_work.queue_name)
         res = api_client.post("/messages", data=json.dumps(data), content_type="application/json")
-        del data["actor_name"]
-        do_work.send_with_options.assert_called_with(**data)
+        message = Message(
+            queue_name="default",
+            actor_name="do_work",
+            args=("1", "2"),
+            kwargs={},
+            options={"time_limit": 1000},
+            message_id=mock.ANY,
+            message_timestamp=mock.ANY,
+        )
+        assert stub_broker.enqueue.call_count == 1
+        assert stub_broker.enqueue.call_args == mock.call(message, delay=None)
         assert res.status_code == 200
 
     @pytest.mark.parametrize(
@@ -151,3 +164,15 @@ class TestMessageStateAPI:
         validation_error = res.json["error"]
         assert validation_error["delay"] == [error]
         assert res.status_code == 400
+
+    def test_get_declared_actors(self, stub_broker, do_work, api_client):
+        @remoulade.actor(queue_name="foo", priority=10)
+        def do_job():
+            pass
+
+        stub_broker.declare_actor(do_job)
+        res = api_client.get("/actors")
+        assert res.json["result"] == [
+            {"name": "do_work", "priority": 0, "queue_name": "default"},
+            {"name": "do_job", "priority": 10, "queue_name": "foo"},
+        ]

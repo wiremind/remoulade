@@ -7,7 +7,7 @@ class MessageSchema(Schema):
     """
 
     actor_name = fields.Str(validate=validate.Length(min=1), required=True)
-    args = fields.List(fields.Raw())
-    kwargs = fields.Dict()
-    options = fields.Dict()
-    delay = fields.Number(validate=validate.Range(min=1))
+    args = fields.List(fields.Raw(), allow_none=True)
+    kwargs = fields.Dict(allow_none=True)
+    options = fields.Dict(allow_none=True)
+    delay = fields.Number(validate=validate.Range(min=1), allow_none=True)
