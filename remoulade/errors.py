@@ -91,3 +91,7 @@ class ChannelPoolTimeout(BrokerError):
 class InvalidProgress(RemouladeError):
     """Raised when trying to set a progress that is greater than 1 or less than 0
     """
+
+
+class NoScheduler(RemouladeError):
+    """Raised when trying to get a scheduler when there is not it"""

@@ -14,6 +14,7 @@
 #
 # You should have received a copy of the GNU Lesser General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
+from .errors import NoScheduler
 
 global_scheduler = None
 
@@ -21,7 +22,7 @@ global_scheduler = None
 def get_scheduler():
     global global_scheduler
     if global_scheduler is None:
-        raise ValueError("Scheduler not found, are you sure you called set_scheduler(scheduler) ?")
+        raise NoScheduler("Scheduler not found, are you sure you called set_scheduler(scheduler) ?")
     return global_scheduler
 
 
