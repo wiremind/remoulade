@@ -5,7 +5,7 @@ from werkzeug.exceptions import BadRequest, HTTPException, NotFound
 
 import remoulade
 from remoulade import get_broker, get_scheduler
-from remoulade.errors import RemouladeError
+from remoulade.errors import NoScheduler, RemouladeError
 from remoulade.state import StateNamesEnum
 
 from .schema import MessageSchema
@@ -77,3 +77,8 @@ def http_exception(e):
 @app.errorhandler(ValidationError)
 def validation_error(e):
     return {"error": e.normalized_messages()}, 400
+
+
+@app.errorhandler(NoScheduler)
+def no_scheduler(e):
+    return {"result": "No scheduller is set."}

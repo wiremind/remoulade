@@ -13,6 +13,8 @@ Added
 * GET method to ``api`` to get the  declared actors
    - url ``/actors``
 * Method ``as_dict`` to class |Actor|
+* Error |NoScheduler| raised when is tried to get an scheduler and there is not.
+* Error Handler in case of |NoScheduler|
 
 
 `0.22.0`_ -- 2020-06-04
