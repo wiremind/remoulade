@@ -46,7 +46,11 @@ def cancel_message(message_id):
 
 @app.route("/scheduled/jobs")
 def get_scheduled_jobs():
-    scheduled_jobs = get_scheduler().get_redis_schedule()
+    try:
+        scheduler = get_scheduler()
+    except NoScheduler:
+        return {"result": []}
+    scheduled_jobs = scheduler.get_redis_schedule()
     return {"result": [job.as_dict() for job in scheduled_jobs.values()]}
 
 
@@ -77,8 +81,3 @@ def http_exception(e):
 @app.errorhandler(ValidationError)
 def validation_error(e):
     return {"error": e.normalized_messages()}, 400
-
-
-@app.errorhandler(NoScheduler)
-def no_scheduler(e):
-    return {"result": "No scheduller is set."}
