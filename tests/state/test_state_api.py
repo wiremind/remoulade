@@ -85,9 +85,9 @@ class TestMessageStateAPI:
         assert res.json["error"] == "The default broker doesn't have a cancel backend."
         assert res.status_code == 500
 
-    def test_no_scheduler(self, api_client):
+    def test_no_scheduler(self, stub_broker, api_client):
         res = api_client.get("/scheduled/jobs")
-        assert res.json["result"] == "No scheduller is set."
+        assert res.json["result"] == []
 
     def test_scheduled_jobs(self, scheduler, api_client, do_work, frozen_datetime):
         timezone = pytz.timezone("Europe/Paris")
