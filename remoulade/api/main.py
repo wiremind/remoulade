@@ -1,31 +1,39 @@
 """ This file describe the API to get the state of messages """
+from operator import itemgetter
+
 from flask import Flask, request
 from marshmallow import ValidationError
-from werkzeug.exceptions import BadRequest, HTTPException, NotFound
+from werkzeug.exceptions import HTTPException, NotFound
 
 import remoulade
 from remoulade import get_broker, get_scheduler
 from remoulade.errors import NoScheduler, RemouladeError
-from remoulade.state import StateNamesEnum
 
-from .schema import MessageSchema
+from .schema import MessageSchema, PageSchema
 
 app = Flask(__name__)
 
 
 @app.route("/messages/states")
 def get_states():
-    name_state = request.args.get("name")
+    args = PageSchema().load(request.args.to_dict())
     backend = remoulade.get_broker().get_state_backend()
     data = [s.as_dict() for s in backend.get_states()]
-    if name_state is not None:
-        name_state = name_state.lower().capitalize()
-        try:
-            state = StateNamesEnum(name_state)
-            data = [s for s in data if s["name"] == state.value]
-        except ValueError:
-            raise BadRequest("{} state is not defined.".format(name_state))
-    return {"result": data}
+    if args.get("search_value"):
+        keys = ["message_id", "name", "actor_name", "args", "kwargs"]
+        value = args["search_value"].lower()
+        data = [
+            item for item in data if chr(0).join([str(item[k]) for k in keys if item.get(k)]).lower().find(value) >= 0
+        ]
+
+    if args.get("sort_column"):
+        reverse = args.get("sort_direction") == "desc"
+        sort_column = args["sort_column"]
+        data_none = [item for item in data if item.get(sort_column) is None]
+        data = sorted((item for item in data if item.get(sort_column)), key=itemgetter(sort_column), reverse=reverse)
+        data.extend(data_none)
+
+    return {"data": data[args["offset"] : args["size"] + args["offset"]], "count": len(data)}
 
 
 @app.route("/messages/state/<message_id>")

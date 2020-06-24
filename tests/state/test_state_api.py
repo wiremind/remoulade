@@ -27,7 +27,7 @@ class TestMessageStateAPI:
     def test_no_messages(self, stub_broker, state_middleware, api_client):
         res = api_client.get("/messages/states")
         assert res.status_code == 200
-        assert len(res.json["result"]) == 0
+        assert len(res.json["data"]) == 0
 
     def test_invalid_url(self, stub_broker, state_middleware, api_client):
         res = api_client.get("/invalid_url/")
@@ -39,13 +39,14 @@ class TestMessageStateAPI:
 
     @pytest.mark.parametrize("name_state", [StateNamesEnum.Skipped, StateNamesEnum.Success])
     def test_get_state_by_name(self, name_state, stub_broker, state_middleware, api_client):
-        state = State("3141516", name_state)
+        state = State("1", name_state)
         state_middleware.backend.set_state(state, ttl=1000)
-        res = api_client.get("/messages/states?name={}".format(name_state.value))
-        assert res.json["result"] == [state.as_dict()]
+        args = {"search_value": name_state.value}
+        res = api_client.get("/messages/states", data=args)
+        assert res.json == {"count": 1, "data": [state.as_dict()]}
 
     def test_get_by_message_id(self, stub_broker, state_middleware, api_client):
-        message_id = "2718281"
+        message_id = "1"
         state = State(message_id, StateNamesEnum.Pending)
         state_middleware.backend.set_state(state, ttl=1000)
         res = api_client.get("/messages/state/{}".format(message_id))
@@ -67,14 +68,14 @@ class TestMessageStateAPI:
 
         # check storage
         res = api_client.get("/messages/states")
-        states = res.json["result"]
+        states = res.json["data"]
         assert len(states) == n
         # check integrity
         for state in states:
             assert state in random_states
 
     def test_request_cancel(self, stub_broker, api_client, cancel_backend):
-        message_id = "3141516"
+        message_id = "1"
         stub_broker.add_middleware(Cancel(backend=cancel_backend))
         api_client.post("/messages/cancel/{}".format(message_id))
         assert cancel_backend.is_canceled(message_id, None)
@@ -180,3 +181,33 @@ class TestMessageStateAPI:
             {"name": "do_work", "priority": 0, "queue_name": "default"},
             {"name": "do_job", "priority": 10, "queue_name": "foo"},
         ]
+
+    def test_filter_messages(self, stub_broker, api_client, state_middleware):
+        state = State("some_message_id",)
+        state_middleware.backend.set_state(state, ttl=1000)
+        data = {
+            "sort_column": "message_id",
+            "search_value": "some_mes",
+        }
+        res = api_client.get("/messages/states", query_string=data)
+        assert res.json == {"count": 1, "data": [state.as_dict()]}
+
+    @pytest.mark.parametrize("offset", [0, 1, 5, 100])
+    def test_get_states_offset(self, offset, stub_broker, api_client, state_middleware):
+        for i in range(0, 10):
+            state_middleware.backend.set_state(State("id{}".format(i)), ttl=1000)
+        res = api_client.get("/messages/states", query_string={"offset": offset})
+        if offset >= 10:
+            assert res.json["data"] == []
+        else:
+            assert len(res.json["data"]) + offset == 10
+
+    @pytest.mark.parametrize("size", [1, 5, 100])
+    def test_get_states_page_size(self, size, stub_broker, api_client, state_middleware):
+        for i in range(0, 10):
+            state_middleware.backend.set_state(State("id{}".format(i)), ttl=1000)
+        res = api_client.get("/messages/states", query_string={"size": size})
+        if size >= 10:
+            assert res.json["count"] == 10
+        else:
+            assert len(res.json["data"]) == size

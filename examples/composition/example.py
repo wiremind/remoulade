@@ -1,8 +1,9 @@
 import argparse
 import sys
 
-import remoulade
 import requests
+
+import remoulade
 from remoulade import group
 from remoulade.brokers.rabbitmq import RabbitmqBroker
 from remoulade.encoder import PickleEncoder
