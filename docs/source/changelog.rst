@@ -15,6 +15,17 @@ Added
 * Method ``as_dict`` to class |Actor|
 * Error |NoScheduler| raised when is tried to get an scheduler and there is not.
 * Error Handler in case of |NoScheduler|
+* |PageSchema| to load the arguments send to ``messages/state``
+
+Changed
+^^^^^^^
+* Method ``api`` ``get_states`` now 
+    - can receive arguments
+       * ``search_value``
+       * ``sort_column`` a column defined in |State|, this column must be sortable
+       * ``sort_direction`` possible values: ``['asc', 'desc']``, the order you want to get the register
+       * ``size_page``  default ``100``: number of messages you want to retrieve
+    - if ``search_value`` is defined the ``search_keys`` is a ``list`` declared in ``remoulade.api.main.py``. The current supported columns to search are ``["message_id", "name", "actor_name", "args", "kwargs"]``
 
 
 `0.22.0`_ -- 2020-06-04

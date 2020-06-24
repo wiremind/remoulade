@@ -7,9 +7,10 @@ import sys
 from contextlib import closing
 from threading import local
 
+import requests
+
 import pylibmc
 import remoulade
-import requests
 
 logger = logging.getLogger("example")
 memcache_client = pylibmc.Client(["localhost"], binary=True)
