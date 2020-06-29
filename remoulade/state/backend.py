@@ -1,3 +1,4 @@
+import sys
 from collections import namedtuple
 from enum import Enum
 from typing import List
@@ -104,15 +105,18 @@ class StateBackend:
         should be stored.
       encoder(Encoder): The encoder to use when storing and retrieving
         result data.  Defaults to :class:`.JSONEncoder`.
+      max_size(int): Maximum size of arguments allow to storage
+        in the database, default 2MB
     """
 
     namespace = "remoulade-state*"
 
-    def __init__(self, *, namespace: str = "remoulade-state", encoder: Encoder = None):
+    def __init__(self, *, namespace: str = "remoulade-state", encoder: Encoder = None, max_size=2e6):
         from ..message import get_encoder
 
         self.namespace = namespace
         self.encoder = encoder or get_encoder()
+        self.max_size = max_size
 
     def _build_message_key(self, message_id: str) -> str:  # noqa: F821
         """Given a message id, return its globally-unique key.
@@ -158,7 +162,9 @@ class StateBackend:
         """
         encoded_data = {}
         for (key, value) in data.items():
-            encoded_data[self.encoder.encode(key)] = self.encoder.encode(value)
+            encoded_value = self.encoder.encode(value)
+            if sys.getsizeof(encoded_value) <= self.max_size:
+                encoded_data[self.encoder.encode(key)] = self.encoder.encode(value)
         return encoded_data
 
     def _decode_dict(self, data):
