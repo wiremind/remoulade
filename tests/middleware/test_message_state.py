@@ -114,16 +114,21 @@ class TestMessageState:
         assert type(data) == result_type
 
     @pytest.mark.parametrize(
-        "max_size,expected", [pytest.param(0, []), pytest.param(100, [5])],
+        "max_size", [200, 1000],
     )
-    def test_maximum_size_args(self, max_size, expected, stub_broker, state_backend, do_work):
+    def test_maximum_size_args(self, max_size, stub_broker, state_backend, do_work):
         @remoulade.actor
         def do_work(x):
             return x
 
-        stub_broker.add_middleware(MessageState(backend=state_backend, max_size=max_size))
+        state_backend.max_size = max_size
+        stub_broker.add_middleware(MessageState(backend=state_backend))
         stub_broker.declare_actor(do_work)
-        msg = do_work.send(5)
+        long_string = "".join("a" for _ in range(256))
+        msg = do_work.send(long_string)
         args = state_backend.get_state(msg.message_id).args
         # if the max_size == 0, then should not storage nothing
-        assert list(args) == expected
+        if max_size > 200:
+            assert list(args) == [long_string]
+        else:
+            assert args is None

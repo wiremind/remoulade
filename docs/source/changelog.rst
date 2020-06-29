@@ -27,6 +27,10 @@ Changed
        * ``size_page``  default ``100``: number of messages you want to retrieve
     - if ``search_value`` is defined the ``search_keys`` is a ``list`` declared in ``remoulade.api.main.py``. The current supported columns to search are ``["message_id", "name", "actor_name", "args", "kwargs"]``
 
+Fix
+^^^^^
+* make ``max_size`` an argument of |StateBackend| and fix its behavior
+
 
 `0.22.0`_ -- 2020-06-04
 -------------------------

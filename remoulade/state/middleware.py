@@ -1,4 +1,3 @@
-import sys
 from datetime import datetime, timezone
 
 from ..middleware import Middleware
@@ -12,28 +11,17 @@ class MessageState(Middleware):
     Parameters
     state_ttl(int):Time(seconds) that the state will be storage
                     in the database
-    max_size(int): Maximum size of arguments allow to storage
-                    in the database, default 2MB
     """
 
-    def __init__(self, backend, state_ttl=3600, max_size=2e6):
+    def __init__(self, backend, state_ttl=3600):
         self.backend = backend
         self.state_ttl = state_ttl
-        self.max_size = max_size
 
     def save(self, message, state_name, priority=None, **kwargs):
         args = message.args
         kwargs_state = message.kwargs
         message_id = message.message_id
         actor_name = message.actor_name
-        if sys.getsizeof(args) > self.max_size:
-            # Arguments exceed maximum size to display
-            #  do not save them.
-            args = []
-        if sys.getsizeof(kwargs_state) > self.max_size:
-            # Keyword arguments exceed maximum size to
-            #  display do not save them
-            kwargs_state = {}
         self.backend.set_state(
             State(
                 message_id,
