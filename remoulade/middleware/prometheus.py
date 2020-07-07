@@ -14,7 +14,6 @@
 #
 # You should have received a copy of the GNU Lesser General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
-
 import fcntl
 import os
 from contextlib import contextmanager
@@ -224,7 +223,7 @@ class metrics_handler(BaseHTTPRequestHandler):
     def do_GET(self):
         # These imports must happen at runtime.  See above.
         import prometheus_client as prom
-        import prometheus_client.multiprocess as prom_mp
+        from prometheus_client import multiprocess as prom_mp
 
         registry = prom.CollectorRegistry()
         prom_mp.MultiProcessCollector(registry)
