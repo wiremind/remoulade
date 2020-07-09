@@ -18,7 +18,15 @@ from typing import List
 
 import redis
 
-from ..backend import DEFAULT_TIMEOUT, BackendResult, ForgottenResult, ResultBackend, ResultMissing, ResultTimeout
+from ..backend import (
+    DEFAULT_TIMEOUT,
+    BackendResult,
+    ForgottenResult,
+    Missing,
+    ResultBackend,
+    ResultMissing,
+    ResultTimeout,
+)
 
 
 class RedisBackend(ResultBackend):
@@ -115,6 +123,12 @@ class RedisBackend(ResultBackend):
                 pipe.lpush(message_key, self.encoder.encode(result))
                 pipe.pexpire(message_key, ttl)
             pipe.execute()
+
+    def _get(self, key, forget=False):
+        data = self.client.rpoplpush(key, key)
+        if data:
+            return self.encoder.decode(data)
+        return Missing
 
     def _delete(self, key):
         self.client.delete(key)
