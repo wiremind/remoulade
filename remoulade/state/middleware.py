@@ -40,8 +40,13 @@ class MessageState(Middleware):
 
     def after_enqueue(self, broker, message, delay):
         priority = broker.get_actor(message.actor_name).priority
+        group_id = message.options.get("group_info", {}).get("group_id")
         self.save(
-            message, state_name=StateNamesEnum.Pending, enqueued_datetime=self._get_current_time(), priority=priority
+            message,
+            state_name=StateNamesEnum.Pending,
+            enqueued_datetime=self._get_current_time(),
+            priority=priority,
+            group_id=group_id,
         )
 
     def after_skip_message(self, broker, message):

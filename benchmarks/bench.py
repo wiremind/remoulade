@@ -8,6 +8,7 @@ import time
 
 import celery
 import pylibmc
+
 import remoulade
 from remoulade.brokers.rabbitmq import RabbitmqBroker
 from remoulade.brokers.redis import RedisBroker

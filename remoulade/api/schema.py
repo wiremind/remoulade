@@ -20,7 +20,7 @@ class PageSchema(Schema):
 
     sort_column = fields.Str(allow_none=True)
     sort_direction = fields.Str(allow_none=True, validate=validate.OneOf(["asc", "desc"]))
-    size = fields.Int(missing=100, validate=validate.Range(min=1, max=1000))
+    size = fields.Int(missing=50, validate=validate.Range(min=1, max=1000))
     search_value = fields.Str(allow_none=True)
     offset = fields.Int(missing=0)
 

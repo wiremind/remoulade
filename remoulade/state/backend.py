@@ -37,6 +37,7 @@ class State(
             "enqueued_datetime",
             "started_datetime",
             "end_datetime",
+            "group_id",
         ),
     )
 ):
@@ -58,8 +59,10 @@ class State(
         progress=None,
         enqueued_datetime=None,
         started_datetime=None,
-        end_datetime=None
+        end_datetime=None,
+        group_id=None
     ):
+
         if name and name not in list(StateNamesEnum):
             raise InvalidStateError("The {} State is not defined".format(name))
         return super().__new__(
@@ -74,10 +77,14 @@ class State(
             enqueued_datetime,
             started_datetime,
             end_datetime,
+            group_id,
         )
 
-    def as_dict(self):
-        as_dict = {key: value for (key, value) in self._asdict().items() if value is not None}
+    def as_dict(self, exclude_keys=()):
+        """ Transform a State into a dict, can exclude some keys """
+        as_dict = {
+            key: value for (key, value) in self._asdict().items() if value is not None and key not in exclude_keys
+        }
         datetime_keys = ["enqueued_datetime", "started_datetime", "end_datetime"]
         for key in datetime_keys:
             if key in as_dict:
