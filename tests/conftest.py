@@ -187,10 +187,10 @@ def state_backend(request, state_backends):
     return state_backends[request.param]
 
 
-@pytest.fixture
-def state_middleware(state_backend):
+@pytest.fixture(params=["redis", "stub"])
+def state_middleware(request, state_backends):
     broker = remoulade.get_broker()
-    middleware = MessageState(backend=state_backend)
+    middleware = MessageState(backend=state_backends[request.param])
     broker.add_middleware(middleware)
     return middleware
 
