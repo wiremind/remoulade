@@ -8,7 +8,7 @@ import pytest
 import pytz
 
 import remoulade
-from remoulade.api.main import app
+from remoulade.api.main import app, dict_has
 from remoulade.cancel import Cancel
 from remoulade.message import Message
 from remoulade.scheduler import ScheduledJob
@@ -67,7 +67,7 @@ class TestMessageStateAPI:
             state_middleware.backend.set_state(random_state, ttl=1000)
 
         # check storage
-        res = api_client.get("/messages/states")
+        res = api_client.get("/messages/states?size=100")
         states = res.json["data"]
         assert len(states) == n
         # check integrity
@@ -211,3 +211,34 @@ class TestMessageStateAPI:
             assert res.json["count"] == 10
         else:
             assert len(res.json["data"]) == size
+
+    def test_get_group_id(self, stub_broker, api_client, state_middleware):
+        for i in range(2):
+            state_middleware.backend.set_state(State("id{}".format(i), group_id=1), ttl=1000)
+        state_middleware.backend.set_state(State("id2", group_id=2), ttl=1000)
+        res = api_client.get("/groups").json["data"]
+
+        res.sort(key=lambda i: i["group_id"])
+        for item in res:
+            item["messages"].sort(key=lambda i: i["message_id"])
+
+        assert res == [
+            {"group_id": 1, "messages": [{"group_id": 1, "message_id": "id0"}, {"group_id": 1, "message_id": "id1"}]},
+            {"group_id": 2, "messages": [{"group_id": 2, "message_id": "id2"}]},
+        ]
+
+    @pytest.mark.parametrize("offset, expected_len", [(0, 1), (1, 0), (2, 0)])
+    def test_offset_in_group(self, offset, expected_len, stub_broker, api_client, state_middleware):
+        for i in range(2):
+            state_middleware.backend.set_state(State("id{}".format(i), group_id=1), ttl=1000)
+        res = api_client.get("/groups", query_string={"offset": offset})
+        assert len(res.json["data"]) == expected_len
+
+    @pytest.mark.parametrize("search_value", ["1", "2"])
+    def test_filter_groups(self, search_value, stub_broker, api_client, state_middleware):
+        for i in range(2):
+            state_middleware.backend.set_state(State("id{}".format(i), group_id=1), ttl=1000)
+        res = api_client.get("/groups", query_string={"search_value": search_value})
+        for group in res.json["data"]:
+            for message in group["messages"]:
+                assert dict_has(message, message.keys(), search_value)

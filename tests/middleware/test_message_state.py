@@ -3,6 +3,7 @@ import time
 import pytest
 
 import remoulade
+from remoulade import group
 from remoulade.cancel import Cancel
 from remoulade.middleware import Middleware, SkipMessage
 from remoulade.state.backend import State, StateNamesEnum
@@ -98,7 +99,7 @@ class TestMessageState:
         assert state.end_datetime is None
 
     @pytest.mark.parametrize(
-        "ttl, result_type", [pytest.param(1000, State), pytest.param(1, type(None)),],
+        "ttl, result_type", [pytest.param(1000, State), pytest.param(1, type(None))],
     )
     def test_expiration_data_backend(self, ttl, result_type, stub_broker, state_backend):
         @remoulade.actor
@@ -128,7 +129,15 @@ class TestMessageState:
         msg = do_work.send(long_string)
         args = state_backend.get_state(msg.message_id).args
         # if the max_size == 0, then should not storage nothing
+
         if max_size > 200:
             assert list(args) == [long_string]
         else:
             assert args is None
+
+    def test_save_group_id_in_message(self, stub_broker, state_middleware, do_work):
+        msg = do_work.message()
+        group_id = group([msg]).run().group_id
+        state = state_middleware.backend.get_state(msg.message_id)
+        assert state.message_id == msg.message_id
+        assert state.group_id == group_id

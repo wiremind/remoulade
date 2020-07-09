@@ -10,12 +10,17 @@ All notable changes to this project will be documented in this file.
 Added
 ^^^^^
 * Class |MessageSchema| to load the data sent to enqueue a message.
-* GET method to ``api`` to get the  declared actors
-   - url ``/actors``
-* Method ``as_dict`` to class |Actor|
+* Attribute to the class |State|
+   - ``group_id``
+* GET methods to ``api``
+   - url ``/actors``: get declared ``actors``
+   - url ``/groups``: get declared ``groups``
+      - schema |PageSchema|
+* Method ``as_dict`` to class |Actor|.
 * Error |NoScheduler| raised when is tried to get an scheduler and there is not.
 * Error Handler in case of |NoScheduler|
 * |PageSchema| to load the arguments send to ``messages/state``
+* Method ``as_dict`` of |State| can receive keyword ``exclude_keys:tuple`` to exclude some keys from serialization
 
 Changed
 ^^^^^^^

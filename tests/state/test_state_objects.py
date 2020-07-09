@@ -32,3 +32,10 @@ class TestState:
         assert stateobj.name == dict_state["name"]
         assert stateobj.kwargs == dict_state["kwargs"]
         assert stateobj.args == dict_state["args"]
+
+    def test_exclude_keys_from_serialization(self):
+        dict_state = State("id", StateNamesEnum.Success, args=[1, 2, 3], kwargs={"key": "value"}).as_dict(
+            exclude_keys=("kwargs", "id")
+        )
+        assert "kwargs" not in dict_state
+        assert "id" not in dict_state
