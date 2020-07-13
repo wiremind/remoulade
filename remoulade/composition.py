@@ -56,10 +56,11 @@ class pipeline:
         children(List[Message|group]) The sequence of messages or groups to execute as a pipeline
     """
 
-    def __init__(self, children):
+    def __init__(self, children, pipeline_id=None):
         self.broker = get_broker()
 
         self.children = []  # type: List[Union["Message", "group"]]
+        self.pipeline_id = generate_unique_id() if pipeline_id is None else pipeline_id
         for child in children:
             if isinstance(child, pipeline):
                 self.children += child.children
