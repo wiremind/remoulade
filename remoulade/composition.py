@@ -69,9 +69,7 @@ class pipeline:
                 self.children.append(child)
             else:
                 self.children.append(child.copy())
-        self.broker.emit_before(
-            "build_messages_pipeline", pipeline_id=self.pipeline_id, messages=self.messages
-        )
+        self.broker.emit_before("build_messages_pipeline", pipeline_id=self.pipeline_id, messages=self.messages)
 
     def build(self, *, last_options=None):
         """ Build the pipeline, return the first message to be enqueued or integrated in another pipeline

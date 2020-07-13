@@ -1,7 +1,6 @@
 import remoulade
-
-from remoulade.brokers.rabbitmq import RabbitmqBroker
 from remoulade import pipeline
+from remoulade.brokers.rabbitmq import RabbitmqBroker
 
 broker = RabbitmqBroker()
 remoulade.set_broker(broker)

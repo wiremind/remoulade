@@ -1,5 +1,5 @@
-import urllib.request as request
 from time import sleep
+from urllib import request as request
 
 import pytest
 

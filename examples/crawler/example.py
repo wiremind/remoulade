@@ -7,9 +7,9 @@ import sys
 from contextlib import closing
 from threading import local
 
+import pylibmc
 import requests
 
-import pylibmc
 import remoulade
 
 logger = logging.getLogger("example")

@@ -1,6 +1,6 @@
 import os
-import xml.etree.ElementTree as ET
 from datetime import datetime
+from xml.etree import ElementTree as ET
 
 
 def setup(app):

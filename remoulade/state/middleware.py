@@ -46,7 +46,7 @@ class MessageState(Middleware):
             state_name=StateNamesEnum.Pending,
             enqueued_datetime=self._get_current_time(),
             priority=priority,
-            group_id=group_id
+            group_id=group_id,
         )
 
     def after_skip_message(self, broker, message):
