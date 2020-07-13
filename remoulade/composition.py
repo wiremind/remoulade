@@ -90,7 +90,7 @@ class pipeline:
                 options = {"pipe_target": [m.asdict() for m in next_child]}
             else:
                 options = last_options or {}
-
+            options["pipeline_id"] = self.pipeline_id
             if isinstance(child, group) or isinstance(child, pipeline):
                 next_child = child.build(options)
             else:

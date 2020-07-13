@@ -38,6 +38,7 @@ class State(
             "started_datetime",
             "end_datetime",
             "group_id",
+            "pipeline_id",
         ),
     )
 ):
@@ -60,7 +61,8 @@ class State(
         enqueued_datetime=None,
         started_datetime=None,
         end_datetime=None,
-        group_id=None
+        group_id=None,
+        pipeline_id=None,
     ):
 
         if name and name not in list(StateNamesEnum):
@@ -78,6 +80,7 @@ class State(
             started_datetime,
             end_datetime,
             group_id,
+            pipeline_id,
         )
 
     def as_dict(self, exclude_keys=()):
