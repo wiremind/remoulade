@@ -253,5 +253,8 @@ class TestMessageStateAPI:
         messages = [add.message(1), add.message(2), add.message(42)]
         pipe = pipeline(messages).run()
         res = api_client.get("messages/states")
+        message_ids = [m.message_id for m in messages]
+        assert res.json["count"] == len(messages)
         for message in res.json["data"]:
             assert message["pipeline_id"] == pipe.pipeline_id
+            assert message["message_id"] in message_ids

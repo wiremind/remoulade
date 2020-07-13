@@ -17,7 +17,7 @@ class MessageState(Middleware):
         self.backend = backend
         self.state_ttl = state_ttl
 
-    def save(self, message, state_name, priority=None, **kwargs):
+    def save(self, message, state_name=None, priority=None, **kwargs):
         args = message.args
         kwargs_state = message.kwargs
         message_id = message.message_id
@@ -41,14 +41,12 @@ class MessageState(Middleware):
     def after_enqueue(self, broker, message, delay):
         priority = broker.get_actor(message.actor_name).priority
         group_id = message.options.get("group_info", {}).get("group_id")
-        pipeline_id = message.options.get("pipeline_id")
         self.save(
             message,
             state_name=StateNamesEnum.Pending,
             enqueued_datetime=self._get_current_time(),
             priority=priority,
-            group_id=group_id,
-            pipeline_id=pipeline_id
+            group_id=group_id
         )
 
     def after_skip_message(self, broker, message):
@@ -66,3 +64,7 @@ class MessageState(Middleware):
 
     def before_process_message(self, broker, message):
         self.save(message, state_name=StateNamesEnum.Started, started_datetime=self._get_current_time())
+
+    def before_build_messages_pipeline(self, broker, pipeline_id, messages):
+        for message in messages:
+            self.save(message, pipeline_id=pipeline_id)

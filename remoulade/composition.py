@@ -61,6 +61,7 @@ class pipeline:
 
         self.children = []  # type: List[Union["Message", "group"]]
         self.pipeline_id = generate_unique_id() if pipeline_id is None else pipeline_id
+
         for child in children:
             if isinstance(child, pipeline):
                 self.children += child.children
@@ -68,6 +69,9 @@ class pipeline:
                 self.children.append(child)
             else:
                 self.children.append(child.copy())
+        self.broker.emit_before(
+            "build_messages_pipeline", pipeline_id=self.pipeline_id, messages=self.messages
+        )
 
     def build(self, *, last_options=None):
         """ Build the pipeline, return the first message to be enqueued or integrated in another pipeline
@@ -118,6 +122,14 @@ class pipeline:
                 yield list(child.message_ids)
             else:
                 yield child.message_id
+
+    @property
+    def messages(self):
+        for child in self.children:
+            if isinstance(child, pipeline):
+                yield list(child.messages)
+            else:
+                yield child
 
     def run(self, *, delay=None):
         """Run this pipeline.
@@ -229,6 +241,14 @@ class group:
                 yield list(child.message_ids)
             else:
                 yield child.message_id
+
+    @property
+    def messages(self):
+        for child in self.children:
+            if isinstance(child, pipeline):
+                yield list(child.messages)
+            else:
+                yield child
 
     def run(self, *, delay=None):
         """Run the actors in this group.

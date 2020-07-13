@@ -161,3 +161,6 @@ class Middleware:
 
     def before_build_group_pipeline(self, broker, group_id, message_ids):
         """ Called before a group in a group pipeline is enqueued"""
+
+    def before_build_messages_pipeline(self, broker, pipeline_id, messages):
+        """ Called befero the mesages in the pipeline be enqueued"""
