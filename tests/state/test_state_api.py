@@ -8,6 +8,7 @@ import pytest
 import pytz
 
 import remoulade
+from remoulade import pipeline
 from remoulade.api.main import app, dict_has
 from remoulade.cancel import Cancel
 from remoulade.message import Message
@@ -242,3 +243,15 @@ class TestMessageStateAPI:
         for group in res.json["data"]:
             for message in group["messages"]:
                 assert dict_has(message, message.keys(), search_value)
+
+    def test_create_pipeline(self, stub_broker, stub_worker, state_middleware, api_client):
+        @remoulade.actor
+        def add(x, y=0):
+            return x + y
+
+        stub_broker.declare_actor(add)
+        messages = [add.message(1), add.message(2), add.message(42)]
+        pipe = pipeline(messages).run()
+        res = api_client.get("messages/states")
+        for message in res.json["data"]:
+            assert message["pipeline_id"] == pipe.pipeline_id
