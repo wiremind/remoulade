@@ -244,7 +244,7 @@ class TestMessageStateAPI:
             for message in group["messages"]:
                 assert dict_has(message, message.keys(), search_value)
 
-    def test_create_pipeline(self, stub_broker, stub_worker, state_middleware, api_client):
+    def test_set_pipeline_id(self, stub_broker, stub_worker, state_middleware, api_client):
         @remoulade.actor
         def add(x, y=0):
             return x + y
@@ -255,6 +255,17 @@ class TestMessageStateAPI:
         res = api_client.get("messages/states")
         message_ids = [m.message_id for m in messages]
         assert res.json["count"] == len(messages)
+        # TODO: add mock to the before_pipeline_messages
         for message in res.json["data"]:
             assert message["pipeline_id"] == pipe.pipeline_id
             assert message["message_id"] in message_ids
+
+    def test_get_pipelines(self, stub_broker, stub_worker, state_middleware, api_client):
+        dict_messages = {}
+        for i in range(3):
+            state_middleware.backend.set_state(State("id{}".format(i), pipeline_id=i), ttl=1000)
+            dict_messages["id{}".format(i)] = i
+        res = api_client.get("/pipelines")
+        for pipelines in res.json["data"]:
+            for message in pipelines["messages"]:
+                assert message["pipeline_id"] == dict_messages[message["message_id"]]

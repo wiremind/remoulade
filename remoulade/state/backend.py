@@ -62,7 +62,7 @@ class State(
         started_datetime=None,
         end_datetime=None,
         group_id=None,
-        pipeline_id=None,
+        pipeline_id=None
     ):
 
         if name and name not in list(StateNamesEnum):

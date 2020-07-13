@@ -110,6 +110,29 @@ def get_groups():
     return {"data": groups[args["offset"] : args["size"] + args["offset"]], "count": len(groups)}
 
 
+@app.route("/pipelines")
+def get_pipelines():
+    args = PageSchema().load(request.args.to_dict())
+    backend = remoulade.get_broker().get_state_backend()
+    pipelines = defaultdict(list)
+    states = (state for state in backend.get_states() if state.pipeline_id)
+
+    if args.get("search_value"):
+        keys = ["message_id", "name", "actor_name", "group_id", "pipeline_id"]
+        value = args["search_value"].lower()
+        states = [state for state in states if dict_has(state.as_dict(), keys, value)]  # type: ignore
+
+    for state in states:
+        pipelines[state.pipeline_id].append(state.as_dict(exclude_keys=("args", "kwargs")))
+
+    pipelines = sorted(  # type: ignore
+        ({"pipeline_id": pipeline_id, "messages": messages} for pipeline_id, messages in pipelines.items()),
+        key=lambda x: x["messages"][0].get("enqueued_datetime") or datetime.datetime.min,
+        reverse=True,
+    )
+    return {"data": pipelines[args["offset"] : args["size"] + args["offset"]], "count": len(pipelines)}
+
+
 @app.errorhandler(RemouladeError)
 def remoulade_exception(e):
     return {"error": str(e)}, 500
