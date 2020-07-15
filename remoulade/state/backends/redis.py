@@ -39,7 +39,7 @@ class RedisBackend(StateBackend):
         message_key = self._build_message_key(state.message_id)
         with self.client.pipeline() as pipe:
             encoded_state = self._encode_dict(state.as_dict())
-            pipe.hmset(message_key, encoded_state)
+            pipe.hset(message_key, mapping=encoded_state)
             pipe.expire(message_key, ttl)
             pipe.execute()
 
