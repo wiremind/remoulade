@@ -28,6 +28,8 @@ Added
 
 Changed
 ^^^^^^^
+* ``hmset`` to ``hset`` in class |RedisBackend| as the former is deprecated, this requires at least Redis 4.0.0 and
+at least redis-py 3.5.0
 * Method ``api`` ``get_states`` now 
     - can receive arguments defined in schema |PageSchema|
        * ``search_value``
