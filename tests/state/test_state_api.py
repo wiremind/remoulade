@@ -1,5 +1,6 @@
 import datetime
 import json
+from datetime import date
 from random import choice, randint, sample
 from unittest import mock
 from unittest.mock import MagicMock
@@ -211,6 +212,14 @@ class TestMessageStateAPI:
             assert res.json["count"] == 10
         else:
             assert len(res.json["data"]) == size
+
+    def test_not_raise_error_with_pickle_and_non_serializable(
+        self, pickle_encoder, stub_broker, api_client, state_middleware
+    ):
+        state = State("id1", args={"name": "some_name", "date": date(2020, 12, 12)})
+        state_middleware.backend.set_state(state, ttl=1000)
+        res = api_client.get("messages/states")
+        assert res.json == {"count": 1, "data": [{"args": "encoded_data", "message_id": "id1"}]}
 
     def test_get_group_id(self, stub_broker, api_client, state_middleware):
         for i in range(2):

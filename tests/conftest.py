@@ -187,10 +187,10 @@ def state_backend(request, state_backends):
     return state_backends[request.param]
 
 
-@pytest.fixture(params=["redis", "stub"])
-def state_middleware(request, state_backends):
+@pytest.fixture
+def state_middleware(state_backend):
     broker = remoulade.get_broker()
-    middleware = MessageState(backend=state_backends[request.param])
+    middleware = MessageState(backend=state_backend)
     broker.add_middleware(middleware)
     return middleware
 
@@ -271,3 +271,12 @@ def scheduler(stub_broker):
     check_redis(scheduler.client)
     remoulade.set_scheduler(scheduler)
     return scheduler
+
+
+@pytest.fixture
+def pickle_encoder():
+    old_encoder = remoulade.get_encoder()
+    new_encoder = remoulade.PickleEncoder()
+    remoulade.set_encoder(new_encoder)
+    yield new_encoder
+    remoulade.set_encoder(old_encoder)

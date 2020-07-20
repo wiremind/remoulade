@@ -80,7 +80,7 @@ class State(
             group_id,
         )
 
-    def as_dict(self, exclude_keys=()):
+    def as_dict(self, exclude_keys=(), encode_args=False):
         """ Transform a State into a dict, can exclude some keys """
         as_dict = {
             key: value for (key, value) in self._asdict().items() if value is not None and key not in exclude_keys
@@ -91,6 +91,14 @@ class State(
                 as_dict[key] = as_dict[key].isoformat()
         if self.name:
             as_dict["name"] = self.name.value
+        if encode_args:
+            from ..message import get_encoder
+
+            for key in (item for item in ["args", "kwargs"] if item in as_dict):
+                try:
+                    as_dict[key] = get_encoder().encode(as_dict[key]).decode("utf-8")
+                except (UnicodeDecodeError, TypeError):
+                    as_dict[key] = "encoded_data"
         return as_dict
 
     @classmethod
