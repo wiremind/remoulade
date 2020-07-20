@@ -1,15 +1,4 @@
-import pytest
-
 import remoulade
-
-
-@pytest.fixture
-def pickle_encoder():
-    old_encoder = remoulade.get_encoder()
-    new_encoder = remoulade.PickleEncoder()
-    remoulade.set_encoder(new_encoder)
-    yield new_encoder
-    remoulade.set_encoder(old_encoder)
 
 
 def test_set_encoder_sets_the_global_encoder(pickle_encoder):
