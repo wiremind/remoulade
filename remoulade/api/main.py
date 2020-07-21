@@ -33,7 +33,7 @@ def dict_has(item, keys, value):
 def get_states():
     args = PageSchema().load(request.args.to_dict())
     backend = remoulade.get_broker().get_state_backend()
-    data = [s.as_dict(encode_args=True) for s in backend.get_states()]
+    data = [s.as_dict(exclude_keys=("args", "kwargs")) for s in backend.get_states()]
     if args.get("search_value"):
         keys = ["message_id", "name", "actor_name", "args", "kwargs"]
         value = args["search_value"].lower()
