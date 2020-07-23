@@ -26,12 +26,19 @@ class TestState:
         assert dict_state["kwargs"] == {"key": "value"}
 
     def test_check_conversion_dict_to_object(self):
-        dict_state = {"name": "Success", "args": [1, 2, 3], "kwargs": {"key": "value"}, "message_id": "idtest"}
+        dict_state = {
+            "name": "Success",
+            "args": [1, 2, 3],
+            "kwargs": {"key": "value"},
+            "message_id": "idtest",
+            "options": {"onsuccess": "save", "time_limit": 1000},
+        }
         stateobj = State.from_dict(dict_state)
         assert stateobj.message_id == dict_state["message_id"]
         assert stateobj.name == dict_state["name"]
         assert stateobj.kwargs == dict_state["kwargs"]
         assert stateobj.args == dict_state["args"]
+        assert stateobj.options == dict_state["options"]
 
     def test_exclude_keys_from_serialization(self):
         dict_state = State("id", StateNamesEnum.Success, args=[1, 2, 3], kwargs={"key": "value"}).as_dict(
