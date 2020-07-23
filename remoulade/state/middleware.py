@@ -19,6 +19,7 @@ class MessageState(Middleware):
 
     def save(self, message, state_name, priority=None, **kwargs):
         args = message.args
+        options = message.options
         kwargs_state = message.kwargs
         message_id = message.message_id
         actor_name = message.actor_name
@@ -30,6 +31,7 @@ class MessageState(Middleware):
                 args=args,
                 priority=priority,
                 kwargs=kwargs_state,
+                options=options,
                 **kwargs,
             ),
             self.state_ttl,

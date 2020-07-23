@@ -251,3 +251,29 @@ class TestMessageStateAPI:
         for group in res.json["data"]:
             for message in group["messages"]:
                 assert dict_has(message, message.keys(), search_value)
+
+    def test_requeue_message(self, stub_broker, do_work, api_client, state_middleware):
+        stub_broker.enqueue = MagicMock()
+        state = State("id1", StateNamesEnum.Success, actor_name="do_work", options={"time_limit": 1000})
+        state_middleware.backend.set_state(state, ttl=1000)
+        res = api_client.get("messages/requeue/id1")
+        message = Message(
+            queue_name="default",
+            actor_name="do_work",
+            args=(),
+            kwargs={},
+            options={"time_limit": 1000},
+            message_id=mock.ANY,
+            message_timestamp=mock.ANY,
+        )
+        assert stub_broker.enqueue.call_count == 1
+        assert stub_broker.enqueue.call_args == mock.call(message, delay=None)
+        assert res.status_code == 200
+
+    def test_requeue_message_with_pipeline(self, stub_broker, do_work, api_client, state_middleware):
+        stub_broker.enqueue = MagicMock()
+        state = State("id1", StateNamesEnum.Success, actor_name="do_work", options={"pipe_target": "some_pipe"})
+        state_middleware.backend.set_state(state, ttl=1000)
+        res = api_client.get("messages/requeue/id1")
+        assert res.json == {"error": "requeue message in a pipeline not supported"}
+        assert res.status_code == 400

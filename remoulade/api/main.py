@@ -33,7 +33,7 @@ def dict_has(item, keys, value):
 def get_states():
     args = PageSchema().load(request.args.to_dict())
     backend = remoulade.get_broker().get_state_backend()
-    data = [s.as_dict(exclude_keys=("args", "kwargs")) for s in backend.get_states()]
+    data = [s.as_dict(exclude_keys=("args", "kwargs", "options")) for s in backend.get_states()]
     if args.get("search_value"):
         keys = ["message_id", "name", "actor_name", "args", "kwargs"]
         value = args["search_value"].lower()
@@ -60,7 +60,22 @@ def get_state(message_id):
 def cancel_message(message_id):
     backend = remoulade.get_broker().get_cancel_backend()
     backend.cancel([message_id])
-    return {"result": True}
+    return {"result": "ok"}
+
+
+@app.route("/messages/requeue/<message_id>")
+def requeue_message(message_id):
+    broker = remoulade.get_broker()
+    backend = broker.get_state_backend()
+    state = backend.get_state(message_id)
+    actor = broker.get_actor(state.actor_name)
+    payload = {"args": state.args, "kwargs": state.kwargs}
+    pipe_target = state.options.get("pipe_target")
+    if pipe_target is None:
+        actor.send_with_options(**payload, **state.options)
+        return {"result": "ok"}
+    else:
+        return {"error": "requeue message in a pipeline not supported"}, 400
 
 
 @app.route("/scheduled/jobs")
@@ -100,7 +115,7 @@ def get_groups():
         states = [state for state in states if dict_has(state.as_dict(), keys, value)]  # type: ignore
 
     for state in states:
-        groups[state.group_id].append(state.as_dict(exclude_keys=("args", "kwargs")))
+        groups[state.group_id].append(state.as_dict(exclude_keys=("args", "kwargs", "options")))
 
     groups = sorted(  # type: ignore
         ({"group_id": group_id, "messages": messages} for group_id, messages in groups.items()),

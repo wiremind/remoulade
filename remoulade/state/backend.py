@@ -32,6 +32,7 @@ class State(
             "actor_name",
             "args",
             "kwargs",
+            "options",
             "priority",
             "progress",
             "enqueued_datetime",
@@ -55,6 +56,7 @@ class State(
         actor_name=None,
         args=None,
         kwargs=None,
+        options=None,
         priority=None,
         progress=None,
         enqueued_datetime=None,
@@ -72,6 +74,7 @@ class State(
             actor_name,
             args,
             kwargs,
+            options,
             priority,
             progress,
             enqueued_datetime,
@@ -94,7 +97,7 @@ class State(
         if encode_args:
             from ..message import get_encoder
 
-            for key in (item for item in ["args", "kwargs"] if item in as_dict):
+            for key in (item for item in ["args", "kwargs", "options"] if item in as_dict):
                 try:
                     as_dict[key] = get_encoder().encode(as_dict[key]).decode("utf-8")
                 except (UnicodeDecodeError, TypeError):
