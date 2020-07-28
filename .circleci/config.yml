@@ -49,13 +49,6 @@ jobs:
     environment:
       TOXENV: docs
 
-  validate-commits:
-    docker:
-      - image: commitsar/commitsar
-    steps:
-      - checkout
-      - run: commitsar
-
 workflows:
   version: 2
 
@@ -66,4 +59,3 @@ workflows:
       - test-3.5
       - lint
       - docs
-      - validate-commits
