@@ -1,5 +1,6 @@
 """ This file describe the API to get the state of messages """
 import datetime
+import sys
 from collections import defaultdict
 from operator import itemgetter
 
@@ -9,7 +10,9 @@ from werkzeug.exceptions import HTTPException, NotFound
 
 import remoulade
 from remoulade import get_broker, get_scheduler
-from remoulade.errors import NoScheduler, RemouladeError
+from remoulade.errors import NoResultBackend, NoScheduler, RemouladeError
+from remoulade.result import Result
+from remoulade.results import ResultMissing
 
 from .schema import MessageSchema, PageSchema
 
@@ -76,6 +79,26 @@ def requeue_message(message_id):
         return {"result": "ok"}
     else:
         return {"error": "requeue message in a pipeline not supported"}, 400
+
+
+@app.route("/messages/result/<message_id>")
+def get_results(message_id):
+    from ..message import get_encoder
+
+    max_size = 1e4
+    try:
+        result = Result(message_id=message_id).get()
+        encoded_result = get_encoder().encode(result).decode("utf-8")
+        size_result = sys.getsizeof(encoded_result)
+        if size_result >= max_size:
+            encoded_result = "The result is too big {}M".format(size_result / 1e6)
+        return {"result": encoded_result}
+    except ResultMissing:
+        return {"result": "result is missing"}
+    except NoResultBackend:
+        return {"result": "no result backend"}
+    except (UnicodeDecodeError, TypeError):
+        return {"result": "non serializable result"}
 
 
 @app.route("/scheduled/jobs")

@@ -16,6 +16,7 @@ from remoulade.brokers.rabbitmq import RabbitmqBroker
 from remoulade.brokers.stub import StubBroker
 from remoulade.cancel import backends as cl_backends
 from remoulade.rate_limits import backends as rl_backends
+from remoulade.results import Results
 from remoulade.results import backends as res_backends
 from remoulade.scheduler import Scheduler
 from remoulade.state import MessageState
@@ -191,6 +192,14 @@ def state_backend(request, state_backends):
 def state_middleware(state_backend):
     broker = remoulade.get_broker()
     middleware = MessageState(backend=state_backend)
+    broker.add_middleware(middleware)
+    return middleware
+
+
+@pytest.fixture
+def result_middleware(result_backend):
+    broker = remoulade.get_broker()
+    middleware = Results(backend=result_backend)
     broker.add_middleware(middleware)
     return middleware
 

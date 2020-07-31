@@ -1,7 +1,7 @@
 import datetime
 import json
 from datetime import date
-from random import choice, randint, sample
+from random import choice
 from unittest import mock
 from unittest.mock import MagicMock
 
@@ -58,12 +58,7 @@ class TestMessageStateAPI:
         # generate random test
         random_states = []
         for i in range(n):
-            random_state = State(
-                "id{}".format(i),
-                choice(list(StateNamesEnum)),  # random state
-                args=sample(range(1, 10), randint(0, 5)),  # random args
-                kwargs={str(i): str(i) for i in range(randint(0, 5))},  # random kwargs
-            )
+            random_state = State("id{}".format(i), choice(list(StateNamesEnum)),)  # random state
             random_states.append(random_state.as_dict())
             state_middleware.backend.set_state(random_state, ttl=1000)
 
@@ -219,7 +214,7 @@ class TestMessageStateAPI:
         state = State("id1", args={"name": "some_name", "date": date(2020, 12, 12)})
         state_middleware.backend.set_state(state, ttl=1000)
         res = api_client.get("messages/states")
-        assert res.json == {"count": 1, "data": [{"args": "encoded_data", "message_id": "id1"}]}
+        assert res.json == {"count": 1, "data": [{"message_id": "id1"}]}
 
     def test_get_group_id(self, stub_broker, api_client, state_middleware):
         for i in range(2):
@@ -277,3 +272,34 @@ class TestMessageStateAPI:
         res = api_client.get("messages/requeue/id1")
         assert res.json == {"error": "requeue message in a pipeline not supported"}
         assert res.status_code == 400
+
+    def test_get_result_message(self, stub_broker, stub_worker, api_client, state_middleware, result_middleware):
+        @remoulade.actor(store_results=True)
+        def do_work():
+            return 42
+
+        stub_broker.declare_actor(do_work)
+        message = do_work.send()
+        stub_broker.join(do_work.queue_name)
+        stub_worker.join()
+        res = api_client.get("/messages/result/{}".format(message.message_id))
+        assert res.json["result"] == "42"
+
+    def test_no_result_backend(self, stub_broker, stub_worker, api_client, do_work):
+        message = do_work.send()
+        res = api_client.get("/messages/result/{}".format(message.message_id))
+        assert res.json["result"] == "no result backend"
+
+    def test_result_not_serializable(
+        self, pickle_encoder, stub_broker, stub_worker, api_client, state_middleware, result_middleware
+    ):
+        @remoulade.actor(store_results=True)
+        def do_work():
+            return {"date": date(2020, 10, 10)}
+
+        stub_broker.declare_actor(do_work)
+        message = do_work.send()
+        stub_broker.join(do_work.queue_name)
+        stub_worker.join()
+        res = api_client.get("/messages/result/{}".format(message.message_id))
+        assert res.json["result"] == "non serializable result"
