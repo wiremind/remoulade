@@ -16,16 +16,20 @@ Added
    - url ``/actors``: get declared ``actors``
    - url ``/groups``: get declared ``groups``
       - schema |PageSchema|
+   - url ``/messages/results/<message_id>``: get the results of a ``given message_id``
+      - if the result is bigger than ``max_size`` defined in ``get_results`` return a empty string.
+   - url ``/messages/requeue/<message_id>``: requeue a message asociated with a message_id
+      - Requeue messages associated with a ``pipe_target`` is not support yet.
 * Method ``as_dict`` to class |Actor|.
 * Error |NoScheduler| raised when is tried to get an scheduler and there is not.
 * Error Handler in case of |NoScheduler|
-* |PageSchema| to load the arguments send to ``messages/state``
+* Schema |PageSchema| to load the arguments send to ``messages/state``
 * Method ``as_dict`` of |State| can receive keyword ``exclude_keys:tuple`` to exclude some keys from serialization
 
 Changed
 ^^^^^^^
 * Method ``api`` ``get_states`` now 
-    - can receive arguments
+    - can receive arguments defined in schema |PageSchema|
        * ``search_value``
        * ``sort_column`` a column defined in |State|, this column must be sortable
        * ``sort_direction`` possible values: ``['asc', 'desc']``, the order you want to get the register
