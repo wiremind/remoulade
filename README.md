@@ -1,4 +1,4 @@
-<img src="https://remoulade.readthedocs.io/_static/logo.png" align="right" width="131" />
+<img src="https://remoulade.readthedocs.io/en/latest/_static/logo.png" align="right" width="131" />
 
 # remoulade
 
@@ -19,23 +19,30 @@
 ## Installation
 
 If you want to use it with [RabbitMQ]
-
-    pipenv install 'remoulade[rabbitmq, watch]'
+```console
+    $ pipenv install 'remoulade[rabbitmq, watch]'
+```
 
 or if you want to use it with [Redis]
 
-    pipenv install 'remoulade[redis, watch]'
-
+```console
+   $ pipenv install 'remoulade[redis, watch]'
+```
 
 ## Quickstart
 
-Make sure you've got [RabbitMQ] running, then create a new file called
+1. Make sure you've got [RabbitMQ] running, then create a new file called
 `example.py`:
 
 ``` python
+from remoulade.brokers.rabbitmq import RabbitmqBroker
 import remoulade
 import requests
 import sys
+
+broker = RabbitmqBroker()
+remoulade.set_broker(broker)
+
 
 @remoulade.actor
 def count_words(url):
@@ -44,22 +51,31 @@ def count_words(url):
     print(f"There are {count} words at {url!r}.")
 
 
+broker.declare_actor(count_words)
+
 if __name__ == "__main__":
     count_words.send(sys.argv[1])
 ```
 
-In one terminal, run your workers:
+2. In one terminal, run your workers:
+```console
+   $ remoulade example
+```
 
-    remoulade example
+3. In another, start enqueueing messages:
+```console
+   $ python3 example.py http://example.com
+   $ python3 example.py https://github.com
+   $ python3 example.py https://news.ycombinator.com
+```
 
-In another, start enqueueing messages:
+Visit the [user guide] to see more features!.
 
-    python example.py http://example.com
-    python example.py https://github.com
-    python example.py https://news.ycombinator.com
+## Dashboard
 
-Check out the [user guide] to learn more!
-
+Checkout [SuperBowl](https://github.com/wiremind/super-bowl) a dashboard for real-time monitoring and administrating all your Remoulade tasks.
+***See the current progress, enqueue, requeue, cancel and more ...***
+Super easy to use !.
 
 ## License
 
@@ -71,4 +87,4 @@ remoulade is licensed under the LGPL.  Please see [COPYING] and
 [COPYING]: https://github.com/wiremind/remoulade/blob/master/COPYING
 [RabbitMQ]: https://www.rabbitmq.com/
 [Redis]: https://redis.io
-[user guide]: https://remoulade.readthedocs.io/guide.html
+[user guide]: https://remoulade.readthedocs.io/en/latest/guide.html
