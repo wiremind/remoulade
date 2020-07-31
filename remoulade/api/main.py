@@ -3,6 +3,8 @@ import datetime
 from collections import defaultdict
 from operator import itemgetter
 
+from apispec import APISpec
+from apispec.ext.marshmallow import MarshmallowPlugin
 from flask import Flask, request
 from marshmallow import ValidationError
 from werkzeug.exceptions import HTTPException, NotFound
@@ -14,6 +16,8 @@ from remoulade.errors import NoScheduler, RemouladeError
 from .schema import MessageSchema, PageSchema
 
 app = Flask(__name__)
+
+spec = APISpec(title="Remoulade Messages API", version="1.0.0", openapi_version="3.0.2", plugins=[MarshmallowPlugin()],)
 
 
 def sort_dicts(data, column, reverse=False):
@@ -31,6 +35,16 @@ def dict_has(item, keys, value):
 
 @app.route("/messages/states")
 def get_states():
+    """Get Messages
+    ---
+    get:
+      description: get messages in remoulade
+      responses:
+        200:
+          content:
+            application/json:
+              schema: PageSchema
+    """
     args = PageSchema().load(request.args.to_dict())
     backend = remoulade.get_broker().get_state_backend()
     data = [s.as_dict(exclude_keys=("args", "kwargs", "options")) for s in backend.get_states()]
@@ -49,6 +63,15 @@ def get_states():
 
 @app.route("/messages/state/<message_id>")
 def get_state(message_id):
+    """Get a Message
+    ---
+    get:
+      description: get message associated with a message_id
+      responses:
+        200:
+          content:
+            application/json
+    """
     backend = remoulade.get_broker().get_state_backend()
     data = backend.get_state(message_id)
     if data is None:
@@ -58,6 +81,15 @@ def get_state(message_id):
 
 @app.route("/messages/cancel/<message_id>", methods=["POST"])
 def cancel_message(message_id):
+    """Cancel a Message
+    ---
+    post:
+      description: Cancel a message asociated with a given message_id
+      responses:
+        200:
+          content:
+            application/json
+    """
     backend = remoulade.get_broker().get_cancel_backend()
     backend.cancel([message_id])
     return {"result": "ok"}
@@ -65,6 +97,15 @@ def cancel_message(message_id):
 
 @app.route("/messages/requeue/<message_id>")
 def requeue_message(message_id):
+    """Requeue a Message
+    ---
+    post:
+      description: Requeue a given message associated with a message_id
+      responses:
+        200:
+          content:
+            application/json
+    """
     broker = remoulade.get_broker()
     backend = broker.get_state_backend()
     state = backend.get_state(message_id)
@@ -80,6 +121,15 @@ def requeue_message(message_id):
 
 @app.route("/scheduled/jobs")
 def get_scheduled_jobs():
+    """Get scheduled jobs
+    ---
+    post:
+      description: Get scheduled jobs in remoulade
+      responses:
+        200:
+          content:
+            application/json
+    """
     try:
         scheduler = get_scheduler()
     except NoScheduler:
@@ -90,6 +140,16 @@ def get_scheduled_jobs():
 
 @app.route("/messages", methods=["POST"])
 def enqueue_message():
+    """Enqueue a message
+    ---
+    post:
+      description: enqueue a message
+      responses:
+        200:
+          content:
+            application/json:
+              schema: MessageSchema
+    """
     payload = MessageSchema().load(request.json)
     actor = get_broker().get_actor(payload.pop("actor_name"))
     options = payload.pop("options") or {}
@@ -99,11 +159,30 @@ def enqueue_message():
 
 @app.route("/actors")
 def get_actors():
+    """Get actors
+    ---
+    post:
+      description: Get actors in remoulade
+      responses:
+        200:
+          content:
+            application/json
+    """
     return {"result": [actor.as_dict() for actor in get_broker().actors.values()]}
 
 
 @app.route("/groups")
 def get_groups():
+    """Get Groups
+    ---
+    get:
+      description: get groups in remoulade
+      responses:
+        200:
+          content:
+            application/json:
+              schema: PageSchema
+    """
     args = PageSchema().load(request.args.to_dict())
     backend = remoulade.get_broker().get_state_backend()
     groups = defaultdict(list)
