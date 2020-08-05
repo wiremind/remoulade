@@ -7,6 +7,9 @@ All notable changes to this project will be documented in this file.
 
 `Unreleased`_
 -------------
+
+`0.23.0`_ -- 2020-08-05
+-------------------------
 Added
 ^^^^^
 * Class |MessageSchema| to load the data sent to enqueue a message.
@@ -422,6 +425,9 @@ Fixed
 * pipe_ignore was not recovered from right message
 
 .. _Unreleased: https://github.com/wiremind/remoulade/compare/v0.20.0...HEAD
+.. _0.23.0: https://github.com/wiremind/remoulade/releases/tag/v0.23.0
+.. _0.22.0: https://github.com/wiremind/remoulade/releases/tag/v0.22.0
+.. _0.21.0: https://github.com/wiremind/remoulade/releases/tag/v0.21.0
 .. _0.20.0: https://github.com/wiremind/remoulade/releases/tag/v0.20.0
 .. _0.19.0: https://github.com/wiremind/remoulade/releases/tag/v0.19.0
 .. _0.18.3: https://github.com/wiremind/remoulade/releases/tag/v0.18.3
