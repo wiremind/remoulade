@@ -1,0 +1,31 @@
+name: lint
+
+on: [push]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    services:
+      redis:
+        image: redis
+
+    steps:
+    - uses: actions/checkout@v2
+    - name: Set up Python
+      uses: actions/setup-python@v2
+      with:
+        python-version: '3.x'
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -e '.[dev]' black mypy
+    - name: Mypy
+      run: mypy remoulade
+    - name: Black
+      run: black --check remoulade
+    - name: isort
+      run: isort --check remoulade
+    - name: flak8
+      run: flake8 remoulade examples tests
+

@@ -1,6 +1,7 @@
 import datetime
 import json
 from datetime import date
+from operator import itemgetter
 from random import choice
 from unittest import mock
 from unittest.mock import MagicMock
@@ -173,10 +174,10 @@ class TestMessageStateAPI:
 
         stub_broker.declare_actor(do_job)
         res = api_client.get("/actors")
-        assert res.json["result"] == [
+        assert res.json["result"].sort(key=itemgetter("name")) == [
             {"name": "do_work", "priority": 0, "queue_name": "default"},
             {"name": "do_job", "priority": 10, "queue_name": "foo"},
-        ]
+        ].sort(key=itemgetter("name"))
 
     def test_filter_messages(self, stub_broker, api_client, state_middleware):
         state = State("some_message_id",)
