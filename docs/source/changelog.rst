@@ -8,6 +8,13 @@ All notable changes to this project will be documented in this file.
 `Unreleased`_
 -------------
 
+`0.24.0`_ -- 2020-08-19
+-------------------------
+BREAKING CHANGE
+^^^^^^^^^^^^^^^
+* allow 0 as remoulade_restart_delay env variable, which will disable consumer restart in case on connection error
+and return a RET_CONNECT error code (default is now 0)
+
 `0.23.0`_ -- 2020-08-05
 -------------------------
 Added

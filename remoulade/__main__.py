@@ -30,7 +30,7 @@ from collections import defaultdict
 from threading import Thread
 from typing import Dict
 
-from remoulade import ConnectionError, Worker, __version__, get_broker, get_logger
+from remoulade import Worker, __version__, get_broker, get_logger
 
 try:
     from .watcher import setup_file_watcher
@@ -43,7 +43,7 @@ except ImportError:  # pragma: no cover
 RET_OK = 0  # The process terminated successfully.
 RET_KILLED = 1  # The process was killed.
 RET_IMPORT = 2  # Module import(s) failed or invalid command line argument.
-RET_CONNECT = 3  # Broker connection failed during worker startup.
+RET_CONNECT = 3  # Broker connection failed.
 RET_PIDFILE = 4  # PID file points to an existing process or cannot be written to.
 
 #: The size of the logging buffer.
@@ -241,9 +241,6 @@ def worker_process(args, worker_id, logging_fd):
     except ImportError:
         logger.exception("Failed to import module.")
         return os._exit(RET_IMPORT)
-    except ConnectionError:
-        logger.exception("Broker connection failed.")
-        return os._exit(RET_CONNECT)
 
     def termhandler(signum, frame):
         nonlocal running  # type: ignore
@@ -260,13 +257,19 @@ def worker_process(args, worker_id, logging_fd):
     signal.signal(signal.SIGHUP, termhandler)
 
     running = True
+    ret_code = RET_OK
     while running:
-        time.sleep(1)
+        if worker.consumer_stopped:
+            running = False
+            ret_code = RET_CONNECT
+        else:
+            time.sleep(1)
 
     worker.stop()
     broker.emit_before("process_stop")
     broker.close()
     logging_pipe.close()
+    return ret_code
 
 
 def main():  # noqa
