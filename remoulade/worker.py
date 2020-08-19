@@ -29,9 +29,9 @@ from .errors import ActorNotFound, ConnectionError, RateLimitExceeded, Remoulade
 from .logging import get_logger
 from .middleware import Middleware, SkipMessage
 
-#: The number of milliseconds to wait before restarting consumers
-#: after a connection error.
-CONSUMER_RESTART_DELAY = int(os.getenv("remoulade_restart_delay", 3000))
+#: The number of milliseconds to wait before restarting consumers after a connection error
+#: 0 to disable consumer restart and exit with an error
+CONSUMER_RESTART_DELAY = int(os.getenv("remoulade_restart_delay", 0))
 CONSUMER_RESTART_DELAY_SECS = CONSUMER_RESTART_DELAY / 1000
 
 
@@ -140,6 +140,10 @@ class Worker:
         self.broker.emit_after("worker_shutdown", self)
         self.logger.info("Worker has been shut down.")
 
+    @property
+    def consumer_stopped(self):
+        return self.consumers and any(not consumer.is_alive() for consumer in self.consumers.values())
+
     def join(self):
         """Wait for this worker to complete its work in progress.
         This method is useful when testing code.
@@ -221,6 +225,8 @@ class _ConsumerThread(Thread):
     def run(self):
         self.logger.debug("Running consumer thread...")
         self.running = True
+        restart_consumer = CONSUMER_RESTART_DELAY_SECS > 0
+
         while self.running:
             if self.paused:
                 self.logger.debug("Consumer is paused. Sleeping for %.02fms...", self.worker_timeout)
@@ -247,16 +253,19 @@ class _ConsumerThread(Thread):
             except ConnectionError as e:
                 self.logger.critical("Consumer encountered a connection error: %s", e)
                 self.delay_queue = PriorityQueue()
-
+                if not restart_consumer:
+                    self.stop()
             except Exception:
                 self.logger.critical("Consumer encountered an unexpected error.", exc_info=True)
                 # Avoid leaving any open file descriptors around when
                 # an exception occurs.
                 self.close()
+                if not restart_consumer:
+                    self.stop()
 
             # While the consumer is running (i.e. hasn't been shut down),
-            # try to restart it once a second.
-            if self.running:
+            # try to restart it once every CONSUMER_RESTART_DELAY_SECS second.
+            if self.running and restart_consumer:
                 self.logger.info("Restarting consumer in %0.2f seconds.", CONSUMER_RESTART_DELAY_SECS)
                 self.close()
                 time.sleep(CONSUMER_RESTART_DELAY_SECS)
