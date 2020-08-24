@@ -33,7 +33,7 @@ from typing import Dict
 from remoulade import Worker, __version__, get_broker, get_logger
 
 try:
-    from .watcher import setup_file_watcher
+    from remoulade.watcher import setup_file_watcher
 
     HAS_WATCHDOG = True
 except ImportError:  # pragma: no cover
