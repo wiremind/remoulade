@@ -260,8 +260,8 @@ Message Time Limits
 In ``count_words``, we didn't set an explicit timeout for the outbound
 request which means that it can take a very long time to complete if
 the server we're requesting is timing out.  Remoulade has a default
-actor time limit of 10 minutes, which means that any actor running for
-longer than 10 minutes is killed with a |TimeLimitExceeded| error.
+actor time limit of 30 minutes, which means that any actor running for
+longer than 30 minutes is killed with a |TimeLimitExceeded| error.
 
 You can control these time limits at the individual actor level by
 specifying the ``time_limit`` (in milliseconds) of each one::
@@ -281,6 +281,12 @@ specifying the ``time_limit`` (in milliseconds) of each one::
    any function that doesn't currently hold the GIL under CPython.
 
    For more information, see the section on :ref:`message-interrupts`.
+
+.. note::
+   If time limit fail to stop the execution via |TimeLimitExceeded| (see warning),
+   a SIGKILL will be sent to the worker after 10 seconds (by default).
+   This delay can be set with the ``sigkill_delay`` of |TimeLimit|,
+   or feature can be disabled by setting ``sigkill_delay`` to ``None``.
 
 
 Handling Time Limits
