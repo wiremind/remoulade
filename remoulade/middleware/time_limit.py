@@ -14,12 +14,13 @@
 #
 # You should have received a copy of the GNU Lesser General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
-
+import os
 import signal
 import threading
 import time
 import warnings
 
+from ..errors import NoCancelBackend
 from ..logging import get_logger
 from .middleware import Middleware
 from .threading import Interrupt, current_platform, raise_thread_exception, supported_platforms
@@ -42,24 +43,44 @@ class TimeLimit(Middleware):
       this means that this middleware can't cancel system calls.
 
     Parameters:
-      time_limit(int): The maximum number of milliseconds actors may
-        run for.
-      interval(int): The interval (in milliseconds) with which to
-        check for actors that have exceeded the limit.
+      time_limit(int): The maximum number of milliseconds actors may run for.
+      interval(int): The interval (in milliseconds) with which to check for actors that have exceeded the limit.
+      sigkill_delay(int): The delay (in milliseconds) after with we send a SIGKILL to the worker if the exception failed
+       to stop the message (ie. system calls).
     """
 
-    def __init__(self, *, time_limit=1800000, interval=1000):
+    def __init__(self, *, time_limit=1800000, interval=1000, sigkill_delay=10000):
         self.logger = get_logger(__name__, type(self))
         self.time_limit = time_limit
         self.interval = interval
         self.deadlines = {}
+        self.sigkill_delay = sigkill_delay
 
     def _handle(self, *_):
         current_time = time.monotonic()
-        for thread_id, deadline in self.deadlines.items():
-            if deadline and current_time >= deadline:
-                self.logger.warning("Time limit exceeded. Raising exception in worker thread %r.", thread_id)
+        for thread_id, row in self.deadlines.items():
+            if row is None:
+                continue
+
+            deadline, exception_raised, message = row
+            if exception_raised and self.sigkill_delay and current_time >= deadline + self.sigkill_delay / 1000:
                 self.deadlines[thread_id] = None
+                try:
+                    message.cancel()
+                    self.logger.critical(
+                        "Could not stop message execution with TimeLimitExceeded, "
+                        "cancel message and send SIGKILL to worker"
+                    )
+                    os.kill(os.getpid(), signal.SIGKILL)
+                except NoCancelBackend:
+                    # Sending SIGKILL would requeue the message via RabbitMQ
+                    self.logger.error(
+                        "Could not stop message execution with TimeLimitExceeded, "
+                        "but no SIGKILL was sent as cancel is not set"
+                    )
+            elif not exception_raised and current_time >= deadline:
+                self.logger.warning("Time limit exceeded. Raising exception in worker thread %r.", thread_id)
+                self.deadlines[thread_id] = deadline, True, message
                 raise_thread_exception(thread_id, TimeLimitExceeded)
 
     @property
@@ -84,7 +105,7 @@ class TimeLimit(Middleware):
         actor = broker.get_actor(message.actor_name)
         limit = message.options.get("time_limit") or actor.options.get("time_limit", self.time_limit)
         deadline = time.monotonic() + limit / 1000
-        self.deadlines[threading.get_ident()] = deadline
+        self.deadlines[threading.get_ident()] = deadline, False, message
 
     def after_process_message(self, broker, message, *, result=None, exception=None):
         self.deadlines[threading.get_ident()] = None
