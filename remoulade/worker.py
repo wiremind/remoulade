@@ -144,6 +144,10 @@ class Worker:
     def consumer_stopped(self):
         return self.consumers and any(not consumer.is_alive() for consumer in self.consumers.values())
 
+    @property
+    def worker_stopped(self):
+        return self.workers and any(not worker.is_alive() for worker in self.workers)
+
     def join(self):
         """Wait for this worker to complete its work in progress.
         This method is useful when testing code.

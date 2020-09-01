@@ -12,7 +12,7 @@ def main():
 
     # start scheduler and worker
     scheduler = start_scheduler(task_name)
-    worker = start_worker(task_name, extra_args=["--processes", "1", "--threads", "1"])
+    worker = start_worker(task_name, extra_args=["--threads", "1"])
 
     # stop the scheduler after one minute
     time.sleep(60)

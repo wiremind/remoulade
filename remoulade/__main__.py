@@ -19,25 +19,12 @@ import argparse
 import atexit
 import importlib
 import logging
-import multiprocessing
 import os
-import random
-import selectors
 import signal
 import sys
 import time
-from collections import defaultdict
-from threading import Thread
-from typing import Dict
 
 from remoulade import Worker, __version__, get_broker, get_logger
-
-try:
-    from remoulade.watcher import setup_file_watcher
-
-    HAS_WATCHDOG = True
-except ImportError:  # pragma: no cover
-    HAS_WATCHDOG = False
 
 #: The exit codes that the master process returns.
 RET_OK = 0  # The process terminated successfully.
@@ -45,15 +32,10 @@ RET_KILLED = 1  # The process was killed.
 RET_IMPORT = 2  # Module import(s) failed or invalid command line argument.
 RET_CONNECT = 3  # Broker connection failed.
 RET_PIDFILE = 4  # PID file points to an existing process or cannot be written to.
-
-#: The size of the logging buffer.
-BUFSIZE = 65536
-
-#: The number of available cpus.
-cpus = multiprocessing.cpu_count()
+RET_WORKER_STOP = 5  # Worker was not running anymore
 
 #: The logging format.
-logformat = "[%(asctime)s] [PID %(process)d] [%(threadName)s] [%(name)s] [%(levelname)s] %(message)s"
+logformat = "[%(asctime)s] [%(threadName)s] [%(name)s] [%(levelname)s] %(message)s"
 
 #: The logging verbosity levels.
 verbosity = {
@@ -67,14 +49,11 @@ examples:
   # Run remoulade workers with actors defined in `./some_module.py`.
   $ remoulade some_module
 
-  # Auto-reload remoulade when files in the current directory change.
-  $ remoulade --watch . some_module
-
   # Run remoulade with 1 thread per process.
   $ remoulade --threads 1 some_module
 
   # Run remoulade with gevent.  Make sure you `pip install gevent` first.
-  $ remoulade-gevent --processes 1 --threads 1024 some_module
+  $ remoulade-gevent --threads 1024 some_module
 
   # Import extra modules.  Useful when your main module doesn't import
   # all the modules you need.
@@ -108,9 +87,6 @@ def parse_arguments():
         "modules", metavar="module", nargs="*", help="additional python modules to import",
     )
     parser.add_argument(
-        "--processes", "-p", default=cpus, type=int, help="the number of worker processes to run (default: %s)" % cpus,
-    )
-    parser.add_argument(
         "--threads", "-t", default=8, type=int, help="the number of worker threads per process (default: 8)",
     )
     parser.add_argument(
@@ -134,23 +110,6 @@ def parse_arguments():
         type=argparse.FileType(mode="a", encoding="utf-8"),
         help="write all logs to a file (default: sys.stderr)",
     )
-
-    if HAS_WATCHDOG:
-        parser.add_argument(
-            "--watch",
-            type=folder_path,
-            metavar="DIR",
-            help=(
-                "watch a directory and reload the workers when any source files "
-                "change (this feature must only be used during development)"
-            ),
-        )
-        parser.add_argument(
-            "--watch-use-polling",
-            action="store_true",
-            help=("poll the filesystem for changes rather than using a " "system-dependent filesystem event emitter"),
-        )
-
     parser.add_argument("--version", action="version", version=__version__)
     parser.add_argument("--verbose", "-v", action="count", default=0, help="turn on verbose log output")
     return parser.parse_args()
@@ -201,33 +160,14 @@ def remove_pidfile(filename, logger):
         logger.debug("Failed to remove PID file. It's gone.")
 
 
-def setup_parent_logging(args, *, stream=sys.stderr):
+def setup_logging(args, *, stream=sys.stderr):
     level = verbosity.get(args.verbose, logging.DEBUG)
     logging.basicConfig(level=level, format=logformat, stream=stream)
-    return get_logger("remoulade", "MainProcess")
+    return get_logger("remoulade")
 
 
-def setup_worker_logging(args, worker_id, logging_pipe):
-    # Redirect all output to the logging pipe so that all output goes
-    # to stderr and output is serialized so there isn't any mangling.
-    sys.stdout = logging_pipe
-    sys.stderr = logging_pipe
-
-    level = verbosity.get(args.verbose, logging.DEBUG)
-    logging.basicConfig(level=level, format=logformat, stream=logging_pipe)
-    return get_logger("remoulade", "WorkerProcess(%s)" % worker_id)
-
-
-def worker_process(args, worker_id, logging_fd):
+def start_worker(args, logger):
     try:
-        # Re-seed the random number generator from urandom on
-        # supported platforms.  This should make it so that worker
-        # processes don't all follow the same sequence.
-        random.seed()
-
-        logging_pipe = os.fdopen(logging_fd, "w")
-        logger = setup_worker_logging(args, worker_id, logging_pipe)
-
         for module in args.modules:
             importlib.import_module(module)
 
@@ -245,14 +185,14 @@ def worker_process(args, worker_id, logging_fd):
     def termhandler(signum, frame):
         nonlocal running  # type: ignore
         if running:
-            logger.info("Stopping worker process...")
+            logger.info("Stopping worker...")
             running = False
         else:
-            logger.warning("Killing worker process...")
+            logger.warning("Killing worker...")
             return os._exit(RET_KILLED)
 
-    logger.info("Worker process is ready for action.")
-    signal.signal(signal.SIGINT, signal.SIG_IGN)
+    logger.info("Worker is ready for action.")
+    signal.signal(signal.SIGINT, termhandler)
     signal.signal(signal.SIGTERM, termhandler)
     signal.signal(signal.SIGHUP, termhandler)
 
@@ -262,13 +202,16 @@ def worker_process(args, worker_id, logging_fd):
         if worker.consumer_stopped:
             running = False
             ret_code = RET_CONNECT
+        if worker.worker_stopped:
+            running = False
+            ret_code = RET_WORKER_STOP
+            logger.error("Worker thread is not running anymore, stopping Worker.")
         else:
             time.sleep(1)
 
     worker.stop()
     broker.emit_before("process_stop")
     broker.close()
-    logging_pipe.close()
     return ret_code
 
 
@@ -281,125 +224,16 @@ def main():  # noqa
         if args.pid_file:
             setup_pidfile(args.pid_file)
     except RuntimeError as e:
-        logger = setup_parent_logging(args, stream=args.log_file or sys.stderr)
+        logger = setup_logging(args, stream=args.log_file or sys.stderr)
         logger.critical(e)
         return RET_PIDFILE
 
-    worker_pipes = []
-    worker_processes = []
-    for worker_id in range(args.processes):
-        read_fd, write_fd = os.pipe()
-        pid = os.fork()
-        if pid != 0:
-            os.close(write_fd)
-            worker_pipes.append(os.fdopen(read_fd))
-            worker_processes.append(pid)
-            continue
-
-        os.close(read_fd)
-        return worker_process(args, worker_id, write_fd)
-
-    parent_read_fd, parent_write_fd = os.pipe()
-    parent_read_pipe = os.fdopen(parent_read_fd)
-    parent_write_pipe = os.fdopen(parent_write_fd, "w")
-    logger = setup_parent_logging(args, stream=parent_write_pipe)
+    logger = setup_logging(args, stream=args.log_file or sys.stderr)
     logger.info("Remoulade %r is booting up." % __version__)
     if args.pid_file:
         atexit.register(remove_pidfile, args.pid_file, logger)
 
-    running, reload_process = True, False
-
-    # To avoid issues with signal delivery to user threads on
-    # platforms such as FreeBSD 10.3, we make the main thread block
-    # the signals it expects to handle before spawning the file
-    # watcher and log watcher threads so that those threads can
-    # inherit the blocking behaviour.
-    if hasattr(signal, "pthread_sigmask"):
-        signal.pthread_sigmask(
-            signal.SIG_BLOCK, {signal.SIGINT, signal.SIGTERM, signal.SIGHUP},
-        )
-
-    if HAS_WATCHDOG and args.watch:
-        file_watcher = setup_file_watcher(args.watch, args.watch_use_polling)
-
-    def watch_logs(worker_pipes):
-        nonlocal running
-
-        log_file = args.log_file or sys.stderr
-        selector = selectors.DefaultSelector()
-        for pipe in [parent_read_pipe] + worker_pipes:
-            selector.register(pipe, selectors.EVENT_READ)
-
-        buffers = defaultdict(str)  # type: Dict[int, str]
-        while running:
-            events = selector.select(timeout=1)
-            for key, _ in events:
-                data = os.read(key.fd, BUFSIZE)
-                if not data:
-                    selector.unregister(key.fileobj)
-                    log_file.write(buffers[key.fd])
-                    log_file.flush()
-                    continue
-
-                buffers[key.fd] += data.decode("utf-8", errors="ignore")
-                while buffers[key.fd]:
-                    index = buffers[key.fd].find("\n")
-                    if index == -1:
-                        break
-
-                    line = buffers[key.fd][: index + 1]
-                    buffers[key.fd] = buffers[key.fd][index + 1 :]
-                    log_file.write(line)
-                    log_file.flush()
-
-        logger.debug("Closing selector...")
-        selector.close()
-
-    log_watcher = Thread(target=watch_logs, args=(worker_pipes,), daemon=True)
-    log_watcher.start()
-
-    def sighandler(signum, frame):
-        nonlocal reload_process, worker_processes
-        reload_process = signum == signal.SIGHUP
-        signum = {signal.SIGINT: signal.SIGTERM, signal.SIGTERM: signal.SIGTERM, signal.SIGHUP: signal.SIGHUP,}[signum]
-
-        logger.info("Sending %r to worker processes...", signum.name)
-        for pid in worker_processes:
-            try:
-                os.kill(pid, signum)
-            except OSError:  # pragma: no cover
-                logger.warning("Failed to send %r to pid %d.", signum.name, pid)
-
-    # Now that the watcher threads have been started, it should be
-    # safe to unblock the signals that were previously blocked.
-    if hasattr(signal, "pthread_sigmask"):
-        signal.pthread_sigmask(
-            signal.SIG_UNBLOCK, {signal.SIGINT, signal.SIGTERM, signal.SIGHUP},
-        )
-
-    retcode = RET_OK
-    signal.signal(signal.SIGINT, sighandler)
-    signal.signal(signal.SIGTERM, sighandler)
-    signal.signal(signal.SIGHUP, sighandler)
-    for pid in worker_processes:
-        pid, rc = os.waitpid(pid, 0)
-        retcode = max(retcode, rc >> 8)
-
-    running = False
-    if HAS_WATCHDOG and args.watch:
-        file_watcher.stop()
-        file_watcher.join()
-
-    log_watcher.join()
-    for pipe in [parent_read_pipe, parent_write_pipe, *worker_pipes]:
-        pipe.close()
-
-    if reload_process:
-        if sys.argv[0].endswith("/remoulade/__main__.py"):
-            return os.execvp(sys.executable, ["python", "-m", "remoulade", *sys.argv[1:]])
-        return os.execvp(sys.argv[0], sys.argv)
-
-    return retcode
+    return start_worker(args, logger)
 
 
 if __name__ == "__main__":

@@ -47,11 +47,11 @@ Get It Now
 
 If you want to use it with RabbitMQ_::
 
-   $ pip install -U 'remoulade[rabbitmq, watch]'
+   $ pip install -U 'remoulade[rabbitmq]'
 
 Or if you want to use it with Redis_::
 
-   $ pip install -U 'remoulade[redis, watch]'
+   $ pip install -U 'remoulade[redis]'
 
 Read the :doc:`guide` if you're ready to get started.
 

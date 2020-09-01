@@ -236,7 +236,7 @@ follow a convention where all your tasks modules are named
    done
    echo
 
-   pipenv run remoulade-gevent $all_modules --watch . --watch-use-polling
+   pipenv run remoulade $all_modules
 
 Retrying connection errors on startup
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

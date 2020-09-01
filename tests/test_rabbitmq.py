@@ -1,4 +1,3 @@
-import os
 import time
 from threading import Event
 from unittest.mock import Mock
@@ -211,38 +210,6 @@ def test_rabbitmq_broker_reconnects_after_enqueue_failure(rabbitmq_broker):
 
     # And the connection be reopened
     assert rabbitmq_broker.connection.is_open
-
-
-def test_rabbitmq_workers_handle_rabbit_failures_gracefully(rabbitmq_broker, rabbitmq_worker):
-    # Given that I have an attempts database
-    attempts = []
-
-    # And an actor that adds 1 to the attempts database
-    @remoulade.actor
-    def do_work():
-        attempts.append(1)
-        time.sleep(0.1)
-
-    # And this actor is declared
-    rabbitmq_broker.declare_actor(do_work)
-
-    # If I send that actor a delayed message
-    do_work.send_with_options(delay=1000)
-
-    # If I stop the RabbitMQ app
-    os.system("rabbitmqctl stop_app")
-
-    # Then start the app back up
-    os.system("rabbitmqctl start_app")
-
-    # And join on the queue
-    rabbitmq_broker.channel_pool.clear()
-    del rabbitmq_broker.connection
-    rabbitmq_broker.join(do_work.queue_name)
-    rabbitmq_worker.join()
-
-    # I expect the work to have been attempted at least once
-    assert sum(attempts) >= 1
 
 
 def test_rabbitmq_connections_can_be_deleted_multiple_times(rabbitmq_broker):
