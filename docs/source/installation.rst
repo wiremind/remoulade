@@ -12,13 +12,13 @@ Via pip
 
 To install remoulade, simply run the following command in a terminal::
 
-  $ pip install -U 'remoulade[rabbitmq, watch]'
+  $ pip install -U 'remoulade[rabbitmq]'
 
-Remoulade use RabbitMQ_ ad message broker.
+Remoulade use RabbitMQ_ as message broker.
 
-If you would like to use it with Redis_ to store the results then run::
+If you would like to use it with Redis_ to store the results then run:
 
-  $ pip install -U 'remoulade[rabbitmq, redis, watch]'
+  $ pip install -U 'remoulade[rabbitmq, redis]'
 
 If you don't have `pip`_ installed, check out `this guide`_.
 
@@ -33,7 +33,6 @@ Name           Description
 =============  =======================================================================================
 ``rabbitmq``   Installs the required dependencies for using Remoulade with RabbitMQ.
 ``redis``      Installs the required dependencies for using Remoulade with Redis.
-``watch``      Installs the required dependencies for the ``--watch`` flag.
 =============  =======================================================================================
 
 If you want to install Remoulade with all available features, run::

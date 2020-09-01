@@ -27,7 +27,6 @@ dependencies = ["prometheus-client>=0.2", "pytz<=2019.1", "python-dateutil>=2.8.
 extra_dependencies = {
     "rabbitmq": ["amqpstorm>=2.6,<3",],
     "redis": ["redis>=3.5.0,<4.0",],
-    "watch": ["watchdog>=0.8,<0.9", "watchdog_gevent==0.1",],
     "server": ["flask>=1.1,<2", "marshmallow>=3"],
 }
 

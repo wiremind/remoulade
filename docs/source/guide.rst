@@ -7,7 +7,7 @@ To follow along with this guide you'll need to install and run RabbitMQ_
 and then set up a new `virtual environment`_ in which you'll have
 to install Remoulade and Requests_::
 
-  $ pip install 'remoulade[rabbitmq, watch]' requests
+  $ pip install 'remoulade[rabbitmq]' requests
 
 .. _requests: http://docs.python-requests.org
 .. _virtual environment: http://docs.python-guide.org/en/latest/starting/install3/osx/#virtual-environments
@@ -194,22 +194,6 @@ up.  Look for lines containing the string ``[remoulade.MainProcess]``.
 The next time your message is retried you should see::
 
   Message dropped due to invalid url: 'foo'
-
-
-Code Reloading
---------------
-
-Sending ``SIGHUP`` to the workers every time you make a change is
-going to get old quick.  Instead, you can run the command line utility
-with the ``--watch`` flag pointing to the folder it should watch for
-source code changes.  It'll reload the workers whenever Python files
-under that folder or any of its sub-folders change::
-
-  $ remoulade count_words --watch .
-
-.. warning::
-   Although this is a handy feature to use when developing your code,
-   you should avoid using it in production!
 
 
 Message Retries

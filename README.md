@@ -20,13 +20,13 @@
 
 If you want to use it with [RabbitMQ]
 ```console
-    $ pipenv install 'remoulade[rabbitmq, watch]'
+    $ pipenv install 'remoulade[rabbitmq]'
 ```
 
 or if you want to use it with [Redis]
 
 ```console
-   $ pipenv install 'remoulade[redis, watch]'
+   $ pipenv install 'remoulade[redis]'
 ```
 
 ## Quickstart

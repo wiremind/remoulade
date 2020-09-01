@@ -23,7 +23,7 @@ def test_simple_interval_scheduler(start_scheduler, start_cli):
     sch = start_scheduler("tests.scheduler_configs.simple_1")
 
     # And worker
-    start_cli("tests.scheduler_configs.simple_1", extra_args=["--processes", "1", "--threads", "1", "--watch", "tests"])
+    start_cli("tests.scheduler_configs.simple_1", extra_args=["--threads", "1"])
 
     time.sleep(3)
 
@@ -67,7 +67,7 @@ def test_multiple_schedulers(start_scheduler, start_cli):
         start_scheduler("tests.scheduler_configs.simple_slow")
 
     start_cli(
-        "tests.scheduler_configs.simple_slow", extra_args=["--processes", "1", "--threads", "1", "--watch", "tests"]
+        "tests.scheduler_configs.simple_slow", extra_args=["--threads", "1"]
     )
 
     time.sleep(5)
@@ -88,7 +88,7 @@ def test_scheduler_daily_time(start_scheduler, start_cli, suffix):
 
     start_cli(
         "tests.scheduler_configs.daily{}".format(suffix),
-        extra_args=["--processes", "1", "--threads", "1", "--watch", "tests"],
+        extra_args=["--threads", "1"],
     )
 
     time.sleep(3)
@@ -122,7 +122,7 @@ def test_scheduler_new_daily_time(start_scheduler, start_cli):
     start_scheduler("tests.scheduler_configs.daily")
 
     start_cli(
-        "tests.scheduler_configs.daily_new", extra_args=["--processes", "1", "--threads", "1", "--watch", "tests"]
+        "tests.scheduler_configs.daily_new", extra_args=["--threads", "1"]
     )
 
     time.sleep(10)
@@ -138,7 +138,7 @@ def test_scheduler_wrong_weekday(start_scheduler, start_cli):
     start_scheduler("tests.scheduler_configs.weekday_1")
 
     start_cli(
-        "tests.scheduler_configs.weekday_1", extra_args=["--processes", "1", "--threads", "1", "--watch", "tests"]
+        "tests.scheduler_configs.weekday_1", extra_args=["--threads", "1"]
     )
 
     time.sleep(3)
@@ -154,7 +154,7 @@ def test_scheduler_right_weekday(start_scheduler, start_cli):
     start_scheduler("tests.scheduler_configs.weekday_2")
 
     start_cli(
-        "tests.scheduler_configs.weekday_2", extra_args=["--processes", "1", "--threads", "1", "--watch", "tests"]
+        "tests.scheduler_configs.weekday_2", extra_args=["--threads", "1"]
     )
 
     time.sleep(3)
