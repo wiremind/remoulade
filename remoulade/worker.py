@@ -15,19 +15,25 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+from gevent import monkey
+monkey.patch_all()  # noqa
+
 import os
 import time
 from collections import defaultdict
 from itertools import chain
-from queue import Empty, PriorityQueue
 from threading import Event, Thread
 from typing import List
+
+from gevent import Timeout
+from gevent.pool import Pool
+from gevent.queue import PriorityQueue, Empty
 
 from .cancel import MessageCanceled
 from .common import current_millis, iter_queue, join_all, q_name
 from .errors import ActorNotFound, ConnectionError, RateLimitExceeded, RemouladeError
 from .logging import get_logger
-from .middleware import Middleware, SkipMessage
+from .middleware import Middleware, SkipMessage, TimeLimitExceeded
 
 #: The number of milliseconds to wait before restarting consumers after a connection error
 #: 0 to disable consumer restart and exit with an error
@@ -70,10 +76,12 @@ class Worker:
         # workers as those messages could have far-future etas.
         self.delay_prefetch = min(worker_threads * 1000, 65535)
 
-        self.workers = []  # type: List
         self.work_queue = PriorityQueue()  # type: PriorityQueue
         self.worker_timeout = worker_timeout
         self.worker_threads = worker_threads
+        self.worker_pool = WorkerPool(
+            broker=self.broker, consumers=self.consumers, work_queue=self.work_queue, worker_timeout=self.worker_timeout
+        )
 
     def start(self):
         """Initialize the worker boot sequence and start up all the
@@ -83,24 +91,24 @@ class Worker:
 
         worker_middleware = _WorkerMiddleware(self)
         self.broker.add_middleware(worker_middleware)
-        for _ in range(self.worker_threads):
-            self._add_worker()
+
+        self.worker_pool.start()
 
         self.broker.emit_after("worker_boot", self)
 
     def pause(self):
         """Pauses all the worker threads.
         """
-        for child in chain(self.consumers.values(), self.workers):
+        for child in chain(self.consumers.values(), [self.worker_pool]):
             child.pause()
 
-        for child in chain(self.consumers.values(), self.workers):
+        for child in chain(self.consumers.values(), [self.worker_pool]):
             child.paused_event.wait()
 
     def resume(self):
         """Resumes all the worker threads.
         """
-        for child in chain(self.consumers.values(), self.workers):
+        for child in chain(self.consumers.values(), [self.worker_pool]):
             child.resume()
 
     def stop(self, timeout=600000):
@@ -369,7 +377,7 @@ class _ConsumerThread(Thread):
             pass
 
 
-class _WorkerThread(Thread):
+class WorkerPool:
     """WorkerThreads process incoming messages off of the work queue
     on a loop.  By themselves, they don't do any sort of network IO.
 
@@ -381,8 +389,6 @@ class _WorkerThread(Thread):
     """
 
     def __init__(self, *, broker, consumers, work_queue, worker_timeout):
-        super().__init__(daemon=True)
-
         self.logger = get_logger(__name__, "WorkerThread")
         self.running = False
         self.paused = False
@@ -391,8 +397,9 @@ class _WorkerThread(Thread):
         self.consumers = consumers
         self.work_queue = work_queue
         self.timeout = worker_timeout / 1000
+        self.pool = Pool(size=1)
 
-    def run(self):
+    def start(self):
         self.logger.debug("Running worker thread...")
         self.running = True
         while self.running:
@@ -403,8 +410,9 @@ class _WorkerThread(Thread):
                 continue
 
             try:
+                self.pool.join()  # wait for the pool to have at least one place
                 _, message = self.work_queue.get(timeout=self.timeout)
-                self.process_message(message)
+                self.pool.spawn(self.process_message, message)
             except Empty:
                 continue
 
@@ -457,6 +465,9 @@ class _WorkerThread(Thread):
             self.consumers[message.queue_name].post_process_message(message)
             self.work_queue.task_done()
 
+    def join(self, timeout):
+        self.pool.join(timeout)
+
     def call_actor(self, message):
         """Call an actor with the arguments stored in the message
 
@@ -469,12 +480,15 @@ class _WorkerThread(Thread):
           Whatever the actor returns.
         """
         actor = self.broker.get_actor(message.actor_name)
+        time_limit = message.options.get("time_limit") or actor.options.get("time_limit", 1000)
+        timeout = Timeout(time_limit, TimeLimitExceeded)
         message_id = message.message_id
         try:
             self.logger.info("Started Actor %s", message, extra={"message_id": message_id})
             start = time.perf_counter()
             return actor(*message.args, **message.kwargs)
         finally:
+            timeout.close()
             runtime = (time.perf_counter() - start) * 1000
             extra = {"message_id": message_id, "runtime": runtime}
             self.logger.info("Finished Actor %s after %.02fms.", message, runtime, extra=extra)
