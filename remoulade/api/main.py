@@ -37,6 +37,7 @@ def get_states():
     args = PageSchema().load(request.args.to_dict())
     backend = remoulade.get_broker().get_state_backend()
     data = [s.as_dict(exclude_keys=("args", "kwargs", "options")) for s in backend.get_states()]
+    # index name, actor_name ?
     if args.get("search_value"):
         keys = ["message_id", "name", "actor_name", "args", "kwargs"]
         value = args["search_value"].lower()
@@ -47,7 +48,9 @@ def get_states():
         sort_column = args["sort_column"]
         data = sort_dicts(data, sort_column, reverse)
 
-    return {"data": data[args["offset"] : args["size"] + args["offset"]], "count": len(data)}
+    # not len(data)
+
+    return {"data": data[args["offset"]: args["size"] + args["offset"]], "count": len(data)}
 
 
 @app.route("/messages/state/<message_id>")
