@@ -8,6 +8,19 @@ All notable changes to this project will be documented in this file.
 `Unreleased`_
 -------------
 
+`0.25.0`_ -- 2020-09-03
+-------------------------
+BREAKING CHANGE
+^^^^^^^^^^^^^^^
+* Remoulade now use only use one process (and remove watch feature),
+remove ``--proccess`` options and ``--watch`` option.
+Added
+^^^^^
+* |TimeLimit|: send SIGKILL after delay (default: 10s) if exception fails
+Changed
+^^^^^^^
+* Allow more recent version of ``pytz``
+
 `0.24.0`_ -- 2020-08-19
 -------------------------
 BREAKING CHANGE
