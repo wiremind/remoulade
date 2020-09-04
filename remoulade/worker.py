@@ -475,7 +475,11 @@ class _WorkerThread(Thread):
         actor = self.broker.get_actor(message.actor_name)
         message_id = message.message_id
         try:
-            self.logger.info("Started Actor %s", message, extra={"message_id": message_id})
+            extra = {
+                "message_id": message_id,
+                "input": {"args": str(message.args)[:1000], "kwargs": str(message.kwargs)[:1000]},
+            }
+            self.logger.info("Started Actor %s", message, extra=extra)
             start = time.perf_counter()
             return actor(*message.args, **message.kwargs)
         finally:

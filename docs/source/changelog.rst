@@ -8,6 +8,12 @@ All notable changes to this project will be documented in this file.
 `Unreleased`_
 -------------
 
+`0.25.1`_ -- 2020-09-04
+-------------------------
+Changed
+^^^^^^^
+* Logs: Add truncated args and kwargs to ``Started Actor`` log.
+
 `0.25.0`_ -- 2020-09-03
 -------------------------
 BREAKING CHANGE
