@@ -18,11 +18,12 @@ Changed
 -------------------------
 BREAKING CHANGE
 ^^^^^^^^^^^^^^^
-* Remoulade now use only use one process (and remove watch feature),
-remove ``--proccess`` options and ``--watch`` option.
+* Remoulade now use only use one process (and remove watch feature), remove ``--proccess`` options and ``--watch`` option.
+
 Added
 ^^^^^
 * |TimeLimit|: send SIGKILL after delay (default: 10s) if exception fails
+
 Changed
 ^^^^^^^
 * Allow more recent version of ``pytz``
@@ -450,7 +451,10 @@ Fixed
 
 * pipe_ignore was not recovered from right message
 
-.. _Unreleased: https://github.com/wiremind/remoulade/compare/v0.20.0...HEAD
+.. _Unreleased: https://github.com/wiremind/remoulade/compare/v0.25.1...HEAD
+.. _0.25.1: https://github.com/wiremind/remoulade/releases/tag/v0.25.1
+.. _0.25.0: https://github.com/wiremind/remoulade/releases/tag/v0.25.0
+.. _0.24.0: https://github.com/wiremind/remoulade/releases/tag/v0.24.0
 .. _0.23.0: https://github.com/wiremind/remoulade/releases/tag/v0.23.0
 .. _0.22.0: https://github.com/wiremind/remoulade/releases/tag/v0.22.0
 .. _0.21.0: https://github.com/wiremind/remoulade/releases/tag/v0.21.0
