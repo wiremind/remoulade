@@ -7,6 +7,9 @@ All notable changes to this project will be documented in this file.
 
 `Unreleased`_
 -------------
+Changed
+^^^^^^^
+* |TimeLimit|: Replace SIGKILL with regular sys.exit and make this behavior disabled by default
 
 `0.25.1`_ -- 2020-09-04
 -------------------------

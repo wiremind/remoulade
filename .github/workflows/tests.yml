@@ -31,7 +31,5 @@ jobs:
         python -m pip install --upgrade pip setuptools wheel
         pip install -e '.[dev]'
     - name: Test
-      env:
-        CI: "true"
       run: py.test --benchmark-skip
 

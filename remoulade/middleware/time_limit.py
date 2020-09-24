@@ -14,7 +14,6 @@
 #
 # You should have received a copy of the GNU Lesser General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
-import os
 import signal
 import threading
 import time
@@ -45,16 +44,16 @@ class TimeLimit(Middleware):
     Parameters:
       time_limit(int): The maximum number of milliseconds actors may run for.
       interval(int): The interval (in milliseconds) with which to check for actors that have exceeded the limit.
-      sigkill_delay(int): The delay (in milliseconds) after with we send a SIGKILL to the worker if the exception failed
-       to stop the message (ie. system calls).
+      exit_delay(int): The delay (in milliseconds) after with we stop (SystemExit) to the worker if the exception failed
+       to stop the message (ie. system calls). None to disable, disabled by default.
     """
 
-    def __init__(self, *, time_limit=1800000, interval=1000, sigkill_delay=10000):
+    def __init__(self, *, time_limit=1800000, interval=1000, exit_delay=None):
         self.logger = get_logger(__name__, type(self))
         self.time_limit = time_limit
         self.interval = interval
         self.deadlines = {}
-        self.sigkill_delay = sigkill_delay
+        self.exit_delay = exit_delay
 
     def _handle(self, *_):
         current_time = time.monotonic()
@@ -63,20 +62,22 @@ class TimeLimit(Middleware):
                 continue
 
             deadline, exception_raised, message = row
-            if exception_raised and self.sigkill_delay and current_time >= deadline + self.sigkill_delay / 1000:
+            if exception_raised and self.exit_delay and current_time >= deadline + self.exit_delay / 1000:
                 self.deadlines[thread_id] = None
                 try:
                     message.cancel()
                     self.logger.critical(
-                        "Could not stop message execution with TimeLimitExceeded, "
-                        "cancel message and send SIGKILL to worker"
+                        "Could not stop message %s execution with TimeLimitExceeded, "
+                        "cancel message and exit the worker",
+                        message.message_id,
                     )
-                    os.kill(os.getpid(), signal.SIGKILL)
+                    raise SystemExit(1)
                 except NoCancelBackend:
                     # Sending SIGKILL would requeue the message via RabbitMQ
                     self.logger.error(
-                        "Could not stop message execution with TimeLimitExceeded, "
-                        "but no SIGKILL was sent as cancel is not set"
+                        "Could not stop message %s execution with TimeLimitExceeded, "
+                        "but do not stop the worker as the message would be requeue",
+                        message.message_id,
                     )
             elif not exception_raised and current_time >= deadline:
                 self.logger.warning("Time limit exceeded. Raising exception in worker thread %r.", thread_id)

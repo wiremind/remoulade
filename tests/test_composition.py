@@ -456,6 +456,9 @@ def test_pipelines_with_groups(stub_broker, stub_worker, result_backend):
 
     assert 12 + 15 == result
 
+    stub_broker.join(do_work.queue_name)
+    stub_worker.join()
+
     # the group result has been forgotten
     assert list(g.results.get()) == [None, None]
 
