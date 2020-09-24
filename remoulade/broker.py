@@ -167,9 +167,9 @@ class Broker:
         }
         try:
             middleware_class, exception = backends[name]
-            for middleware in self.middleware:
-                if isinstance(middleware, middleware_class):
-                    return middleware.backend  # type: ignore
+            middleware = self.get_middleware(middleware_class)
+            if middleware is not None:
+                return middleware.backend
             else:
                 raise exception
         except KeyError:
@@ -221,6 +221,12 @@ class Broker:
 
         for queue_name in self.get_declared_delay_queues():
             middleware.after_declare_delay_queue(self, queue_name)
+
+    def get_middleware(self, middleware_class):
+        for middleware in self.middleware:
+            if isinstance(middleware, middleware_class):
+                return middleware
+        return None
 
     def close(self):
         """Close this broker and perform any necessary cleanup actions.
