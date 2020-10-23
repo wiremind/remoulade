@@ -14,7 +14,6 @@
 #
 # You should have received a copy of the GNU Lesser General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
-
 import os
 import time
 from collections import defaultdict
@@ -24,15 +23,14 @@ from threading import Event, Thread
 from typing import List
 
 from .cancel import MessageCanceled
-from .common import current_millis, iter_queue, join_all, q_name
+from .common import compute_backoff, current_millis, iter_queue, join_all, q_name
 from .errors import ActorNotFound, ConnectionError, RateLimitExceeded, RemouladeError
 from .logging import get_logger
 from .middleware import Middleware, SkipMessage
 
-#: The number of milliseconds to wait before restarting consumers after a connection error
+#: The number of try to restart consumers (with exponential backoff) after a connection error
 #: 0 to disable consumer restart and exit with an error
-CONSUMER_RESTART_DELAY = int(os.getenv("remoulade_restart_delay", 0))
-CONSUMER_RESTART_DELAY_SECS = CONSUMER_RESTART_DELAY / 1000
+CONSUMER_RESTART_MAX_RETRIES = int(os.getenv("remoulade_restart_max_retries", 10))
 
 
 class Worker:
@@ -229,7 +227,8 @@ class _ConsumerThread(Thread):
     def run(self):
         self.logger.debug("Running consumer thread...")
         self.running = True
-        restart_consumer = CONSUMER_RESTART_DELAY_SECS > 0
+        restart_consumer = CONSUMER_RESTART_MAX_RETRIES > 0
+        attempts = 0
 
         while self.running:
             if self.paused:
@@ -242,6 +241,7 @@ class _ConsumerThread(Thread):
                 self.consumer = self.broker.consume(
                     queue_name=self.queue_name, prefetch=self.prefetch, timeout=self.worker_timeout
                 )
+                attempts = 0
 
                 for message in self.consumer:
                     if message is not None:
@@ -255,7 +255,7 @@ class _ConsumerThread(Thread):
                         break
 
             except ConnectionError as e:
-                self.logger.critical("Consumer encountered a connection error: %s", e)
+                self.logger.warning("Consumer encountered a connection error: %s", e)
                 self.delay_queue = PriorityQueue()
                 if not restart_consumer:
                     self.stop()
@@ -268,11 +268,14 @@ class _ConsumerThread(Thread):
                     self.stop()
 
             # While the consumer is running (i.e. hasn't been shut down),
-            # try to restart it once every CONSUMER_RESTART_DELAY_SECS second.
-            if self.running and restart_consumer:
-                self.logger.info("Restarting consumer in %0.2f seconds.", CONSUMER_RESTART_DELAY_SECS)
+            # try to restart it with exponential backoff for CONSUMER_RESTART_MAX_RETRIES times
+            if self.running and attempts <= CONSUMER_RESTART_MAX_RETRIES:
+                attempts, delay = compute_backoff(attempts, factor=2, max_backoff=60)
+                self.logger.info("Restarting consumer in %0.2f seconds.", delay)
                 self.close()
-                time.sleep(CONSUMER_RESTART_DELAY_SECS)
+                time.sleep(delay)
+            elif attempts >= CONSUMER_RESTART_MAX_RETRIES > 0:
+                self.logger.error("Consumer could not reconnect after %d attempts", attempts)
 
         # If it's no longer running, then shut it down gracefully.
         self.broker.emit_before("consumer_thread_shutdown", self)
