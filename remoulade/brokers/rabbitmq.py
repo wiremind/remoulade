@@ -393,8 +393,8 @@ class _RabbitmqConsumer(Consumer):
     def close(self):
         try:
             self.channel.close()
-        except (AMQPConnectionError, AMQPChannelError) as e:
-            raise ConnectionClosed(e) from None
+        except (AMQPConnectionError, AMQPChannelError):
+            pass
 
 
 class _RabbitmqMessage(MessageProxy):

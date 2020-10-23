@@ -70,12 +70,6 @@ examples:
 """
 
 
-def folder_path(value):
-    if not os.path.isdir(value):
-        raise argparse.ArgumentError("%r is not a valid directory" % value)
-    return os.path.abspath(value)
-
-
 def parse_arguments():
     parser = argparse.ArgumentParser(
         prog="remoulade",
