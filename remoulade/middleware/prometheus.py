@@ -14,14 +14,22 @@
 #
 # You should have received a copy of the GNU Lesser General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
+import fcntl
 import os
-import time
-
-import prometheus_client as prom
+from contextlib import contextmanager
+from http.server import BaseHTTPRequestHandler, HTTPServer
+from threading import Thread
 
 from ..common import current_millis
 from ..logging import get_logger
 from .middleware import Middleware
+
+#: The path to the file to use to race Exposition servers against one another.
+LOCK_PATH = os.getenv("remoulade_prom_lock", "/tmp/remoulade-prometheus.lock")
+
+#: The path to store the prometheus database files.  This path is
+#: cleared before every run.
+DB_PATH = os.getenv("remoulade_prom_db", "/tmp/remoulade-prometheus")
 
 #: The default HTTP host the exposition server should bind to.
 DEFAULT_HTTP_HOST = os.getenv("remoulade_prom_host", "127.0.0.1")
@@ -51,17 +59,15 @@ class Prometheus(Middleware):
         self.delayed_messages = set()
         self.message_start_times = {}
 
-    def before_worker_boot(self, broker, worker):
+    def after_process_boot(self, broker):
+        os.environ["prometheus_multiproc_dir"] = DB_PATH
+
+        # This import MUST happen at runtime, after process boot and
+        # after the env variable has been set up.
+        import prometheus_client as prom
+
         self.logger.debug("Setting up metrics...")
         registry = prom.CollectorRegistry()
-        self.worker_busy = prom.Gauge(
-            "remoulade_worker_busy", "1 if the worker is processing a message, 0 if not", registry=registry,
-        )
-        self.last_before_process_message_timestamp = prom.Gauge(
-            "remoulade_last_before_process_message_timestamp",
-            "The timestamp in seconds of the last time a message was about to be processed",
-            registry=registry,
-        )
         self.total_messages = prom.Counter(
             "remoulade_messages_total",
             "The total number of messages processed.",
@@ -91,6 +97,7 @@ class Prometheus(Middleware):
             "The number of messages in progress.",
             ["queue_name", "actor_name"],
             registry=registry,
+            multiprocess_mode="livesum",
         )
         self.inprogress_delayed_messages = prom.Gauge(
             "remoulade_delayed_messages_inprogress",
@@ -127,15 +134,17 @@ class Prometheus(Middleware):
         )
 
         self.logger.debug("Starting exposition server...")
-        prom.start_http_server(addr=self.http_host, port=self.http_port, registry=registry)
-
-    def after_worker_boot(self, broker, worker):
-        self.worker_busy.set(0)
+        self.server = _ExpositionServer(http_host=self.http_host, http_port=self.http_port, lockfile=LOCK_PATH,)
+        self.server.start()
 
     def after_worker_shutdown(self, broker, worker):
-        self.worker_busy.set(0)
+        from prometheus_client import multiprocess
+
+        self.logger.debug("Marking process dead...")
+        multiprocess.mark_process_dead(os.getpid(), DB_PATH)
+
         self.logger.debug("Shutting down exposition server...")
-        # Do not stop it actually
+        self.server.stop()
 
     def after_nack(self, broker, message):
         labels = (message.queue_name, message.actor_name)
@@ -159,11 +168,8 @@ class Prometheus(Middleware):
 
         self.inprogress_messages.labels(*labels).inc()
         self.message_start_times[message.message_id] = current_millis()
-        self.worker_busy.set(1)
-        self.last_before_process_message_timestamp.set(int(time.time()))
 
     def after_process_message(self, broker, message, *, result=None, exception=None):
-        self.worker_busy.set(0)
         labels = (message.queue_name, message.actor_name)
         message_start_time = self.message_start_times.pop(message.message_id, current_millis())
         message_duration = current_millis() - message_start_time
@@ -175,3 +181,77 @@ class Prometheus(Middleware):
 
     after_skip_message = after_process_message
     after_message_canceled = after_process_message
+
+
+class _ExpositionServer(Thread):
+    """Exposition servers race against a POSIX lock in order to bind
+    an HTTP server that can expose Prometheus metrics in the
+    background.
+    """
+
+    def __init__(self, *, http_host, http_port, lockfile):
+        super().__init__(daemon=True)
+
+        self.logger = get_logger(__name__, type(self))
+        self.address = (http_host, http_port)
+        self.httpd = None
+        self.lockfile = lockfile
+
+    def run(self):
+        with flock(self.lockfile) as acquired:
+            if not acquired:
+                self.logger.debug("Failed to acquire lock file.")
+                return
+
+            self.logger.debug("Lock file acquired. Running exposition server.")
+            if not os.path.exists(DB_PATH):
+                os.makedirs(DB_PATH)
+
+            try:
+                self.httpd = HTTPServer(self.address, metrics_handler)
+                self.httpd.serve_forever()
+            except OSError:
+                self.logger.warning("Failed to bind exposition server.", exc_info=True)
+
+    def stop(self):
+        if self.httpd:
+            self.httpd.shutdown()
+            self.join()
+
+
+class metrics_handler(BaseHTTPRequestHandler):
+    def do_GET(self):
+        # These imports must happen at runtime.  See above.
+        import prometheus_client as prom
+        from prometheus_client import multiprocess as prom_mp
+
+        registry = prom.CollectorRegistry()
+        prom_mp.MultiProcessCollector(registry)
+        output = prom.generate_latest(registry)
+        self.send_response(200)
+        self.send_header("content-type", prom.CONTENT_TYPE_LATEST)
+        self.end_headers()
+        self.wfile.write(output)
+
+    def log_message(self, fmt, *args):
+        logger = get_logger(__name__, type(self))
+        logger.debug(fmt, *args)
+
+
+@contextmanager
+def flock(path):
+    """Attempt to acquire a POSIX file lock.
+    """
+    with open(path, "w+") as lf:
+        try:
+            fcntl.flock(lf, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            acquired = True
+            yield acquired
+
+        except OSError:
+            acquired = False
+            yield acquired
+
+        finally:
+            if acquired:
+                fcntl.flock(lf, fcntl.LOCK_UN)

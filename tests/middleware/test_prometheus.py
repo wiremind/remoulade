@@ -15,7 +15,7 @@ def test_prometheus_middleware_exposes_metrics():
 
         # And an instance of the prometheus middleware
         prom = prometheus.Prometheus()
-        prom.before_worker_boot(broker, None)
+        prom.after_process_boot(broker)
 
         # If I wait for the server to start
         sleep(0.01)
