@@ -5,11 +5,13 @@ Changelog
 
 All notable changes to this project will be documented in this file.
 
-`Unreleased`_
--------------
+`0.26.0`_ -- 2020-10-26
+-------------------------
 Changed
 ^^^^^^^
 * |TimeLimit|: Replace SIGKILL with regular sys.exit and make this behavior disabled by default
+* Rabbitmq: reconnect on connection error with exponential back-off
+* Promotheus: add remoulade_worker_busy metric
 
 `0.25.1`_ -- 2020-09-04
 -------------------------
@@ -196,7 +198,7 @@ Added
 -----------------------
 Added
 ^^^^^
-* Rabbimq: add dead_queue_max_length
+* Rabbitmq: add dead_queue_max_length
 
 Fix
 ^^^
@@ -454,7 +456,8 @@ Fixed
 
 * pipe_ignore was not recovered from right message
 
-.. _Unreleased: https://github.com/wiremind/remoulade/compare/v0.25.1...HEAD
+.. _Unreleased: https://github.com/wiremind/remoulade/compare/v0.26.0...HEAD
+.. _0.26.0: https://github.com/wiremind/remoulade/releases/tag/v0.26.0
 .. _0.25.1: https://github.com/wiremind/remoulade/releases/tag/v0.25.1
 .. _0.25.0: https://github.com/wiremind/remoulade/releases/tag/v0.25.0
 .. _0.24.0: https://github.com/wiremind/remoulade/releases/tag/v0.24.0

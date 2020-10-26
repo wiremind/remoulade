@@ -156,7 +156,6 @@ class Prometheus(Middleware):
         self.worker_busy.set(1)
 
     def after_process_message(self, broker, message, *, result=None, exception=None):
-        self.worker_busy.set(0)
         labels = (message.queue_name, message.actor_name)
         message_start_time = self.message_start_times.pop(message.message_id, current_millis())
         message_duration = current_millis() - message_start_time
@@ -165,6 +164,8 @@ class Prometheus(Middleware):
         self.total_messages.labels(*labels).inc()
         if exception is not None:
             self.total_errored_messages.labels(*labels).inc()
+        if not self.message_start_times:
+            self.worker_busy.set(0)
 
     after_skip_message = after_process_message
     after_message_canceled = after_process_message
