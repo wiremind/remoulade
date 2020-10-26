@@ -39,58 +39,61 @@ class Prometheus(Middleware):
       http_port(int): The port on which the server should listen.
         This parameter can also be configured via the
         ``remoulade_prom_port`` environment variable.
+      registry(CollectorRegistry): the prometheus registry to use, if None, use a new registry.
 
     .. _Prometheus: https://prometheus.io
     """
 
-    def __init__(self, *, http_host=DEFAULT_HTTP_HOST, http_port=DEFAULT_HTTP_PORT):
+    def __init__(self, *, http_host=DEFAULT_HTTP_HOST, http_port=DEFAULT_HTTP_PORT, registry=None):
         self.logger = get_logger(__name__, type(self))
         self.http_host = http_host
         self.http_port = http_port
         self.delayed_messages = set()
         self.message_start_times = {}
+        self.registry = registry
 
     def before_worker_boot(self, broker, worker):
         self.logger.debug("Setting up metrics...")
-        registry = prom.CollectorRegistry()
+        if self.registry is None:
+            self.registry = prom.CollectorRegistry()
         self.worker_busy = prom.Gauge(
-            "remoulade_worker_busy", "1 if the worker is processing a message, 0 if not", registry=registry,
+            "remoulade_worker_busy", "1 if the worker is processing a message, 0 if not", registry=self.registry,
         )
         self.total_messages = prom.Counter(
             "remoulade_messages_total",
             "The total number of messages processed.",
             ["queue_name", "actor_name"],
-            registry=registry,
+            registry=self.registry,
         )
         self.total_errored_messages = prom.Counter(
             "remoulade_message_errors_total",
             "The total number of errored messages.",
             ["queue_name", "actor_name"],
-            registry=registry,
+            registry=self.registry,
         )
         self.total_retried_messages = prom.Counter(
             "remoulade_message_retries_total",
             "The total number of retried messages.",
             ["queue_name", "actor_name"],
-            registry=registry,
+            registry=self.registry,
         )
         self.total_rejected_messages = prom.Counter(
             "remoulade_message_rejects_total",
             "The total number of dead-lettered messages.",
             ["queue_name", "actor_name"],
-            registry=registry,
+            registry=self.registry,
         )
         self.inprogress_messages = prom.Gauge(
             "remoulade_messages_inprogress",
             "The number of messages in progress.",
             ["queue_name", "actor_name"],
-            registry=registry,
+            registry=self.registry,
         )
         self.inprogress_delayed_messages = prom.Gauge(
             "remoulade_delayed_messages_inprogress",
             "The number of delayed messages in memory.",
             ["queue_name", "actor_name"],
-            registry=registry,
+            registry=self.registry,
         )
         self.message_durations = prom.Histogram(
             "remoulade_message_duration_milliseconds",
@@ -117,11 +120,11 @@ class Prometheus(Middleware):
                 900000,
                 float("inf"),
             ),
-            registry=registry,
+            registry=self.registry,
         )
 
         self.logger.debug("Starting exposition server...")
-        prom.start_http_server(addr=self.http_host, port=self.http_port, registry=registry)
+        prom.start_http_server(addr=self.http_host, port=self.http_port, registry=self.registry)
 
     def after_worker_boot(self, broker, worker):
         self.worker_busy.set(0)
