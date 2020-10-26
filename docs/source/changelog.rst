@@ -5,6 +5,12 @@ Changelog
 
 All notable changes to this project will be documented in this file.
 
+`0.26.1`_ -- 2020-10-27
+-------------------------
+Changed
+^^^^^^^
+* Promotheus: add a registry parameter
+
 `0.26.0`_ -- 2020-10-26
 -------------------------
 Changed
