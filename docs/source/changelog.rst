@@ -5,6 +5,12 @@ Changelog
 
 All notable changes to this project will be documented in this file.
 
+`0.26.2`_ -- 2020-11-04
+-------------------------
+Fix
+^^^
+* Priority: actor.priority is now used if priority is not present in message.options
+
 `0.26.1`_ -- 2020-10-27
 -------------------------
 Changed
