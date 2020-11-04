@@ -222,7 +222,7 @@ class RabbitmqBroker(Broker):
         """
         queue_name = message.queue_name
         actor = self.get_actor(message.actor_name)
-        properties = {"delivery_mode": 2, "priority": message.options.get("priority", actor.options.get("priority"))}
+        properties = {"delivery_mode": 2, "priority": message.options.get("priority", actor.priority)}
         if delay is not None:
             queue_name = dq_name(queue_name)
             message_eta = current_millis() + delay

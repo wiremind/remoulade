@@ -59,6 +59,11 @@ class Worker:
             raise RemouladeError("LocalBroker is not destined to be used with a Worker")
 
         self.consumers = {}
+        if queues is None or len(queues) != 1:
+            self.logger.warning(
+                "You are listening on multiple queues, RMQ is adapted to single queue consuming only. "
+                "It will work but you should consider using one worker per queue."
+            )
         self.consumer_whitelist = queues and set(queues)
         # Load a small factor more messages than there are workers to
         # avoid waiting on network IO as much as possible.  The factor
