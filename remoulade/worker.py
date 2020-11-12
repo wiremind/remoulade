@@ -453,8 +453,9 @@ class _WorkerThread(Thread):
                 self.logger.warning("Rate limit exceeded in message %s: %s.", message, e)
             else:
                 self.logger.error(
-                    "Failed to process message %s with unhandled exception.",
+                    "Failed to process message %s with unhandled %s",
                     message,
+                    e.__class__.__name__,
                     exc_info=True,
                     extra={"input": {"args": str(message.args), "kwargs": str(message.kwargs)}},
                 )
