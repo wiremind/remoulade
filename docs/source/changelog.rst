@@ -5,6 +5,13 @@ Changelog
 
 All notable changes to this project will be documented in this file.
 
+`0.26.3`_ -- 2020-11-12
+-------------------------
+Added
+^^^^^
+* Worker: add exception name to ``Failed to process message`` log.
+
+
 `0.26.2`_ -- 2020-11-04
 -------------------------
 Fix
