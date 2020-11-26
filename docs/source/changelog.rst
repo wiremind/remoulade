@@ -5,6 +5,14 @@ Changelog
 
 All notable changes to this project will be documented in this file.
 
+
+`0.26.4`_ -- 2020-11-26
+-------------------------
+Dependencies
+^^^^^^^^^^^^
+* update ``pytz``
+
+
 `0.26.3`_ -- 2020-11-12
 -------------------------
 Added
@@ -475,7 +483,11 @@ Fixed
 
 * pipe_ignore was not recovered from right message
 
-.. _Unreleased: https://github.com/wiremind/remoulade/compare/v0.26.0...HEAD
+.. _Unreleased: https://github.com/wiremind/remoulade/compare/v0.26.4...HEAD
+.. _0.26.4: https://github.com/wiremind/remoulade/releases/tag/v0.26.4
+.. _0.26.3: https://github.com/wiremind/remoulade/releases/tag/v0.26.3
+.. _0.26.2: https://github.com/wiremind/remoulade/releases/tag/v0.26.2
+.. _0.26.1: https://github.com/wiremind/remoulade/releases/tag/v0.26.1
 .. _0.26.0: https://github.com/wiremind/remoulade/releases/tag/v0.26.0
 .. _0.25.1: https://github.com/wiremind/remoulade/releases/tag/v0.25.1
 .. _0.25.0: https://github.com/wiremind/remoulade/releases/tag/v0.25.0
