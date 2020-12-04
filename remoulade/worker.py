@@ -14,6 +14,7 @@
 #
 # You should have received a copy of the GNU Lesser General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
+import logging
 import os
 import time
 from collections import defaultdict
@@ -449,18 +450,19 @@ class _WorkerThread(Thread):
             self.broker.emit_after("message_canceled", message)
 
         except BaseException as e:
+            self.broker.emit_after("process_message", message, exception=e)
+
             if isinstance(e, RateLimitExceeded):
                 self.logger.warning("Rate limit exceeded in message %s: %s.", message, e)
             else:
-                self.logger.error(
+                self.logger.log(
+                    logging.ERROR if message.failed else logging.WARNING,
                     "Failed to process message %s with unhandled %s",
                     message,
                     e.__class__.__name__,
                     exc_info=True,
                     extra={"input": {"args": str(message.args), "kwargs": str(message.kwargs)}},
                 )
-
-            self.broker.emit_after("process_message", message, exception=e)
 
         finally:
             # NOTE: There is no race here as any message that was

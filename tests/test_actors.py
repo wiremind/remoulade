@@ -9,7 +9,7 @@ from remoulade import Message, Middleware
 from remoulade.errors import RateLimitExceeded
 from remoulade.middleware import SkipMessage
 
-from .common import worker
+from .common import worker, get_logs
 
 _current_platform = platform.python_implementation()
 
@@ -164,7 +164,7 @@ def test_actors_can_perform_work_with_kwargs(stub_broker, stub_worker):
     assert results == [3]
 
 
-def test_actors_do_not_retry_by_default(stub_broker, stub_worker):
+def test_actors_do_not_retry_by_default(stub_broker, stub_worker, caplog):
     # Given that I have a database
     attempts = []
 
@@ -187,8 +187,13 @@ def test_actors_do_not_retry_by_default(stub_broker, stub_worker):
     # Then I expect 1 attempts to have occurred
     assert sum(attempts) == 1
 
+    # I expect the fail log to be a error
+    records = get_logs(caplog, "Failed to process message")
+    assert len(records) == 1
+    assert records[0].levelname == "ERROR"
 
-def test_actors_retry_on_failure(stub_broker, stub_worker):
+
+def test_actors_retry_on_failure(stub_broker, stub_worker, caplog):
     # Given that I have a database
     failures, successes = [], []
 
@@ -200,6 +205,8 @@ def test_actors_retry_on_failure(stub_broker, stub_worker):
             raise RuntimeError("First failure.")
         else:
             successes.append(1)
+
+    # test log
 
     # And this actor is declared
     stub_broker.declare_actor(do_work)
@@ -213,6 +220,11 @@ def test_actors_retry_on_failure(stub_broker, stub_worker):
 
     # I expect successes
     assert sum(successes) == 1
+
+    # I expect the fail log to be a warning if the message is retried
+    records = get_logs(caplog, "Failed to process message")
+    assert len(records) == 1
+    assert records[0].levelname == "WARNING"
 
 
 def test_actors_retry_a_max_number_of_times_on_failure(stub_broker, stub_worker):
