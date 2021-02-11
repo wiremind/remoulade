@@ -107,7 +107,7 @@ class Message(
         updated_options = attributes.pop("options", {})
         options = self.options.copy()
         options.update(updated_options)
-        return self._replace(**attributes, options=options)  # type: ignore
+        return self._replace(**attributes, options=options)
 
     def build(self, options):
         """ Build message for pipeline """

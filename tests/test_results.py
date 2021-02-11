@@ -378,3 +378,30 @@ def test_result_get_forget_not_store_if_no_result(stub_broker, stub_worker, resu
 
     # It should not store a forgotten result if there is no key
     assert result.get(block=True) == 42
+
+
+def test_error_cannot_be_serialized(stub_broker, stub_worker, result_middleware):
+    # given a exception which is not serializable
+    class UnserializableError(Exception):
+        def __repr__(self):
+            raise ValueError()
+
+    # And an actor that stores results
+    @remoulade.actor(store_results=True)
+    def do_work():
+        raise UnserializableError()
+
+    # And this actor is declared
+    stub_broker.declare_actor(do_work)
+
+    # When I send that actor a message
+    message = do_work.send()
+
+    # And wait for a result
+    stub_broker.join(do_work.queue_name)
+    stub_worker.join()
+
+    # If I get the result, i will get an error
+    with pytest.raises(ErrorStored) as e:
+        message.result.get(raise_on_error=True)
+    assert e.value.message == "Exception could not be serialized"
