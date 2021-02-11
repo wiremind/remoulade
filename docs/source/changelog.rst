@@ -5,6 +5,12 @@ Changelog
 
 All notable changes to this project will be documented in this file.
 
+`0.26.6`_ -- 2020-02-11
+-------------------------
+Fixed
+^^^^^
+* Result: catch when error cannot be serialized
+
 `0.26.5`_ -- 2020-12-04
 -------------------------
 Changed
