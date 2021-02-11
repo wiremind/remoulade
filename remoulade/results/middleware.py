@@ -78,16 +78,24 @@ class Results(Middleware):
             if exception is None:
                 self.backend.store_result(message.message_id, BackendResult(result=result, error=None), result_ttl)
             elif message_failed:
-                error = repr(exception)
-                self.backend.store_result(message.message_id, BackendResult(result=None, error=error), result_ttl)
+                error_str = self._serialize_exception(exception)
+                self.backend.store_result(message.message_id, BackendResult(result=None, error=error_str), result_ttl)
 
         # even if the actor do not have store_results, we need to invalidate the messages in the pipeline that has it
         if message_failed:
-            exception = ParentFailed("%s failed because of %s" % (message, repr(exception)))
-            children_result = BackendResult(result=None, error=repr(exception))
+            error_str = self._serialize_exception(exception)
+            exception = ParentFailed("%s failed because of %s" % (message, error_str))
+            children_result = BackendResult(result=None, error=self._serialize_exception(exception))
 
             for message_id in self._get_children_message_ids(broker, message.options.get("pipe_target")):
                 self.backend.store_result(message_id, children_result, result_ttl)
+
+    @staticmethod
+    def _serialize_exception(exception):
+        try:
+            return repr(exception)
+        except Exception as e:  # noqa
+            return "Exception could not be serialized"
 
     def _get_children_message_ids(self, broker, pipe_target):
         """ Get the ids of all the following messages in the pipeline which have store_results """
