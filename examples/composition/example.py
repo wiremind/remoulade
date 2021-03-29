@@ -12,7 +12,7 @@ from remoulade.results.backends import RedisBackend
 
 encoder = PickleEncoder()
 backend = RedisBackend(encoder=encoder)
-broker = RabbitmqBroker(host="127.0.0.1")
+broker = RabbitmqBroker(url="127.0.0.1")
 broker.add_middleware(Results(backend=backend))
 remoulade.set_broker(broker)
 remoulade.set_encoder(encoder)

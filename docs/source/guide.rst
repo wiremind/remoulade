@@ -99,9 +99,8 @@ command in a new terminal window::
 
   $ remoulade count_words
 
-This will spin up as many processes as there are CPU cores on your
-machine with 8 worker threads per process.  Run ``remoulade -h`` if you
-want to see a list of the available command line flags.
+This will spin up a processe on your machine with 8 worker threads per process.
+Run ``remoulade -h`` if you want to see a list of the available command line flags.
 
 As soon as you run that command you'll see log output along these
 lines::
@@ -361,7 +360,7 @@ various priorities you plan to use:
 Rabbitmq also have a support for priorities, to take advantage of it
 you need to set ``max_priority``
 
-   broker = RabbitmqBroker(host="rabbitmq", max_priority=PRIO_HI)
+   broker = RabbitmqBroker(url="rabbitmq", max_priority=PRIO_HI)
 
 In `priority documentation`_, you will see that recommended value for
 max_priority is between 1 and 10 (max: 255).
@@ -389,7 +388,7 @@ execution::
 
   from remoulade.brokers.rabbitmq import RabbitmqBroker
 
-  rabbitmq_broker = RabbitmqBroker(host="rabbitmq")
+  rabbitmq_broker = RabbitmqBroker(url="rabbitmq")
   remoulade.set_broker(rabbitmq_broker)
 
 

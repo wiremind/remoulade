@@ -213,56 +213,6 @@ Finally, instantiate and add it to your broker:
 Operations
 ----------
 
-Auto-discovering "tasks" modules with bash
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-Remoulade doesn't attempt to auto-discover tasks modules.  Assuming you
-follow a convention where all your tasks modules are named
-``tasks.py`` then you can discover them using bash:
-
-.. code-block:: bash
-
-   #!/usr/bin/env bash
-
-   set -e
-
-   tasks_packages=$(find . -type d -name tasks | sed s':/:.:g' | sed s'/^..//' | xargs)
-   tasks_modules=$(find . -type f -name tasks.py | sed s':/:.:g' | sed s'/^..//' | sed s'/.py$//g' | xargs)
-   all_modules="$tasks_packages $tasks_modules"
-
-   echo "Discovered tasks modules:"
-   for module in $all_modules; do
-       echo "  * ${module}"
-   done
-   echo
-
-   pipenv run remoulade $all_modules
-
-Retrying connection errors on startup
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-Remoulade does not retry connection errors that occur on worker
-startup.  It does, however, return a specific exit code (``3``) when
-that happens.  Using that, you can build a wrapper script around it if
-you need to retry with backoff when connection errors happen during
-startup (eg. in Docker):
-
-.. code-block:: bash
-
-   #!/usr/bin/env bash
-
-   delay=1
-   while true; do
-     remoulade $@
-     if [ $? -eq 3 ]; then
-       echo "Connection error encountered on startup. Retrying in $delay second(s)..."
-       sleep $delay
-       delay=$((delay * 2))
-     else
-       exit $?
-     fi
-   done
-
 Binding Worker Groups to Queues
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -446,30 +396,24 @@ There is a scheduler integrated into remoulade:
 
 .. code-block:: python
 
-import remoulade
-from datetime import datetime
-from remoulade.brokers.rabbitmq import RabbitmqBroker
-from remoulade.scheduler import ScheduledJob, Scheduler
+    import remoulade
+    from datetime import datetime
+    from remoulade.brokers.rabbitmq import RabbitmqBroker
+    from remoulade.scheduler import ScheduledJob, Scheduler
 
-broker = RabbitmqBroker()
+    broker = RabbitmqBroker()
 
-remoulade.set_broker(broker)
-remoulade.set_scheduler(
-    Scheduler(
-        broker,
-        [
-            ScheduledJob(actor_name="print_current_date", interval=86400),
-        ]
+    remoulade.set_broker(broker)
+    remoulade.set_scheduler(
+        Scheduler(
+            broker,
+            [
+                ScheduledJob(actor_name="count_words", interval=86400),
+            ]
+        )
     )
-)
 
-@remoulade.actor()
-def print_current_date():
-    print(datetime.datetime.now())
-
-broker.declare_actor(count_words)
-
-..
+    broker.declare_actor(count_words)
 
 
 Optimizing
