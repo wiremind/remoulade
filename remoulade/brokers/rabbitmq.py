@@ -18,8 +18,10 @@ import time
 from contextlib import contextmanager
 from queue import Empty, Full, LifoQueue
 from threading import Lock, local
+from typing import TYPE_CHECKING, List, Optional
 
 from amqpstorm import AMQPChannelError, AMQPConnectionError, AMQPError, UriConnection
+from typing_extensions import Final
 
 from ..broker import Broker, Consumer, MessageProxy
 from ..common import current_millis, dq_name, xq_name
@@ -27,12 +29,15 @@ from ..errors import ChannelPoolTimeout, ConnectionClosed, QueueJoinTimeout
 from ..logging import get_logger
 from ..message import Message
 
+if TYPE_CHECKING:
+    from ..middleware import Middleware  # noqa
+
 #: The maximum amount of time a message can be in the dead queue.
-DEAD_MESSAGE_TTL = 86400000 * 7
+DEAD_MESSAGE_TTL: Final[int] = 86400000 * 7
 
 #: The max number of times to attempt an enqueue operation in case of
 #: a connection error.
-MAX_ENQUEUE_ATTEMPTS = 6
+MAX_ENQUEUE_ATTEMPTS: Final[int] = 6
 
 
 class RabbitmqBroker(Broker):
@@ -60,12 +65,12 @@ class RabbitmqBroker(Broker):
     def __init__(
         self,
         *,
-        confirm_delivery=False,
-        url=None,
-        middleware=None,
-        max_priority=None,
-        channel_pool_size=200,
-        dead_queue_max_length=None
+        confirm_delivery: bool = False,
+        url: Optional[str] = None,
+        middleware: Optional[List["Middleware"]] = None,
+        max_priority: Optional[int] = None,
+        channel_pool_size: int = 200,
+        dead_queue_max_length: Optional[int] = None,
     ):
         super().__init__(middleware=middleware)
 
@@ -80,7 +85,7 @@ class RabbitmqBroker(Broker):
         self.max_priority = max_priority
         self.dead_queue_max_length = dead_queue_max_length
         self._connection = None
-        self.queues = set()  # type: ignore
+        self.queues = {}
         self.state = local()
         self.channel_pool = ChannelPool(channel_factory=self.channel_factory, pool_size=channel_pool_size)
         self.queues_declared = False
@@ -113,9 +118,8 @@ class RabbitmqBroker(Broker):
             channel.confirm_deliveries()
         return channel
 
-    def close(self):
-        """Close all open RabbitMQ connections.
-        """
+    def close(self) -> None:
+        """Close all open RabbitMQ connections."""
 
         self.logger.debug("Closing channels and connection...")
         try:
@@ -126,7 +130,7 @@ class RabbitmqBroker(Broker):
         self.channel_pool.clear()
         self.logger.debug("Channels and connections closed.")
 
-    def consume(self, queue_name, prefetch=1, timeout=5000):
+    def consume(self, queue_name: str, prefetch: int = 1, timeout: int = 5000) -> "_RabbitmqConsumer":
         """Create a new consumer for a queue.
 
         Parameters:
@@ -149,7 +153,7 @@ class RabbitmqBroker(Broker):
         return _RabbitmqConsumer(self.connection, queue_name, prefetch, timeout)
 
     def _declare_rabbitmq_queues(self):
-        """ Real Queue declaration to happen before enqueuing or consuming
+        """Real Queue declaration to happen before enqueuing or consuming
 
         Raises:
           AMQPConnectionError or AMQPChannelError: If the underlying channel or connection has been closed.
@@ -160,7 +164,7 @@ class RabbitmqBroker(Broker):
                 self._declare_dq_queue(channel, queue_name)
                 self._declare_xq_queue(channel, queue_name)
 
-    def declare_queue(self, queue_name):
+    def declare_queue(self, queue_name: str) -> None:
         """Declare a queue.  Has no effect if a queue with the given
         name already exists.
 
@@ -173,7 +177,7 @@ class RabbitmqBroker(Broker):
         """
         if queue_name not in self.queues:
             self.emit_before("declare_queue", queue_name)
-            self.queues.add(queue_name)  # type: ignore
+            self.queues[queue_name] = None
             self.emit_after("declare_queue", queue_name)
 
             delayed_name = dq_name(queue_name)
@@ -208,7 +212,7 @@ class RabbitmqBroker(Broker):
             arguments["x-max-length"] = self.dead_queue_max_length
         return channel.queue.declare(queue=xq_name(queue_name), durable=True, arguments=arguments)
 
-    def enqueue(self, message, *, delay=None):
+    def enqueue(self, message: "Message", *, delay: Optional[int] = None) -> "Message":
         """Enqueue a message.
 
         Parameters:
@@ -226,7 +230,7 @@ class RabbitmqBroker(Broker):
         if delay is not None:
             queue_name = dq_name(queue_name)
             message_eta = current_millis() + delay
-            message = message.copy(queue_name=queue_name, options={"eta": message_eta,},)
+            message = message.copy(queue_name=queue_name, options={"eta": message_eta})
 
         attempts = 1
         while True:
@@ -241,7 +245,7 @@ class RabbitmqBroker(Broker):
                 self.emit_before("enqueue", message, delay)
                 with self.channel_pool.acquire() as channel:
                     channel.basic.publish(
-                        exchange="", routing_key=queue_name, body=message.encode(), properties=properties,
+                        exchange="", routing_key=queue_name, body=message.encode(), properties=properties
                     )
                 self.emit_after("enqueue", message, delay)
                 return message
@@ -258,20 +262,9 @@ class RabbitmqBroker(Broker):
                 if attempts > MAX_ENQUEUE_ATTEMPTS:
                     raise ConnectionClosed(e) from None
 
-                self.logger.debug(
-                    "Retrying enqueue due to closed connection. [%d/%d]", attempts, MAX_ENQUEUE_ATTEMPTS,
-                )
+                self.logger.debug("Retrying enqueue due to closed connection. [%d/%d]", attempts, MAX_ENQUEUE_ATTEMPTS)
 
-    def get_declared_queues(self):
-        """Get all declared queues.
-
-        Returns:
-          set[str]: The names of all the queues declared so far on
-          this Broker.
-        """
-        return self.queues.copy()
-
-    def get_queue_message_counts(self, queue_name):
+    def get_queue_message_counts(self, queue_name: str):
         """Get the number of messages in a queue.  This method is only
         meant to be used in unit and integration tests.
 
@@ -293,7 +286,7 @@ class RabbitmqBroker(Broker):
             xq_queue_response["message_count"],
         )
 
-    def flush(self, queue_name):
+    def flush(self, queue_name: str) -> None:
         """Drop all the messages from a queue.
 
         Parameters:
@@ -303,13 +296,14 @@ class RabbitmqBroker(Broker):
             with self.channel_pool.acquire() as channel:
                 channel.queue.purge(name)
 
-    def flush_all(self):
-        """Drop all messages from all declared queues.
-        """
+    def flush_all(self) -> None:
+        """Drop all messages from all declared queues."""
         for queue_name in self.queues:
             self.flush(queue_name)
 
-    def join(self, queue_name, min_successes=10, idle_time=100, *, timeout=None):
+    def join(
+        self, queue_name: str, min_successes: int = 10, idle_time: int = 100, *, timeout: Optional[int] = None
+    ) -> None:
         """Wait for all the messages on the given queue to be
         processed.  This method is only meant to be used in tests to
         wait for all the messages in a queue to be processed.

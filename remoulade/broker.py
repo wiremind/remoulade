@@ -14,12 +14,18 @@
 #
 # You should have received a copy of the GNU Lesser General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
+from typing import TYPE_CHECKING, Optional, Set
+
 from .cancel import Cancel, CancelBackend
 from .errors import ActorNotFound, NoCancelBackend, NoResultBackend, NoStateBackend
 from .logging import get_logger
 from .middleware import MiddlewareError, default_middleware
 from .results import ResultBackend, Results
 from .state import MessageState, StateBackend
+
+if TYPE_CHECKING:
+    from .actor import Actor
+    from .message import Message  # noqa
 
 #: The global broker instance.
 global_broker = None
@@ -105,7 +111,7 @@ class Broker:
             self.add_middleware(m)
 
     @property
-    def local(self):
+    def local(self) -> bool:
         return False
 
     def emit_before(self, signal, *args, **kwargs):
@@ -125,7 +131,7 @@ class Broker:
                 self.logger.critical("Unexpected failure in after_%s.", signal, exc_info=True)
 
     def get_result_backend(self) -> ResultBackend:
-        """ Get the ResultBackend associated with the broker
+        """Get the ResultBackend associated with the broker
 
         Raises:
             NoResultBackend: if there is no ResultBackend
@@ -136,7 +142,7 @@ class Broker:
         return self._get_backend("results")
 
     def get_cancel_backend(self) -> CancelBackend:
-        """ Get the CancelBackend associated with the broker
+        """Get the CancelBackend associated with the broker
 
         Raises:
             NoCancelBackend: if there is no CancelBackend
@@ -147,7 +153,7 @@ class Broker:
         return self._get_backend("cancel")
 
     def get_state_backend(self) -> StateBackend:
-        """ Get the StateBackend associated with the broker
+        """Get the StateBackend associated with the broker
 
         Raises:
             NoStateBackend: if there is no StateBackend
@@ -229,10 +235,9 @@ class Broker:
         return None
 
     def close(self):
-        """Close this broker and perform any necessary cleanup actions.
-        """
+        """Close this broker and perform any necessary cleanup actions."""
 
-    def consume(self, queue_name, prefetch=1, timeout=30000):  # pragma: no cover
+    def consume(self, queue_name: str, prefetch: int = 1, timeout: int = 30000) -> "Consumer":  # pragma: no cover
         """Get an iterator that consumes messages off of the queue.
 
         Raises:
@@ -261,7 +266,7 @@ class Broker:
         self.actors[actor.actor_name] = actor
         self.emit_after("declare_actor", actor)
 
-    def declare_queue(self, queue_name):  # pragma: no cover
+    def declare_queue(self, queue_name: str) -> None:  # pragma: no cover
         """Declare a queue on this broker.  This method must be
         idempotent.
 
@@ -270,7 +275,7 @@ class Broker:
         """
         raise NotImplementedError
 
-    def enqueue(self, message, *, delay=None):  # pragma: no cover
+    def enqueue(self, message: "Message", *, delay: Optional[int] = None) -> "Message":  # pragma: no cover
         """Enqueue a message on this broker.
 
         Parameters:
@@ -282,7 +287,7 @@ class Broker:
         """
         raise NotImplementedError
 
-    def get_actor(self, actor_name):  # pragma: no cover
+    def get_actor(self, actor_name: str) -> "Actor":  # pragma: no cover
         """Look up an actor by its name.
 
         Parameters:
@@ -299,7 +304,7 @@ class Broker:
         except KeyError:
             raise ActorNotFound(actor_name) from None
 
-    def get_declared_actors(self):  # pragma: no cover
+    def get_declared_actors(self) -> Set[str]:  # pragma: no cover
         """Get all declared actors.
 
         Returns:
@@ -308,7 +313,7 @@ class Broker:
         """
         return set(self.actors.keys())
 
-    def get_declared_queues(self):  # pragma: no cover
+    def get_declared_queues(self) -> Set[str]:  # pragma: no cover
         """Get all declared queues.
 
         Returns:
@@ -317,7 +322,7 @@ class Broker:
         """
         return set(self.queues.keys())
 
-    def get_declared_delay_queues(self):  # pragma: no cover
+    def get_declared_delay_queues(self) -> Set[str]:  # pragma: no cover
         """Get all declared delay queues.
 
         Returns:
@@ -326,7 +331,7 @@ class Broker:
         """
         return self.delay_queues.copy()
 
-    def flush(self, queue_name):  # pragma: no cover
+    def flush(self, queue_name: str) -> None:  # pragma: no cover
         """Drop all the messages from a queue.
 
         Parameters:
@@ -334,14 +339,13 @@ class Broker:
         """
         raise NotImplementedError()
 
-    def flush_all(self):  # pragma: no cover
-        """Drop all messages from all declared queues.
-        """
+    def flush_all(self) -> None:  # pragma: no cover
+        """Drop all messages from all declared queues."""
         raise NotImplementedError()
 
-    def join(self, queue_name, *, timeout=None):  # pragma: no cover
-        """
-        """
+    def join(self, queue_name: str, *, timeout: Optional[int] = None) -> None:  # pragma: no cover
+        """Wait for all the messages on the given queue to be processed.
+        This method is only meant to be used in tests to wait for all the messages in a queue to be processed."""
         raise NotImplementedError()
 
 
@@ -352,8 +356,7 @@ class Consumer:
     """
 
     def __iter__(self):  # pragma: no cover
-        """Returns this instance as a Message iterator.
-        """
+        """Returns this instance as a Message iterator."""
         return self
 
     def ack(self, message):  # pragma: no cover
@@ -394,21 +397,18 @@ class Consumer:
         raise NotImplementedError
 
     def close(self):
-        """Close this consumer and perform any necessary cleanup actions.
-        """
+        """Close this consumer and perform any necessary cleanup actions."""
 
 
 class MessageProxy:
-    """Base class for messages returned by :meth:`Broker.consume`.
-    """
+    """Base class for messages returned by :meth:`Broker.consume`."""
 
     def __init__(self, message):
         self.failed = False
         self._message = message
 
     def fail(self):
-        """Mark this message for rejection.
-        """
+        """Mark this message for rejection."""
         self.failed = True
 
     def __getattr__(self, name):

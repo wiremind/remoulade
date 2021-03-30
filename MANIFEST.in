@@ -3,5 +3,6 @@ include COPYING.LESSER
 include README.md
 include setup.cfg
 include setup.py
+include remoulade/py.typed
 
 recursive-include bin *

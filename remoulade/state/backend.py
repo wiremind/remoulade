@@ -1,7 +1,7 @@
 import sys
 from collections import namedtuple
 from enum import Enum
-from typing import List
+from typing import Dict, List
 
 from dateutil.parser import parse
 
@@ -10,9 +10,7 @@ from .errors import InvalidStateError
 
 
 class StateNamesEnum(Enum):
-    """
-    Contains the possible states that can have a message:
-    """
+    """Contains the possible states that can have a message"""
 
     Started = "Started"  # a `Message` that has not been processed
     Pending = "Pending"  # a `Message` that has been enqueued
@@ -43,9 +41,9 @@ class State(
     )
 ):
     """Catalog Class, it storages the state
-        Parameters:
-            name: Name of the state
-            args: List of arguments in the state(name)
+    Parameters:
+        name: Name of the state
+        args: List of arguments in the state(name)
     """
 
     def __new__(
@@ -62,7 +60,7 @@ class State(
         enqueued_datetime=None,
         started_datetime=None,
         end_datetime=None,
-        group_id=None
+        group_id=None,
     ):
 
         if name and name not in list(StateNamesEnum):
@@ -105,14 +103,14 @@ class State(
         return as_dict
 
     @classmethod
-    def from_dict(cls, dict):
-        if "name" in dict:
-            dict["name"] = StateNamesEnum(dict["name"])
+    def from_dict(cls, input_dict: Dict) -> "State":
+        if "name" in input_dict:
+            input_dict["name"] = StateNamesEnum(input_dict["name"])
         datetime_keys = ["enqueued_datetime", "started_datetime", "end_datetime"]
         for key in datetime_keys:
-            if key in dict:
-                dict[key] = parse(dict[key])
-        return cls(**dict)
+            if key in input_dict:
+                input_dict[key] = parse(input_dict[key])
+        return cls(**input_dict)
 
 
 class StateBackend:
@@ -145,19 +143,19 @@ class StateBackend:
         Returns:
           str
         """
-        return "{}:{}".format(self.namespace, message_id)
+        return f"{self.namespace}:{message_id}"
 
     def get_state(self, message_id: str) -> State:
-        """ Get the state with a message_id from the backend.
+        """Get the state with a message_id from the backend.
 
-         Parameters:
-             message_id(str)
+        Parameters:
+            message_id(str)
 
-         """
-        raise NotImplementedError("%(classname)r does not implement get_state" % {"classname": type(self).__name__})
+        """
+        raise NotImplementedError(f"{type(self).__name__} does not implement get_state")
 
     def set_state(self, state: State, ttl: int = 3600) -> None:
-        """ Save a message in the backend if it does not exist,
+        """Save a message in the backend if it does not exist,
             otherwise update it.
 
         Parameters:
@@ -165,19 +163,14 @@ class StateBackend:
             ttl(seconds): The time to keep that state in the backend
              default is one hour(3600 seconds)
         """
-        raise NotImplementedError("%(classname)r does not implement set_state" % {"classname": type(self).__name__})
+        raise NotImplementedError(f"{type(self).__name__} does not implement set_state")
 
     def get_states(self) -> List[State]:
-        """ Return all the states in the backend
-
-        """
-        raise NotImplementedError(
-            "%(classname)r does not implement get_all_messages" % {"classname": type(self).__name__}
-        )
+        """Return all the states in the backend"""
+        raise NotImplementedError(f"{type(self).__name__} does not implement get_all_messages")
 
     def _encode_dict(self, data):
-        """ Return the (keys, values) of a dictionary encoded
-        """
+        """Return the (keys, values) of a dictionary encoded"""
         encoded_data = {}
         for (key, value) in data.items():
             encoded_value = self.encoder.encode(value)
@@ -186,8 +179,7 @@ class StateBackend:
         return encoded_data
 
     def _decode_dict(self, data):
-        """ Return the (keys, values) of a dictionary decoded
-        """
+        """Return the (keys, values) of a dictionary decoded"""
         decoded_data = {}
         for (key, value) in data.items():
             decoded_data[self.encoder.decode(key)] = self.encoder.decode(value)

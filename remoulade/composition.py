@@ -15,7 +15,9 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 from collections import namedtuple
-from typing import TYPE_CHECKING, List, Union
+from typing import TYPE_CHECKING, Iterable, List, Optional, Union, cast
+
+from typing_extensions import TypedDict
 
 from .broker import get_broker
 from .collection_results import CollectionResults
@@ -23,6 +25,12 @@ from .common import flatten, generate_unique_id
 
 if TYPE_CHECKING:
     from .message import Message  # noqa
+
+
+class GroupInfoDict(TypedDict):
+    group_id: str
+    children_count: int
+    cancel_on_error: bool
 
 
 class GroupInfo(namedtuple("GroupInfo", ("group_id", "children_count", "cancel_on_error"))):
@@ -37,8 +45,8 @@ class GroupInfo(namedtuple("GroupInfo", ("group_id", "children_count", "cancel_o
     def __new__(cls, *, group_id: str, children_count: int, cancel_on_error: bool):
         return super().__new__(cls, group_id, children_count, cancel_on_error)
 
-    def asdict(self):
-        return self._asdict()
+    def asdict(self) -> GroupInfoDict:
+        return cast(GroupInfoDict, self._asdict())
 
 
 class pipeline:
@@ -46,7 +54,7 @@ class pipeline:
     next one in line.
 
     Parameters:
-      children(Iterator[Message|pipeline|group]): A sequence of messages or
+      children(Iterable[Message|pipeline|group]): A sequence of messages or
         pipelines or groups.  Child pipelines are flattened into the resulting
         pipeline.
       broker(Broker): The broker to run the pipeline on.  Defaults to
@@ -56,10 +64,10 @@ class pipeline:
         children(List[Message|group]) The sequence of messages or groups to execute as a pipeline
     """
 
-    def __init__(self, children):
+    def __init__(self, children: "Iterable[Union[Message, pipeline, group]]"):
         self.broker = get_broker()
 
-        self.children = []  # type: List[Union["Message", "group"]]
+        self.children: List[Union[Message, group]] = []
         for child in children:
             if isinstance(child, pipeline):
                 self.children += child.children
@@ -69,7 +77,7 @@ class pipeline:
                 self.children.append(child.copy())
 
     def build(self, *, last_options=None):
-        """ Build the pipeline, return the first message to be enqueued or integrated in another pipeline
+        """Build the pipeline, return the first message to be enqueued or integrated in another pipeline
 
         Build the pipeline by starting at the end. We build a message with all it's options in one step and
         we serialize it (asdict) as the previous message pipe_target in the next step.
@@ -98,13 +106,11 @@ class pipeline:
         return next_child
 
     def __len__(self):
-        """Returns the length of the pipeline.
-        """
+        """Returns the length of the pipeline."""
         return len(self.children)
 
-    def __or__(self, other):
-        """Returns a new pipeline with "other" added to the end.
-        """
+    def __or__(self, other: "Union[Message, group]"):
+        """Returns a new pipeline with "other" added to the end."""
         return type(self)(self.children + [other])
 
     def __str__(self):  # pragma: no cover
@@ -118,7 +124,7 @@ class pipeline:
             else:
                 yield child.message_id
 
-    def run(self, *, delay=None):
+    def run(self, *, delay: Optional[int] = None) -> "pipeline":
         """Run this pipeline.
 
         Parameters:
@@ -150,7 +156,7 @@ class pipeline:
         last_child = self.children[-1]
         return last_child.results if isinstance(last_child, group) else last_child.result
 
-    def cancel(self):
+    def cancel(self) -> None:
         """ Mark all the children as cancelled """
         broker = get_broker()
         backend = broker.get_cancel_backend()
@@ -161,7 +167,7 @@ class group:
     """Run a group of actors in parallel.
 
     Parameters:
-      children(Iterator[Message|pipeline]): A sequence of messages or pipelines.
+      children(Iterable[Message|pipeline]): A sequence of messages or pipelines.
       cancel_on_error(boolean): True if you want to cancel all messages of a group if on of
         the actor fails, this is only possible with a Cancel middleware.
 
@@ -172,7 +178,13 @@ class group:
         NoCancelBackend: if no cancel middleware is set
     """
 
-    def __init__(self, children, *, group_id=None, cancel_on_error=False):
+    def __init__(
+        self,
+        children: "Iterable[Union[Message, group]]",
+        *,
+        group_id: Optional[str] = None,
+        cancel_on_error: bool = False,
+    ) -> None:
         self.children = []
         for child in children:
             if isinstance(child, group):
@@ -180,23 +192,21 @@ class group:
             self.children.append(child)
 
         self.broker = get_broker()
-        self.group_id = generate_unique_id() if group_id is None else group_id
+        self.group_id: str = generate_unique_id() if group_id is None else group_id
         self.cancel_on_error = cancel_on_error
         if cancel_on_error:
             self.broker.get_cancel_backend()
 
-    def __or__(self, other) -> pipeline:
-        """Combine this group into a pipeline with "other".
-        """
+    def __or__(self, other: "Union[Message, group, pipeline]") -> pipeline:
+        """Combine this group into a pipeline with "other"."""
         return pipeline([self, other])
 
     def __len__(self) -> int:
-        """Returns the size of the group.
-        """
+        """Returns the size of the group."""
         return len(self.children)
 
-    def __str__(self):  # pragma: no cover
-        return "group([%s])" % ", ".join(str(c) for c in self.children)
+    def __str__(self) -> str:  # pragma: no cover
+        return f"group({', '.join(str(child) for child in self.children)})"
 
     def build(self, options=None):
         """ Build group for pipeline """
@@ -215,7 +225,7 @@ class group:
         return messages
 
     @property
-    def info(self):
+    def info(self) -> GroupInfo:
         """ Info used for group completion and cancel"""
         return GroupInfo(
             group_id=self.group_id, children_count=len(self.children), cancel_on_error=self.cancel_on_error
@@ -229,7 +239,7 @@ class group:
             else:
                 yield child.message_id
 
-    def run(self, *, delay=None):
+    def run(self, *, delay: Optional[int] = None) -> "group":
         """Run the actors in this group.
 
         Parameters:
@@ -246,7 +256,7 @@ class group:
         """ CollectionResults created from this group, used for result related methods"""
         return CollectionResults(children=[child.result for child in self.children])
 
-    def cancel(self):
+    def cancel(self) -> None:
         """ Mark all the children as cancelled """
         broker = get_broker()
         backend = broker.get_cancel_backend()
