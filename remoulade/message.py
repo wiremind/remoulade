@@ -17,6 +17,7 @@
 
 import time
 from collections import namedtuple
+from typing import Dict, Optional, Tuple
 
 from remoulade.state import State
 
@@ -41,7 +42,7 @@ def get_encoder() -> Encoder:
     return global_encoder
 
 
-def set_encoder(encoder: Encoder):
+def set_encoder(encoder: Encoder) -> None:
     """Set the global encoder object.
 
     Parameters:
@@ -53,7 +54,7 @@ def set_encoder(encoder: Encoder):
 
 
 class Message(
-    namedtuple("Message", ("queue_name", "actor_name", "args", "kwargs", "options", "message_id", "message_timestamp",))
+    namedtuple("Message", ("queue_name", "actor_name", "args", "kwargs", "options", "message_id", "message_timestamp"))
 ):
     """Encapsulates metadata about messages being sent to individual actors.
 
@@ -68,7 +69,17 @@ class Message(
         representing when the message was first enqueued.
     """
 
-    def __new__(cls, *, queue_name, actor_name, args, kwargs, options, message_id=None, message_timestamp=None):
+    def __new__(
+        cls,
+        *,
+        queue_name: str,
+        actor_name: str,
+        args: Tuple,
+        kwargs: Dict,
+        options: Dict,
+        message_id: Optional[str] = None,
+        message_timestamp: Optional[int] = None,
+    ):
         return super().__new__(
             cls,
             queue_name,
@@ -81,29 +92,24 @@ class Message(
         )
 
     def __or__(self, other) -> pipeline:
-        """Combine this message into a pipeline with "other".
-        """
+        """Combine this message into a pipeline with "other"."""
         return pipeline([self, other])
 
     def asdict(self):
-        """Convert this message to a dictionary.
-        """
+        """Convert this message to a dictionary."""
         return self._asdict()
 
     @classmethod
     def decode(cls, data):
-        """Convert a bytestring to a message.
-        """
+        """Convert a bytestring to a message."""
         return cls(**global_encoder.decode(data))
 
     def encode(self):
-        """Convert this message to a bytestring.
-        """
+        """Convert this message to a bytestring."""
         return global_encoder.encode(self._asdict())
 
     def copy(self, **attributes):
-        """Create a copy of this message.
-        """
+        """Create a copy of this message."""
         updated_options = attributes.pop("options", {})
         options = self.options.copy()
         options.update(updated_options)
@@ -113,29 +119,29 @@ class Message(
         """ Build message for pipeline """
         return self.copy(options=options)
 
-    def cancel(self):
+    def cancel(self) -> None:
         """ Mark a message as canceled """
         broker = get_broker()
         backend = broker.get_cancel_backend()
         backend.cancel([self.message_id])
 
-    def set_progress(self, progress):
-        """ Set the progress of the message.
-            progress(float) number between 0 and 1 inclusive
+    def set_progress(self, progress: float) -> None:
+        """Set the progress of the message.
+        progress(float) number between 0 and 1 inclusive
 
-            :raises:
-                InvalidProgress: when not( 0 <= progress <= 1)
+        :raises:
+            InvalidProgress: when not( 0 <= progress <= 1)
         """
         if not (0 <= progress <= 1):
-            raise InvalidProgress("Progress {} is not between 0 and 1.".format(progress))
+            raise InvalidProgress(f"Progress {progress} is not between 0 and 1.")
 
         broker = get_broker()
         backend = broker.get_state_backend()
         backend.set_state(State(self.message_id, progress=progress))
 
     @property
-    def result(self):
+    def result(self) -> Result:
         return Result(message_id=self.message_id)
 
-    def __str__(self):
-        return "%s / %s" % (self.actor_name, self.message_id)
+    def __str__(self) -> str:
+        return f"{self.actor_name} / {self.message_id}"

@@ -17,29 +17,25 @@
 
 
 class RemouladeError(Exception):  # pragma: no cover
-    """Base class for all remoulade errors.
-    """
+    """Base class for all remoulade errors."""
 
-    def __init__(self, message):
+    def __init__(self, message: str) -> None:
         self.message = message
 
-    def __str__(self):
+    def __str__(self) -> str:
         return str(self.message) or repr(self.message)
 
 
 class BrokerError(RemouladeError):
-    """Base class for broker-related errors.
-    """
+    """Base class for broker-related errors."""
 
 
 class ActorNotFound(BrokerError):
-    """Raised when a message is sent to an actor that hasn't been declared.
-    """
+    """Raised when a message is sent to an actor that hasn't been declared."""
 
 
 class QueueNotFound(BrokerError):
-    """Raised when a message is sent to an queue that hasn't been declared.
-    """
+    """Raised when a message is sent to an queue that hasn't been declared."""
 
 
 class QueueJoinTimeout(RemouladeError):
@@ -49,48 +45,39 @@ class QueueJoinTimeout(RemouladeError):
 
 
 class ConnectionError(BrokerError):
-    """Base class for broker connection-related errors.
-    """
+    """Base class for broker connection-related errors."""
 
 
 class ConnectionFailed(ConnectionError):
-    """Raised when a broker connection could not be opened.
-    """
+    """Raised when a broker connection could not be opened."""
 
 
 class ConnectionClosed(ConnectionError):
-    """Raised when a broker connection is suddenly closed.
-    """
+    """Raised when a broker connection is suddenly closed."""
 
 
 class RateLimitExceeded(RemouladeError):
-    """Raised when a rate limit has been exceeded.
-    """
+    """Raised when a rate limit has been exceeded."""
 
 
 class NoResultBackend(BrokerError):
-    """Raised when trying to access the result backend on a broker without it
-    """
+    """Raised when trying to access the result backend on a broker without it"""
 
 
 class NoCancelBackend(BrokerError):
-    """Raised when trying to access the cancel backend on a broker without it
-    """
+    """Raised when trying to access the cancel backend on a broker without it"""
 
 
 class NoStateBackend(BrokerError):
-    """Raised when trying to access the state backend on a broker without it
-    """
+    """Raised when trying to access the state backend on a broker without it"""
 
 
 class ChannelPoolTimeout(BrokerError):
-    """Raised when the broker has wait for tool long to fetch a channel from its channel pool.
-    """
+    """Raised when the broker has wait for tool long to fetch a channel from its channel pool."""
 
 
 class InvalidProgress(RemouladeError):
-    """Raised when trying to set a progress that is greater than 1 or less than 0
-    """
+    """Raised when trying to set a progress that is greater than 1 or less than 0"""
 
 
 class NoScheduler(RemouladeError):

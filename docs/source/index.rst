@@ -39,7 +39,7 @@ Here's what it looks like:
   count_words.send("http://example.com")
 
 **Remoulade** is :doc:`licensed<license>` under the LGPL and it
-officially supports Python 3.5 and later.
+officially supports Python 3.6 and later.
 
 
 Get It Now

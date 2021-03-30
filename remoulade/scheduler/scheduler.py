@@ -118,7 +118,7 @@ class Scheduler:
         period: Union[int, float] = None,
         client: redis.Redis = None,
         url: str = None,
-        **redis_parameters
+        **redis_parameters,
     ):
         """
         The class that takes care of scheduling tasks
@@ -217,7 +217,7 @@ class Scheduler:
                             continue
 
                     if job.actor_name not in self.broker.actors:
-                        self.logger.error("Unknown %s. Cannot queue it.", job_hash)
+                        self.logger.error(f"Unknown {job_hash}. Cannot queue it.")
                         continue
 
                     self.broker.actors[job.actor_name].send(*job.args, **job.kwargs)

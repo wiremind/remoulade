@@ -25,8 +25,8 @@ with open(rel("remoulade", "__init__.py"), "r") as f:
 dependencies = ["prometheus-client>=0.2", "pytz", "python-dateutil>=2.8.0"]
 
 extra_dependencies = {
-    "rabbitmq": ["amqpstorm>=2.6,<3",],
-    "redis": ["redis>=3.5.0,<4.0",],
+    "rabbitmq": ["amqpstorm>=2.6,<3"],
+    "redis": ["redis>=3.5.0,<4.0"],
     "server": ["flask>=1.1,<2", "marshmallow>=3"],
 }
 
@@ -42,6 +42,8 @@ extra_dependencies["dev"] = extra_dependencies["all"] + [
     "flake8-bugbear",
     "flake8-quotes",
     "isort",
+    "black==19.10b0",
+    "mypy",
     # Misc
     "bumpversion",
     "hiredis",
@@ -79,9 +81,10 @@ setup(
         "remoulade.helpers",
         "remoulade.api",
     ],
+    package_data={"remoulade": ["py.typed"]},
     include_package_data=True,
     install_requires=dependencies,
-    python_requires=">=3.5",
+    python_requires=">=3.6",
     extras_require=extra_dependencies,
     entry_points={
         "console_scripts": [
@@ -93,7 +96,6 @@ setup(
     },
     scripts=["bin/remoulade-gevent"],
     classifiers=[
-        "Programming Language :: Python :: 3.5",
         "Programming Language :: Python :: 3.6",
         "Programming Language :: Python :: 3.7",
         "Programming Language :: Python :: 3 :: Only",

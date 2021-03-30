@@ -5,6 +5,12 @@ Changelog
 
 All notable changes to this project will be documented in this file.
 
+`0.26.7`_ -- 2020-04-01
+-------------------------
+Added
+^^^^^
+* Typing: add support for typing and several type hints
+
 `0.26.6`_ -- 2020-02-11
 -------------------------
 Fixed

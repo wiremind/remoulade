@@ -68,9 +68,9 @@ class ResultBackend:
         message_id: str,
         *,
         block: bool = False,
-        timeout: int = None,  # noqa: F821
+        timeout: int = None,
         forget: bool = False,
-        raise_on_error: bool = True
+        raise_on_error: bool = True,
     ) -> BackendResult:
         """Get a result from the backend.
 
@@ -118,7 +118,7 @@ class ResultBackend:
 
     @staticmethod
     def process_result(result: BackendResult, raise_on_error: bool):
-        """ Raise an error if the result is an error and raise_on_error is true
+        """Raise an error if the result is an error and raise_on_error is true
 
         Parameters:
           result(Result): the result retrieved from the backend
@@ -132,18 +132,15 @@ class ResultBackend:
         return result.result
 
     def increment_group_completion(self, group_id: str) -> int:
-        raise NotImplementedError(
-            "%(classname)r does not implement increment_group_completion()" % {"classname": type(self).__name__,}
-        )
+        raise NotImplementedError(f"{type(self).__name__} does not implement increment_group_completion()")
 
-    def store_result(self, message_id: str, result: BackendResult, ttl: int) -> None:  # noqa: F821
+    def store_result(self, message_id: str, result: BackendResult, ttl: int) -> None:
         """Store a result in the backend.
 
         Parameters:
           message_id(str)
           result(object): Must be serializable.
-          ttl(int): The maximum amount of time the result may be
-            stored in the backend for.
+          ttl(int): The maximum amount of time the result may be stored in the backend for.
         """
         message_key = self.build_message_key(message_id)
         return self._store([message_key], [result._asdict()], ttl)
@@ -154,16 +151,9 @@ class ResultBackend:
         message_keys = [self.build_message_key(message_id) for message_id in message_ids]
         self._store(message_keys, [result] * len(message_keys), ttl)
 
-    def build_message_key(self, message_id: str) -> str:  # noqa: F821
-        """Given a message, return its globally-unique key.
-
-        Parameters:
-          message_id(str)
-
-        Returns:
-          str
-        """
-        return "{}:{}".format(self.namespace, message_id)
+    def build_message_key(self, message_id: str) -> str:
+        """Given a message, return its globally-unique key"""
+        return f"{self.namespace}:{message_id}"
 
     def get_status(self, message_ids: Iterable[str]) -> int:
         """ Given a list of messages ids return the number of messages with a result stored"""
@@ -176,8 +166,8 @@ class ResultBackend:
         return count
 
     @staticmethod
-    def build_group_message_id_key(group_id: str) -> str:  # noqa: F821
-        return "remoulade-group-message-ids:{}".format(group_id)
+    def build_group_message_id_key(group_id: str) -> str:
+        return f"remoulade-group-message-ids:{group_id}"
 
     def set_group_message_ids(self, group_id: str, message_ids: Iterable[str], ttl: int):
         key = self.build_group_message_id_key(group_id)
@@ -187,7 +177,7 @@ class ResultBackend:
         key = self.build_group_message_id_key(group_id)
         message_ids = self._get(key)
         if message_ids is Missing:
-            raise MessageIdsMissing("Could't find message_ids for group %s" % group_id)
+            raise MessageIdsMissing(f"Could't find message_ids for group {group_id}")
         return message_ids
 
     def delete_group_message_ids(self, group_id: str):
@@ -195,29 +185,23 @@ class ResultBackend:
         self._delete(key)
 
     @staticmethod
-    def build_group_completion_key(group_id: str) -> str:  # noqa: F821
-        return "remoulade-group-completion:{}".format(group_id)
+    def build_group_completion_key(group_id: str) -> str:
+        return f"remoulade-group-completion:{group_id}"
 
     def _get(self, message_key: str, forget: bool = False) -> Union[Type[Missing], Dict]:  # pragma: no cover
         """Get a result from the backend.  Subclasses may implement
         this method if they want to use the default, polling,
         implementation of get_result.
         """
-        raise NotImplementedError(
-            "%(classname)r does not implement _get()" % {"classname": type(self).__name__,}
-        )
+        raise NotImplementedError(f"{type(self).__name__} does not implement _get()")
 
     def _store(self, message_keys: Iterable[str], result: Any, ttl: int) -> None:  # pragma: no cover
         """Store multiple results in the backend.  Subclasses may implement
         this method if they want to use the default implementation of
         set_result.
         """
-        raise NotImplementedError(
-            "%(classname)r does not implement _store()" % {"classname": type(self).__name__,}
-        )
+        raise NotImplementedError(f"{type(self).__name__} does not implement _store()")
 
     def _delete(self, key: str) -> None:  # pragma: no cover
         """ Delete a key from the backend """
-        raise NotImplementedError(
-            "%(classname)r does not implement _delete()" % {"classname": type(self).__name__,}
-        )
+        raise NotImplementedError(f"{type(self).__name__} does not implement _delete()")
