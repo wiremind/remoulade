@@ -5,6 +5,12 @@ Changelog
 
 All notable changes to this project will be documented in this file.
 
+`0.27.0`_ -- 2020-04-06
+-------------------------
+Added
+^^^^^
+* Middleware: add MaxMemory which stop a worker if its amount of resident memory exceed max_memory
+
 `0.26.7`_ -- 2020-04-01
 -------------------------
 Added

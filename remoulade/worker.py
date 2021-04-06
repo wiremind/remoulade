@@ -418,6 +418,7 @@ class _WorkerThread(Thread):
             try:
                 _, message = self.work_queue.get(timeout=self.timeout)
                 self.process_message(message)
+                self.broker.emit_after("worker_thread_process_message", self)
             except Empty:
                 continue
 
