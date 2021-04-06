@@ -20,6 +20,7 @@ import platform
 from .age_limit import AgeLimit
 from .callbacks import Callbacks
 from .current_message import CurrentMessage
+from .max_memory import MaxMemory
 from .middleware import Middleware, MiddlewareError, SkipMessage
 from .pipelines import Pipelines
 from .retries import Retries
@@ -51,6 +52,7 @@ __all__ = [
     "ShutdownNotifications",
     "TimeLimit",
     "TimeLimitExceeded",
+    "MaxMemory",
 ]
 
 if CURRENT_OS != "Windows":

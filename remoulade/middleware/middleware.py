@@ -106,6 +106,10 @@ class Middleware:
         """Called after a message has been processed.
         """
 
+    def after_worker_thread_process_message(self, broker, thread):
+        """Called after a worker thread has finished processing a message
+        """
+
     def after_skip_message(self, broker, message):
         """Called instead of ``after_process_message`` after a message
         has been skippped.
