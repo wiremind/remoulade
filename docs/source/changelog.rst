@@ -6,57 +6,57 @@ Changelog
 All notable changes to this project will be documented in this file.
 
 `0.27.0`_ -- 2020-04-06
--------------------------
+-----------------------
 Added
 ^^^^^
 * Middleware: add MaxMemory which stop a worker if its amount of resident memory exceed max_memory
 
 `0.26.7`_ -- 2020-04-01
--------------------------
+-----------------------
 Added
 ^^^^^
 * Typing: add support for typing and several type hints
 
 `0.26.6`_ -- 2020-02-11
--------------------------
+-----------------------
 Fixed
 ^^^^^
 * Result: catch when error cannot be serialized
 
 `0.26.5`_ -- 2020-12-04
--------------------------
+-----------------------
 Changed
 ^^^^^^^
 * Logging: only log a warning when a message will be retried
 
 `0.26.4`_ -- 2020-11-26
--------------------------
+-----------------------
 Dependencies
 ^^^^^^^^^^^^
 * update ``pytz``
 
 
 `0.26.3`_ -- 2020-11-12
--------------------------
+-----------------------
 Added
 ^^^^^
 * Worker: add exception name to ``Failed to process message`` log.
 
 
 `0.26.2`_ -- 2020-11-04
--------------------------
+-----------------------
 Fix
 ^^^
 * Priority: actor.priority is now used if priority is not present in message.options
 
 `0.26.1`_ -- 2020-10-27
--------------------------
+-----------------------
 Changed
 ^^^^^^^
 * Promotheus: add a registry parameter
 
 `0.26.0`_ -- 2020-10-26
--------------------------
+-----------------------
 Changed
 ^^^^^^^
 * |TimeLimit|: Replace SIGKILL with regular sys.exit and make this behavior disabled by default
@@ -64,13 +64,13 @@ Changed
 * Promotheus: add remoulade_worker_busy metric
 
 `0.25.1`_ -- 2020-09-04
--------------------------
+-----------------------
 Changed
 ^^^^^^^
 * Logs: Add truncated args and kwargs to ``Started Actor`` log.
 
 `0.25.0`_ -- 2020-09-03
--------------------------
+-----------------------
 BREAKING CHANGE
 ^^^^^^^^^^^^^^^
 * Remoulade now use only use one process (and remove watch feature), remove ``--proccess`` options and ``--watch`` option.
@@ -84,14 +84,13 @@ Changed
 * Allow more recent version of ``pytz``
 
 `0.24.0`_ -- 2020-08-19
--------------------------
+-----------------------
 BREAKING CHANGE
 ^^^^^^^^^^^^^^^
-* allow 0 as remoulade_restart_delay env variable, which will disable consumer restart in case on connection error
-and return a RET_CONNECT error code (default is now 0)
+* allow 0 as remoulade_restart_delay env variable, which will disable consumer restart in case on connection error and return a RET_CONNECT error code (default is now 0)
 
 `0.23.0`_ -- 2020-08-05
--------------------------
+-----------------------
 Added
 ^^^^^
 * Class |MessageSchema| to load the data sent to enqueue a message.
@@ -129,7 +128,7 @@ Fix
 
 
 `0.22.0`_ -- 2020-06-04
--------------------------
+-----------------------
 
 Added
 ^^^^^
@@ -163,7 +162,7 @@ Changed
 * Allow to define States with `name=None`, to be able to update the `progress` without passing the name again
 
 `0.21.0`_ -- 2020-05-07
--------------------------
+-----------------------
 
 Added
 ^^^^^
@@ -209,8 +208,6 @@ Added
 * Abstract Backend |StateBackend| with methods |set_state| and |get_state| to set and get a |State| from the Backend
 * |RedisBackend| and |StubBackend| (type :|StateBackend|)
 * |InvalidStateError| raised when is tried to create an Invalid State
-* |TestMessageState| tests of the Middleware |MessageState|
-* |TestState| tests of the class |State|
 
 `0.19.0`_ -- 2019-01-31
 -----------------------
@@ -269,7 +266,7 @@ Fix
 * Scheduler: put scheduler outside of main module
 
 `0.16.0`_ -- 2019-06-28
-----------------------
+-----------------------
 
 Added
 ^^^^^
@@ -278,7 +275,7 @@ Added
 
 
 `0.15.0`_ -- 2019-05-24
-----------------------
+-----------------------
 
 Added
 ^^^^^
@@ -287,7 +284,7 @@ Added
 
 
 `0.14.0`_ -- 2018-04-09
-----------------------
+-----------------------
 
 Changed
 ^^^^^^^
@@ -302,7 +299,7 @@ Added
 
 
 `0.13.0`_ -- 2018-03-20
-----------------------
+-----------------------
 
 Added
 ^^^^^
@@ -315,7 +312,7 @@ Fix
 .. _#79: https://github.com/wiremind/remoulade/issues/79
 
 `0.12.0`_ -- 2018-03-14
-----------------------
+-----------------------
 
 Added
 ^^^^^
@@ -326,7 +323,7 @@ Changed
 * Local broker do not declare its middleware anymore
 
 `0.11.0`_ -- 2018-03-08
-----------------------
+-----------------------
 
 Remove
 ^^^^^^
@@ -334,7 +331,7 @@ Remove
 * Cancelable option in |Cancel| and as actor option.
 
 `0.10.0`_ -- 2018-02-28
-----------------------
+-----------------------
 
 BREAKING CHANGE
 ^^^^^^^^^^^^^^^
@@ -506,7 +503,9 @@ Fixed
 
 * pipe_ignore was not recovered from right message
 
-.. _Unreleased: https://github.com/wiremind/remoulade/compare/v0.26.5...HEAD
+.. _0.27.0: https://github.com/wiremind/remoulade/releases/tag/v0.27.0
+.. _0.26.7: https://github.com/wiremind/remoulade/releases/tag/v0.26.7
+.. _0.26.6: https://github.com/wiremind/remoulade/releases/tag/v0.26.6
 .. _0.26.5: https://github.com/wiremind/remoulade/releases/tag/v0.26.5
 .. _0.26.4: https://github.com/wiremind/remoulade/releases/tag/v0.26.4
 .. _0.26.3: https://github.com/wiremind/remoulade/releases/tag/v0.26.3
