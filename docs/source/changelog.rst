@@ -5,6 +5,12 @@ Changelog
 
 All notable changes to this project will be documented in this file.
 
+`0.27.1`_ -- 2020-04-14
+-----------------------
+Added
+^^^^^
+* MaxMemory: pass default max_memory via env. variable (remoulade_max_memory)
+
 `0.27.0`_ -- 2020-04-06
 -----------------------
 Added
@@ -503,6 +509,7 @@ Fixed
 
 * pipe_ignore was not recovered from right message
 
+.. _0.27.1: https://github.com/wiremind/remoulade/releases/tag/v0.27.1
 .. _0.27.0: https://github.com/wiremind/remoulade/releases/tag/v0.27.0
 .. _0.26.7: https://github.com/wiremind/remoulade/releases/tag/v0.26.7
 .. _0.26.6: https://github.com/wiremind/remoulade/releases/tag/v0.26.6
