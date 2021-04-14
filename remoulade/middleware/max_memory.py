@@ -14,11 +14,15 @@
 #
 # You should have received a copy of the GNU Lesser General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
-
+import os
 import resource
+from typing import Optional
 
 from ..logging import get_logger
 from .middleware import Middleware
+
+#: The default max_memory (in kilobytes)
+DEFAULT_MAX_MEMORY = os.getenv("remoulade_max_memory", None)
 
 
 class MaxMemory(Middleware):
@@ -30,11 +34,16 @@ class MaxMemory(Middleware):
       max_memory(int): The maximum amount of resident memory (in kilobytes)
     """
 
-    def __init__(self, *, max_memory: int):
+    def __init__(self, *, max_memory: Optional[int] = DEFAULT_MAX_MEMORY):
         self.logger = get_logger(__name__, type(self))
-        self.max_memory = max_memory
+        self.max_memory: Optional[int] = None
+        if max_memory is not None:
+            self.max_memory = int(max_memory)
 
     def after_worker_thread_process_message(self, broker, thread):
+        if self.max_memory is None:
+            return
+
         used_memory = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
         if used_memory <= 0:
             self.logger.error("Worker unable to determine memory usage")
