@@ -1,11 +1,13 @@
 import time
+from unittest.mock import patch
 
 import pytest
 
 import remoulade
 from remoulade import Result
 from remoulade.middleware import Retries
-from remoulade.results import ErrorStored, ResultMissing, Results, ResultTimeout
+from remoulade.results import ErrorStored, ResultMissing, Results, ResultTimeout, ResultBackend
+from remoulade.results.backends import StubBackend
 
 
 @pytest.mark.parametrize("forget", [True, False])
@@ -405,3 +407,30 @@ def test_error_cannot_be_serialized(stub_broker, stub_worker, result_middleware)
     with pytest.raises(ErrorStored) as e:
         message.result.get(raise_on_error=True)
     assert e.value.message == "Exception could not be serialized"
+
+
+def test_retry_if_saving_result_fail(stub_broker, stub_worker):
+    with patch.object(ResultBackend, 'store_results') as mock_store_results:
+        mock_store_results.side_effect = Exception("Cannot save result")
+        middleware = Results(backend=StubBackend())
+        stub_broker.add_middleware(middleware)
+
+        attempts = []
+
+        # And an actor that stores results
+        @remoulade.actor(store_results=True)
+        def do_work():
+            attempts.append(1)
+
+        # And this actor is declared
+        stub_broker.declare_actor(do_work)
+
+        # When I send that actor a message
+        do_work.send()
+
+        # And wait for a result
+        stub_broker.join(do_work.queue_name)
+        stub_worker.join()
+
+        # The actor has been tried 4 times
+        assert len(attempts) == 4

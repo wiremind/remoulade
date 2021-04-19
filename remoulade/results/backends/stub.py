@@ -14,8 +14,8 @@
 #
 # You should have received a copy of the GNU Lesser General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
-
 import time
+from typing import Any, Dict, Set
 
 from ..backend import ForgottenResult, Missing, ResultBackend
 
@@ -29,9 +29,10 @@ class StubBackend(ResultBackend):
         result data.  Defaults to :class:`.JSONEncoder`.
     """
 
-    results = {}  # type: ignore
+    results: Dict[str, Any] = {}
+    group_completions: Dict[str, Set[str]] = {}
 
-    def _get(self, message_key, forget: bool = False):
+    def _get(self, message_key: str, forget: bool = False):
         if forget:
             data, expiration = self.results.get(message_key, (None, None))
             if data is not None:
@@ -52,8 +53,8 @@ class StubBackend(ResultBackend):
     def _delete(self, key: str):
         del self.results[key]
 
-    def increment_group_completion(self, group_id: str) -> int:
+    def increment_group_completion(self, group_id: str, message_id: str) -> int:
         group_completion_key = self.build_group_completion_key(group_id)
-        completion = self.results.get(group_completion_key, 0) + 1
-        self.results[group_completion_key] = completion
-        return completion
+        completed = self.results.get(group_completion_key, set()) | {message_id}
+        self.results[group_completion_key] = completed
+        return len(completed)

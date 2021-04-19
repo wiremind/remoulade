@@ -74,12 +74,13 @@ class Results(Middleware):
         result_ttl = actor.options.get("result_ttl", self.result_ttl)
         message_failed = getattr(message, "failed", False)
 
+        results = []
         if store_results:
             if exception is None:
-                self.backend.store_result(message.message_id, BackendResult(result=result, error=None), result_ttl)
+                results.append((message.message_id, BackendResult(result=result, error=None)))
             elif message_failed:
                 error_str = self._serialize_exception(exception)
-                self.backend.store_result(message.message_id, BackendResult(result=None, error=error_str), result_ttl)
+                results.append((message.message_id, BackendResult(result=None, error=error_str)))
 
         # even if the actor do not have store_results, we need to invalidate the messages in the pipeline that has it
         if message_failed:
@@ -88,7 +89,12 @@ class Results(Middleware):
             children_result = BackendResult(result=None, error=self._serialize_exception(exception))
 
             for message_id in self._get_children_message_ids(broker, message.options.get("pipe_target")):
-                self.backend.store_result(message_id, children_result, result_ttl)
+                results.append((message_id, children_result))
+
+        if results:
+            message_ids, results = zip(*results)
+            with self.backend.retry(broker, message, self.logger):
+                self.backend.store_results(message_ids, results, result_ttl)
 
     @staticmethod
     def _serialize_exception(exception):

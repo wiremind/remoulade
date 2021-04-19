@@ -54,7 +54,7 @@ class Pipelines(Middleware):
         if pipe_target is not None:
 
             try:
-                if group_info and not self._group_completed(group_info, broker):
+                if group_info and not self._group_completed(message, group_info, broker):
                     return
 
                 self._send_next_message(pipe_target, broker, result, group_info)
@@ -108,7 +108,7 @@ class Pipelines(Middleware):
         results = CollectionResults.from_message_ids(message_ids)
         return list(results.get())
 
-    def _group_completed(self, group_info, broker):
+    def _group_completed(self, message, group_info, broker):
         """ Returns true if a group is completed, and increment the completion count of the group
 
         Parameters:
@@ -123,7 +123,8 @@ class Pipelines(Middleware):
         except NoResultBackend:
             raise NoResultBackend("Pipeline with groups are ony supported with a result backend")
 
-        group_completion = result_backend.increment_group_completion(group_info.group_id)
+        with result_backend.retry(broker, message, self.logger):
+            group_completion = result_backend.increment_group_completion(group_info.group_id, message.message_id)
         group_competed = group_completion >= group_info.children_count
         if group_competed:
             self.logger.info("Finished group %s.", group_info.group_id)
