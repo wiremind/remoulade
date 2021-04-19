@@ -1,11 +1,13 @@
 import time
 from threading import Condition
+from unittest.mock import patch
 
 import pytest
 
 import remoulade
 from remoulade import CollectionResults, group, pipeline
 from remoulade.results import ErrorStored, MessageIdsMissing, ResultMissing, Results, ResultTimeout
+from remoulade.results.backends import StubBackend
 
 
 def test_messages_can_be_piped(stub_broker):
@@ -614,3 +616,30 @@ def test_pipeline_does_not_continue_to_next_actor_when_message_is_marked_as_fail
 
     # Then the second message in the pipe should never have run
     assert not has_run
+
+
+def test_retry_if_increment_group_completion_fail(stub_broker, stub_worker):
+    with patch.object(StubBackend, 'increment_group_completion') as mock_increment_group_completion:
+        mock_increment_group_completion.side_effect = Exception("Cannot increment")
+        middleware = Results(backend=StubBackend())
+        stub_broker.add_middleware(middleware)
+
+        attempts = []
+
+        # And an actor that stores results
+        @remoulade.actor(store_results=True)
+        def do_work(*args):
+            attempts.append(1)
+
+        # And this actor is declared
+        stub_broker.declare_actor(do_work)
+
+        # When I send that actor a message
+        (group([do_work.message(), do_work.message()]) | do_work.message()).run()
+
+        # And wait for a result
+        stub_broker.join(do_work.queue_name)
+        stub_worker.join()
+
+        # The actor has been tried 8 times (4 time each do_work and never the last one)
+        assert len(attempts) == 8

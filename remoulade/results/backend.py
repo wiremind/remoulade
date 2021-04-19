@@ -17,6 +17,7 @@
 
 import time
 from collections import namedtuple
+from contextlib import contextmanager
 from typing import Any, Dict, Iterable, List, Type, Union
 
 from ..common import compute_backoff
@@ -131,7 +132,7 @@ class ResultBackend:
             return error
         return result.result
 
-    def increment_group_completion(self, group_id: str) -> int:
+    def increment_group_completion(self, group_id: str, message_id: str) -> int:
         raise NotImplementedError(f"{type(self).__name__} does not implement increment_group_completion()")
 
     def store_result(self, message_id: str, result: BackendResult, ttl: int) -> None:
@@ -139,11 +140,21 @@ class ResultBackend:
 
         Parameters:
           message_id(str)
-          result(object): Must be serializable.
+          result(BackendResult): Must be serializable.
           ttl(int): The maximum amount of time the result may be stored in the backend for.
         """
-        message_key = self.build_message_key(message_id)
-        return self._store([message_key], [result._asdict()], ttl)
+        return self.store_results([message_id], [result], ttl)
+
+    def store_results(self, message_ids: Iterable[str], results: Iterable[BackendResult], ttl: int) -> None:
+        """Store multiple results in the backend.
+
+        Parameters:
+          message_ids(Iterable[str])
+          results(BackendResult): Must be serializable.
+          ttl(int): The maximum amount of time the result may be stored in the backend for.
+        """
+        message_keys = [self.build_message_key(message_id) for message_id in message_ids]
+        return self._store(message_keys, [r._asdict() for r in results], ttl)
 
     def forget_results(self, message_ids: List[str], ttl: int):
         """ Forget the results associated to the given message_id """
@@ -205,3 +216,20 @@ class ResultBackend:
     def _delete(self, key: str) -> None:  # pragma: no cover
         """ Delete a key from the backend """
         raise NotImplementedError(f"{type(self).__name__} does not implement _delete()")
+
+    @contextmanager
+    def retry(self, broker, message, logger):
+        try:
+            yield
+        except:  # noqa
+            # If saving the result fail, we must retry the message else we have no way to know it's finished
+            # We cannot use the retry middleware as it must be executed before the result middleware,
+            # use a simplified one here
+            retries = message.options.setdefault("retries_result_backend", 0)
+            message.options["retries_result_backend"] = retries + 1
+            if retries < 3:
+                logger.error(f"Could not store result of {message}: retrying it", exc_info=True)
+                _, backoff = compute_backoff(retries, factor=500)  # retry after 500ms, 1s, 2s
+                broker.enqueue(message, delay=backoff)
+            else:
+                logger.critical(f"Could not store result of {message}: retries exceeded", exc_info=True)

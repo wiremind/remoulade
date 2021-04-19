@@ -1,4 +1,4 @@
-from typing import Dict, Set
+from typing import Any, Dict, Set
 
 from ..backend import ForgottenResult, Missing, ResultBackend
 
@@ -10,10 +10,11 @@ class LocalBackend(ResultBackend):
     and never delete it. Resulting in a memory leak.
     """
 
-    results = {}  # type: Dict[str,int]
-    forgotten_results = set()  # type: Set[str]
+    results: Dict[str, Any] = {}
+    group_completions: Dict[str, Set[str]] = {}
+    forgotten_results: Set[str] = set()
 
-    def _get(self, message_key, forget: bool = False):
+    def _get(self, message_key: str, forget: bool = False):
         if message_key in self.forgotten_results:
             return ForgottenResult.asdict()
 
@@ -34,8 +35,8 @@ class LocalBackend(ResultBackend):
     def _delete(self, key: str):
         del self.results[key]
 
-    def increment_group_completion(self, group_id: str) -> int:
+    def increment_group_completion(self, group_id: str, message_id: str) -> int:
         group_completion_key = self.build_group_completion_key(group_id)
-        completion = self.results.get(group_completion_key, 0) + 1
-        self.results[group_completion_key] = completion
-        return completion
+        completed = self.group_completions.get(group_completion_key, set()) | {message_id}
+        self.group_completions[group_completion_key] = completed
+        return len(completed)
