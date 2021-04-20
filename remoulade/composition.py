@@ -180,12 +180,12 @@ class group:
 
     def __init__(
         self,
-        children: "Iterable[Union[Message, group]]",
+        children: "Iterable[Union[Message, pipeline]]",
         *,
         group_id: Optional[str] = None,
         cancel_on_error: bool = False,
     ) -> None:
-        self.children = []
+        self.children: "List[Union[Message, pipeline]]" = []
         for child in children:
             if isinstance(child, group):
                 raise ValueError("Groups of groups are not supported")
