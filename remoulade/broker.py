@@ -14,7 +14,8 @@
 #
 # You should have received a copy of the GNU Lesser General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
-from typing import TYPE_CHECKING, Optional, Set
+from queue import Queue
+from typing import TYPE_CHECKING, Dict, Iterable, List, Optional, Set, Type, TypeVar, Union
 
 from .cancel import Cancel, CancelBackend
 from .errors import ActorNotFound, NoCancelBackend, NoResultBackend, NoStateBackend
@@ -26,9 +27,11 @@ from .state import MessageState, StateBackend
 if TYPE_CHECKING:
     from .actor import Actor
     from .message import Message  # noqa
+    from .middleware import Middleware
 
+    M = TypeVar("M", bound=Middleware)
 #: The global broker instance.
-global_broker = None
+global_broker: "Optional[Broker]" = None
 
 
 def get_broker() -> "Broker":
@@ -46,7 +49,7 @@ def get_broker() -> "Broker":
     return global_broker
 
 
-def set_broker(broker: "Broker"):
+def set_broker(broker: "Broker") -> None:
     """Configure the global broker instance.
 
     Parameters:
@@ -56,7 +59,7 @@ def set_broker(broker: "Broker"):
     global_broker = broker
 
 
-def change_broker(broker: "Broker"):
+def change_broker(broker: "Broker") -> None:
     """Change of broker instance
 
     It will take all the actors of the current broker and add them to the new one
@@ -70,7 +73,7 @@ def change_broker(broker: "Broker"):
     declare_actors(actors)
 
 
-def declare_actors(actors):
+def declare_actors(actors: "Iterable[Actor]") -> None:
     """Declare the given actors to the current broker
 
     Parameters:
@@ -95,14 +98,14 @@ class Broker:
         overwrite when they are declared.
     """
 
-    def __init__(self, middleware=None):
+    def __init__(self, middleware: "Optional[Iterable[Middleware]]" = None):
         self.logger = get_logger(__name__, type(self))
-        self.actors = {}
-        self.queues = {}
-        self.delay_queues = set()
+        self.actors: "Dict[str, Actor]" = {}
+        self.queues: Dict[str, Optional[Queue]] = {}
+        self.delay_queues: Set[str] = set()
 
-        self.actor_options = set()
-        self.middleware = []
+        self.actor_options: Set[str] = set()
+        self.middleware: "List[Middleware]" = []
 
         if middleware is None:
             middleware = [m() for m in default_middleware]
@@ -173,7 +176,7 @@ class Broker:
         }
         try:
             middleware_class, exception = backends[name]
-            middleware = self.get_middleware(middleware_class)
+            middleware: Optional[Union[Results, Cancel, MessageState]] = self.get_middleware(middleware_class)
             if middleware is not None:
                 return middleware.backend
             else:
@@ -181,7 +184,9 @@ class Broker:
         except KeyError:
             raise ValueError("invalid backend name")
 
-    def add_middleware(self, middleware, *, before=None, after=None):
+    def add_middleware(
+        self, middleware: "Middleware", *, before: "Type[Middleware]" = None, after: "Type[Middleware]" = None
+    ) -> None:
         """Add a middleware object to this broker.  The middleware is
         appended to the end of the middleware list by default, or to
         the default point of the middleware.
@@ -228,7 +233,7 @@ class Broker:
         for queue_name in self.get_declared_delay_queues():
             middleware.after_declare_delay_queue(self, queue_name)
 
-    def get_middleware(self, middleware_class):
+    def get_middleware(self, middleware_class: "Type[M]") -> "Optional[M]":
         for middleware in self.middleware:
             if isinstance(middleware, middleware_class):
                 return middleware
@@ -253,7 +258,7 @@ class Broker:
         """
         raise NotImplementedError
 
-    def declare_actor(self, actor):  # pragma: no cover
+    def declare_actor(self, actor: "Actor") -> None:  # pragma: no cover
         """Declare a new actor on this broker.  Declaring an Actor
         twice replaces the first actor with the second by name.
 

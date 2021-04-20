@@ -16,6 +16,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 import time
 from collections import deque
+from typing import Any, Iterable, List, Optional, Union
 
 from .broker import get_broker
 from .result import Result
@@ -28,14 +29,14 @@ class CollectionResults:
       children(List[Result|CollectionResults]): A sequence of results of messages, groups or pipelines.
     """
 
-    def __init__(self, children):
+    def __init__(self, children: "Iterable[Union[Result,CollectionResults]]") -> None:
         self.children = list(children)
 
-    def __len__(self):
+    def __len__(self) -> int:
         return len(self.message_ids)
 
     @classmethod
-    def from_message_ids(cls, message_ids):
+    def from_message_ids(cls, message_ids: Iterable[str]) -> "CollectionResults":
         children = []
         for message_id in message_ids:
             # it's a pipeline
@@ -65,7 +66,7 @@ class CollectionResults:
         return self.completed_count == len(self)
 
     @property
-    def message_ids(self):
+    def message_ids(self) -> List[str]:
         message_ids = []
         for child in self.children:
             if isinstance(child, CollectionResults):
@@ -93,7 +94,9 @@ class CollectionResults:
         # we could use message.completed here but we just want to make 1 call to get_status
         return backend.get_status(self.message_ids)
 
-    def get(self, *, block=False, timeout=None, raise_on_error=True, forget=False):
+    def get(
+        self, *, block: bool = False, timeout: Optional[int] = None, raise_on_error: bool = True, forget: bool = False
+    ) -> Any:
         """Get the results of each job in the collection.
 
         Parameters:
@@ -128,7 +131,7 @@ class CollectionResults:
             else:
                 yield child.get(block=block, timeout=timeout, raise_on_error=raise_on_error, forget=forget)
 
-    def wait(self, *, timeout=None, raise_on_error=True, forget=False):
+    def wait(self, *, timeout: Optional[int] = None, raise_on_error: bool = True, forget: bool = False) -> None:
         """Block until all the jobs in the collection have finished or
         until the timeout expires.
 

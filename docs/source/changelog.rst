@@ -5,6 +5,12 @@ Changelog
 
 All notable changes to this project will be documented in this file.
 
+`0.28.2`_ -- 2020-04-20
+-----------------------
+Fixed
+^^^^^
+* Typing: fix typing for actor overload and add types for broker, result and scheduler
+
 `0.28.1`_ -- 2020-04-20
 -----------------------
 Fixed

@@ -40,13 +40,20 @@ class ActorDict(TypedDict):
 
 @overload
 def actor(
-    fn: Literal[None], *, actor_name: Optional[str], queue_name: str, priority: int, **options: Any
+    fn: Literal[None] = None,
+    *,
+    actor_name: Optional[str] = None,
+    queue_name: str = "default",
+    priority: int = 0,
+    **options: Any,
 ) -> "Callable[[F], Actor[F]]":
     ...
 
 
 @overload
-def actor(fn: F, *, actor_name: Optional[str], queue_name: str, priority: int, **options: Any) -> "Actor[F]":
+def actor(
+    fn: F, *, actor_name: Optional[str] = None, queue_name: str = "default", priority: int = 0, **options: Any
+) -> "Actor[F]":
     ...
 
 
