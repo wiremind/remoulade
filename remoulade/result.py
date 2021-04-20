@@ -15,6 +15,7 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 from collections import namedtuple
+from typing import Any, Optional
 
 from .broker import get_broker
 
@@ -26,13 +27,15 @@ class Result(namedtuple("Result", ("message_id",))):
           message_id(str): The id of the message sent to the broker.
         """
 
-    def __new__(cls, *, message_id=None):
+    def __new__(cls, *, message_id: Optional[str] = None) -> "Result":
         return super().__new__(cls, message_id=message_id)
 
     def asdict(self):
         return self._asdict()
 
-    def get(self, *, block=False, timeout=None, raise_on_error=True, forget=False):
+    def get(
+        self, *, block: bool = False, timeout: Optional[int] = None, raise_on_error: bool = True, forget: bool = False
+    ) -> Any:
         """Get the result associated with a message_id from a result backend.
 
         Parameters:

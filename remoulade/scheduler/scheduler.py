@@ -119,7 +119,7 @@ class Scheduler:
         client: redis.Redis = None,
         url: str = None,
         **redis_parameters,
-    ):
+    ) -> None:
         """
         The class that takes care of scheduling tasks
         :param broker: The broker for the remoulade app
@@ -153,7 +153,7 @@ class Scheduler:
             r[job.get_hash()] = job
         return r
 
-    def sync_config(self):
+    def sync_config(self) -> None:
         redis_schedule = self.get_redis_schedule()
         config_schedule = {job.get_hash(): job for job in self.schedule}
 

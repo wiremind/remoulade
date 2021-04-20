@@ -25,6 +25,7 @@ from .common import flatten, generate_unique_id
 
 if TYPE_CHECKING:
     from .message import Message  # noqa
+    from .result import Result
 
 
 class GroupInfoDict(TypedDict):
@@ -145,7 +146,7 @@ class pipeline:
     @property
     def results(self) -> CollectionResults:
         """ CollectionResults created from this pipeline, used for result related methods"""
-        results = []
+        results: List[Union[Result, CollectionResults]] = []
         for element in self.children:
             results += [element.results if isinstance(element, group) else element.result]
         return CollectionResults(results)
