@@ -18,7 +18,7 @@
 import re
 from typing import TYPE_CHECKING, Any, Callable, Generic, Optional, TypeVar, overload
 
-from typing_extensions import TypedDict
+from typing_extensions import Literal, TypedDict
 
 from .logging import get_logger
 from .message import Message
@@ -39,14 +39,14 @@ class ActorDict(TypedDict):
 
 
 @overload
-def actor(fn: F) -> "Actor[F]":
+def actor(
+    fn: Literal[None], *, actor_name: Optional[str], queue_name: str, priority: int, **options: Any
+) -> "Callable[[F], Actor[F]]":
     ...
 
 
 @overload
-def actor(
-    fn: None, *, actor_name: Optional[str], queue_name: str, priority: int, **options: Any
-) -> "Callable[[F], Actor[F]]":
+def actor(fn: F, *, actor_name: Optional[str], queue_name: str, priority: int, **options: Any) -> "Actor[F]":
     ...
 
 
