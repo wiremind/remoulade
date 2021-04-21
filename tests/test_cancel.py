@@ -25,11 +25,13 @@ def test_actors_can_be_canceled(stub_broker, stub_worker, cancel_backend, cancel
     stub_broker.declare_actor(do_work)
 
     # When I send that actor a message
-    message = do_work.send()
+    message = do_work.message()
 
     # If I cancel the message
     if cancel:
         message.cancel()
+
+    stub_broker.enqueue(message)
 
     stub_broker.join(do_work.queue_name)
     stub_worker.join()
