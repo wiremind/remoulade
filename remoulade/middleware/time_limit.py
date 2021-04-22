@@ -54,35 +54,43 @@ class TimeLimit(Middleware):
         self.interval = interval
         self.deadlines = {}
         self.exit_delay = exit_delay
+        self.lock = threading.Lock()
 
     def _handle(self, *_):
-        current_time = time.monotonic()
-        for thread_id, row in self.deadlines.items():
-            if row is None:
-                continue
+        # Do no try to acquire the lock for more than the interval as handler will be called again
+        acquired = self.lock.acquire(timeout=self.interval / 1000)
+        if not acquired:
+            return
+        try:
+            current_time = time.monotonic()
+            for thread_id, row in self.deadlines.items():
+                if row is None:
+                    continue
 
-            deadline, exception_raised, message = row
-            if exception_raised and self.exit_delay and current_time >= deadline + self.exit_delay / 1000:
-                self.deadlines[thread_id] = None
-                try:
-                    message.cancel()
-                    self.logger.critical(
-                        "Could not stop message %s execution with TimeLimitExceeded, "
-                        "cancel message and exit the worker",
-                        message.message_id,
-                    )
-                    raise SystemExit(1)
-                except NoCancelBackend:
-                    # Sending SIGKILL would requeue the message via RabbitMQ
-                    self.logger.error(
-                        "Could not stop message %s execution with TimeLimitExceeded, "
-                        "but do not stop the worker as the message would be requeue",
-                        message.message_id,
-                    )
-            elif not exception_raised and current_time >= deadline:
-                self.logger.warning("Time limit exceeded. Raising exception in worker thread %r.", thread_id)
-                self.deadlines[thread_id] = deadline, True, message
-                raise_thread_exception(thread_id, TimeLimitExceeded)
+                deadline, exception_raised, message = row
+                if exception_raised and self.exit_delay and current_time >= deadline + self.exit_delay / 1000:
+                    self.deadlines[thread_id] = None
+                    try:
+                        message.cancel()
+                        self.logger.critical(
+                            "Could not stop message %s execution with TimeLimitExceeded, "
+                            "cancel message and exit the worker",
+                            message.message_id,
+                        )
+                        raise SystemExit(1)
+                    except NoCancelBackend:
+                        # Sending SIGKILL would requeue the message via RabbitMQ
+                        self.logger.error(
+                            "Could not stop message %s execution with TimeLimitExceeded, "
+                            "but do not stop the worker as the message would be requeue",
+                            message.message_id,
+                        )
+                elif not exception_raised and current_time >= deadline:
+                    self.logger.warning("Time limit exceeded. Raising exception in worker thread %r.", thread_id)
+                    self.deadlines[thread_id] = deadline, True, message
+                    raise_thread_exception(thread_id, TimeLimitExceeded)
+        finally:
+            self.lock.release()
 
     @property
     def actor_options(self):
@@ -106,10 +114,12 @@ class TimeLimit(Middleware):
         actor = broker.get_actor(message.actor_name)
         limit = message.options.get("time_limit") or actor.options.get("time_limit", self.time_limit)
         deadline = time.monotonic() + limit / 1000
-        self.deadlines[threading.get_ident()] = deadline, False, message
+        with self.lock:
+            self.deadlines[threading.get_ident()] = deadline, False, message
 
     def after_process_message(self, broker, message, *, result=None, exception=None):
-        self.deadlines[threading.get_ident()] = None
+        with self.lock:
+            self.deadlines[threading.get_ident()] = None
 
     after_skip_message = after_process_message
     after_message_canceled = after_process_message
