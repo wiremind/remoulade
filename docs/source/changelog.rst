@@ -5,6 +5,12 @@ Changelog
 
 All notable changes to this project will be documented in this file.
 
+`0.28.3`_ -- 2020-04-22
+-----------------------
+Fixed
+^^^^^
+* TimeLimit: add lock when accessing shared variable
+
 `0.28.2`_ -- 2020-04-20
 -----------------------
 Fixed
