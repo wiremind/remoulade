@@ -5,6 +5,13 @@ Changelog
 
 All notable changes to this project will be documented in this file.
 
+
+`0.29.0`_ -- 2020-04-23
+-----------------------
+Added
+^^^^^
+* Results: add possibility to set store_results at the message level
+
 `0.28.3`_ -- 2020-04-22
 -----------------------
 Fixed

@@ -40,6 +40,22 @@ def test_actors_can_store_results(stub_broker, stub_worker, result_backend, forg
     assert result == 42
 
 
+def test_store_results_can_be_set_at_message_level(stub_broker, stub_worker, result_middleware):
+    # Given an actor that do not stores results
+    @remoulade.actor(store_results=False)
+    def do_work():
+        return 42
+
+    # And this actor is declared
+    stub_broker.declare_actor(do_work)
+
+    # When I send that actor a message with store_results
+    message = do_work.send_with_options(store_results=True)
+
+    # And wait for a result
+    assert message.result.get(block=True) == 42
+
+
 @pytest.mark.parametrize("forget", [True, False])
 def test_retrieving_a_result_can_raise_result_missing(stub_broker, stub_worker, result_backend, forget):
     # Given a result backend
