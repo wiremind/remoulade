@@ -70,7 +70,7 @@ class Results(Middleware):
     def after_process_message(self, broker, message, *, result=None, exception=None):
         actor = broker.get_actor(message.actor_name)
 
-        store_results = actor.options.get("store_results", self.store_results)
+        store_results = message.options.get("store_results", actor.options.get("store_results", self.store_results))
         result_ttl = actor.options.get("result_ttl", self.result_ttl)
         message_failed = getattr(message, "failed", False)
 
@@ -116,7 +116,7 @@ class Results(Middleware):
             message = Message(**pipe_target)
             actor = broker.get_actor(message.actor_name)
 
-            if actor.options.get("store_results", self.store_results):
+            if message.options.get("store_results", actor.options.get("store_results", self.store_results)):
                 message_ids.add(message.message_id)
 
             message_ids |= self._get_children_message_ids(broker, message.options.get("pipe_target"))
