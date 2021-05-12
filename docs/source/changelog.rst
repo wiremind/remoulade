@@ -5,6 +5,13 @@ Changelog
 
 All notable changes to this project will be documented in this file.
 
+`0.30.0`_ -- 2020-05-18
+-----------------------
+Changed
+^^^^^^^
+* Prometheus: message_duration is now a Summary
+* Prometheus: remove useless metrics
+* Prometheus: actor_name label can be overridden with prometheus_label argument of actor
 
 `0.29.1`_ -- 2020-05-14
 -----------------------

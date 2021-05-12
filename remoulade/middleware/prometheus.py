@@ -15,10 +15,11 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 import os
+import time
+from threading import local
 
 import prometheus_client as prom
 
-from ..common import current_millis
 from ..logging import get_logger
 from .middleware import Middleware
 
@@ -48,9 +49,25 @@ class Prometheus(Middleware):
         self.logger = get_logger(__name__, type(self))
         self.http_host = http_host
         self.http_port = http_port
-        self.delayed_messages = set()
-        self.message_start_times = {}
+        self.message_start_times = local()
         self.registry = registry
+
+        self.worker_busy = None
+        self.total_errored_messages = None
+        self.total_retried_messages = None
+        self.total_rejected_messages = None
+        self.message_durations = None
+
+    @property
+    def actor_options(self):
+        """The set of options that may be configured on each actor.
+        """
+        return {"prometheus_label"}
+
+    @staticmethod
+    def _get_labels(broker, message):
+        actor = broker.get_actor(message.actor_name)
+        return message.queue_name, actor.options.get("prometheus_label", message.actor_name)
 
     def before_worker_boot(self, broker, worker):
         self.logger.debug("Setting up metrics...")
@@ -58,12 +75,6 @@ class Prometheus(Middleware):
             self.registry = prom.CollectorRegistry()
         self.worker_busy = prom.Gauge(
             "remoulade_worker_busy", "1 if the worker is processing a message, 0 if not", registry=self.registry,
-        )
-        self.total_messages = prom.Counter(
-            "remoulade_messages_total",
-            "The total number of messages processed.",
-            ["queue_name", "actor_name"],
-            registry=self.registry,
         )
         self.total_errored_messages = prom.Counter(
             "remoulade_message_errors_total",
@@ -83,43 +94,10 @@ class Prometheus(Middleware):
             ["queue_name", "actor_name"],
             registry=self.registry,
         )
-        self.inprogress_messages = prom.Gauge(
-            "remoulade_messages_inprogress",
-            "The number of messages in progress.",
-            ["queue_name", "actor_name"],
-            registry=self.registry,
-        )
-        self.inprogress_delayed_messages = prom.Gauge(
-            "remoulade_delayed_messages_inprogress",
-            "The number of delayed messages in memory.",
-            ["queue_name", "actor_name"],
-            registry=self.registry,
-        )
-        self.message_durations = prom.Histogram(
+        self.message_durations = prom.Summary(
             "remoulade_message_duration_milliseconds",
             "The time spent processing messages.",
             ["queue_name", "actor_name"],
-            buckets=(
-                5,
-                10,
-                25,
-                50,
-                75,
-                100,
-                250,
-                500,
-                750,
-                1000,
-                2500,
-                5000,
-                7500,
-                10000,
-                30000,
-                60000,
-                600000,
-                900000,
-                float("inf"),
-            ),
             registry=self.registry,
         )
 
@@ -134,37 +112,38 @@ class Prometheus(Middleware):
         self.logger.debug("Shutting down exposition server...")
         # Do not stop it actually
 
+    def after_declare_actor(self, broker, actor):
+        # initialize the metrics for all labels to 0
+        metrics = [
+            self.worker_busy,
+            self.total_errored_messages,
+            self.total_retried_messages,
+            self.total_rejected_messages,
+            self.message_durations,
+        ]
+        for metric in metrics:
+            metric.labels(actor.queue_name, actor.options.get("prometheus_label", actor.actor_name))
+
     def after_nack(self, broker, message):
-        labels = (message.queue_name, message.actor_name)
+        labels = self._get_labels(broker, message)
         self.total_rejected_messages.labels(*labels).inc()
 
     def after_enqueue(self, broker, message, delay):
         if "retries" in message.options:
-            labels = (message.queue_name, message.actor_name)
+            labels = self._get_labels(broker, message)
             self.total_retried_messages.labels(*labels).inc()
 
-    def before_delay_message(self, broker, message):
-        labels = (message.queue_name, message.actor_name)
-        self.delayed_messages.add(message.message_id)
-        self.inprogress_delayed_messages.labels(*labels).inc()
-
     def before_process_message(self, broker, message):
-        labels = (message.queue_name, message.actor_name)
-        if message.message_id in self.delayed_messages:
-            self.delayed_messages.remove(message.message_id)
-            self.inprogress_delayed_messages.labels(*labels).dec()
-
-        self.inprogress_messages.labels(*labels).inc()
-        self.message_start_times[message.message_id] = current_millis()
+        self.message_start_times[message.message_id] = time.monotonic() * 1000
         self.worker_busy.set(1)
 
     def after_process_message(self, broker, message, *, result=None, exception=None):
-        labels = (message.queue_name, message.actor_name)
-        message_start_time = self.message_start_times.pop(message.message_id, current_millis())
-        message_duration = current_millis() - message_start_time
+        labels = self._get_labels(broker, message)
+        message_start_time = self.message_start_times.pop(message.message_id, None)
+        message_duration = 0
+        if message_start_time is not None:
+            message_duration = (time.monotonic() * 1000) - message_start_time
         self.message_durations.labels(*labels).observe(message_duration)
-        self.inprogress_messages.labels(*labels).dec()
-        self.total_messages.labels(*labels).inc()
         if exception is not None:
             self.total_errored_messages.labels(*labels).inc()
         if not self.message_start_times:
