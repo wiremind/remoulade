@@ -6,6 +6,12 @@ Changelog
 All notable changes to this project will be documented in this file.
 
 
+`0.29.1`_ -- 2020-05-14
+-----------------------
+Fixed
+^^^^^
+* State: avoid call to state_backend if state_ttl <= 0
+
 `0.29.0`_ -- 2020-04-23
 -----------------------
 Added
