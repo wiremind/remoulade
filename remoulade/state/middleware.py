@@ -18,6 +18,8 @@ class MessageState(Middleware):
         self.state_ttl = state_ttl
 
     def save(self, message, state_name, priority=None, **kwargs):
+        if self.state_ttl is None or self.state_ttl <= 0:
+            return
         args = message.args
         options = message.options
         kwargs_state = message.kwargs

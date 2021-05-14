@@ -1,4 +1,5 @@
 import time
+from unittest.mock import Mock
 
 import pytest
 
@@ -141,3 +142,12 @@ class TestMessageState:
         state = state_middleware.backend.get_state(msg.message_id)
         assert state.message_id == msg.message_id
         assert state.group_id == group_id
+
+    @pytest.mark.parametrize(
+        "state_ttl", [0, -1, None],
+    )
+    def test_backend_not_called_if_no_state_ttl(self, stub_broker, do_work, state_ttl):
+        backend = Mock()
+        stub_broker.add_middleware(MessageState(backend=backend, state_ttl=state_ttl))
+        do_work.send()
+        assert backend.set_state.call_count == 0
