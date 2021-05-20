@@ -49,7 +49,8 @@ class Prometheus(Middleware):
         self.logger = get_logger(__name__, type(self))
         self.http_host = http_host
         self.http_port = http_port
-        self.message_start_times = local()
+        self.local_data = local()
+        self.local_data.message_start_times = {}
         self.registry = registry
 
         self.worker_busy = None
@@ -139,19 +140,19 @@ class Prometheus(Middleware):
             self.total_retried_messages.labels(*labels).inc()
 
     def before_process_message(self, broker, message):
-        self.message_start_times[message.message_id] = time.monotonic() * 1000
+        self.local_data.message_start_times[message.message_id] = time.monotonic() * 1000
         self.worker_busy.set(1)
 
     def after_process_message(self, broker, message, *, result=None, exception=None):
         labels = self._get_labels(broker, message)
-        message_start_time = self.message_start_times.pop(message.message_id, None)
+        message_start_time = self.local_data.message_start_times.pop(message.message_id, None)
         message_duration = 0
         if message_start_time is not None:
             message_duration = (time.monotonic() * 1000) - message_start_time
         self.message_durations.labels(*labels).observe(message_duration)
         if exception is not None:
             self.total_errored_messages.labels(*labels).inc()
-        if not self.message_start_times:
+        if not self.local_data.message_start_times:
             self.worker_busy.set(0)
 
     after_skip_message = after_process_message
