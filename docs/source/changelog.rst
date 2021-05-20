@@ -5,6 +5,12 @@ Changelog
 
 All notable changes to this project will be documented in this file.
 
+`0.30.1`_ -- 2020-05-20
+-----------------------
+Changed
+^^^^^^^
+* Prometheus: initialize labels at worker boot and only if not None
+
 `0.30.0`_ -- 2020-05-18
 -----------------------
 Changed

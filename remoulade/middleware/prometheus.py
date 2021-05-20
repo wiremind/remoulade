@@ -69,6 +69,18 @@ class Prometheus(Middleware):
         actor = broker.get_actor(message.actor_name)
         return message.queue_name, actor.options.get("prometheus_label", message.actor_name)
 
+    def _init_labels(self, actor):
+        # initialize the metrics for all labels to 0
+        metrics = [
+            self.total_errored_messages,
+            self.total_retried_messages,
+            self.total_rejected_messages,
+            self.message_durations,
+        ]
+        for metric in metrics:
+            if metric:  # metric can be None if actor is declared before worker boot
+                metric.labels(actor.queue_name, actor.options.get("prometheus_label", actor.actor_name))
+
     def before_worker_boot(self, broker, worker):
         self.logger.debug("Setting up metrics...")
         if self.registry is None:
@@ -100,6 +112,8 @@ class Prometheus(Middleware):
             ["queue_name", "actor_name"],
             registry=self.registry,
         )
+        for actor in broker.actors.values():
+            self._init_labels(actor)
 
         self.logger.debug("Starting exposition server...")
         prom.start_http_server(addr=self.http_host, port=self.http_port, registry=self.registry)
@@ -113,16 +127,7 @@ class Prometheus(Middleware):
         # Do not stop it actually
 
     def after_declare_actor(self, broker, actor):
-        # initialize the metrics for all labels to 0
-        metrics = [
-            self.worker_busy,
-            self.total_errored_messages,
-            self.total_retried_messages,
-            self.total_rejected_messages,
-            self.message_durations,
-        ]
-        for metric in metrics:
-            metric.labels(actor.queue_name, actor.options.get("prometheus_label", actor.actor_name))
+        self._init_labels(actor)
 
     def after_nack(self, broker, message):
         labels = self._get_labels(broker, message)
