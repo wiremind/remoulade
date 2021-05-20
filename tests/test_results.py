@@ -426,7 +426,7 @@ def test_error_cannot_be_serialized(stub_broker, stub_worker, result_middleware)
 
 
 def test_retry_if_saving_result_fail(stub_broker, stub_worker):
-    with patch.object(ResultBackend, 'store_results') as mock_store_results:
+    with patch.object(ResultBackend, "store_results") as mock_store_results:
         mock_store_results.side_effect = Exception("Cannot save result")
         middleware = Results(backend=StubBackend())
         stub_broker.add_middleware(middleware)

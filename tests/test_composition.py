@@ -619,7 +619,7 @@ def test_pipeline_does_not_continue_to_next_actor_when_message_is_marked_as_fail
 
 
 def test_retry_if_increment_group_completion_fail(stub_broker, stub_worker):
-    with patch.object(StubBackend, 'increment_group_completion') as mock_increment_group_completion:
+    with patch.object(StubBackend, "increment_group_completion") as mock_increment_group_completion:
         mock_increment_group_completion.side_effect = Exception("Cannot increment")
         middleware = Results(backend=StubBackend())
         stub_broker.add_middleware(middleware)

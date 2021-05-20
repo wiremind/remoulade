@@ -13,12 +13,16 @@ Fixed
 
 `0.30.1`_ -- 2020-05-20
 -----------------------
+Broken do not use
+^^^^^^^^^^^^^^^^^
 Fixed
 ^^^^^
 * Prometheus: initialize labels at worker boot and only if not None
 
 `0.30.0`_ -- 2020-05-18
 -----------------------
+Broken do not use
+^^^^^^^^^^^^^^^^^
 Changed
 ^^^^^^^
 * Prometheus: message_duration is now a Summary

@@ -28,6 +28,7 @@ def test_prometheus_middleware_exposes_metrics():
     finally:
         prom.after_worker_shutdown(broker, None)
 
+
 @mock.patch("prometheus_client.start_http_server")
 def test_prometheus_process_message(_, stub_broker, do_work):
     prom = prometheus.Prometheus()
@@ -42,4 +43,3 @@ def test_prometheus_process_message(_, stub_broker, do_work):
     assert prom.local_data.message_start_times
     prom.after_process_message(stub_broker, message)
     assert not prom.local_data.message_start_times
-
