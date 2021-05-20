@@ -5,8 +5,16 @@ Changelog
 
 All notable changes to this project will be documented in this file.
 
+`0.30.3`_ -- 2020-05-20
+-----------------------
+Fixed
+^^^^^
+* Prometheus: initialise message_start_times in each thread
+
 `0.30.2`_ -- 2020-05-20
 -----------------------
+Broken do not use
+^^^^^^^^^^^^^^^^^
 Fixed
 ^^^^^
 * Prometheus: wrong usage of threading.local

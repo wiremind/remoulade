@@ -38,8 +38,8 @@ def test_prometheus_process_message(_, stub_broker, do_work):
 
     message = do_work.message()
 
-    assert not prom.local_data.message_start_times
+    assert not prom.message_start_times
     prom.before_process_message(stub_broker, message)
-    assert prom.local_data.message_start_times
+    assert prom.message_start_times
     prom.after_process_message(stub_broker, message)
-    assert not prom.local_data.message_start_times
+    assert not prom.message_start_times
