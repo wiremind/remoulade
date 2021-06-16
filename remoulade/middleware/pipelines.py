@@ -94,8 +94,12 @@ class Pipelines(Middleware):
 
             broker.enqueue(next_message)
 
+            if not pipe_ignore and group_info:
+                # We can forget the data now that it has been enqueued
+                self._group_results(group_info, broker, forget=True)
+
     @staticmethod
-    def _group_results(group_info, broker):
+    def _group_results(group_info, broker, forget=False):
         """ Get the result of a group (fetch the group members message_ids then all the results) """
         from ..collection_results import CollectionResults
 
@@ -106,7 +110,7 @@ class Pipelines(Middleware):
 
         message_ids = result_backend.get_group_message_ids(group_id=group_info.group_id)
         results = CollectionResults.from_message_ids(message_ids)
-        return list(results.get())
+        return list(results.get(forget=forget))
 
     def _group_completed(self, message, group_info, broker):
         """ Returns true if a group is completed, and increment the completion count of the group
