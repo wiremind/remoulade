@@ -41,6 +41,7 @@ class GroupInfo(namedtuple("GroupInfo", ("group_id", "children_count", "cancel_o
       group_id(str): The id of the group
       children_count(int)
       cancel_on_error(bool)
+      forget_on_enqueue
     """
 
     def __new__(cls, *, group_id: str, children_count: int, cancel_on_error: bool):
