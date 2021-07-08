@@ -66,6 +66,7 @@ how to use Remoulade.
    :maxdepth: 2
 
    installation
+   getting_started
    guide
    best_practices
    advanced
