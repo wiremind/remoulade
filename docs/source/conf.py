@@ -39,9 +39,18 @@ extensions = [
     "sphinx.ext.viewcode",
     "sphinx.ext.todo",
     "sphinx.ext.napoleon",
+    "sphinx.ext.autosectionlabel",
+    "sphinx_copybutton",
     "alabaster",
     "sitemap",
 ]
+
+#Remove '$ ' and '>>> ' from copied code when using the copybutton
+copybutton_prompt_text = r'\$ |>>> '
+copybutton_prompt_is_regexp = True
+
+autosectionlabel_prefix_document = True
+autosectionlabel_maxdepth = 2
 
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ["_templates"]

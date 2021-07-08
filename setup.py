@@ -34,9 +34,10 @@ extra_dependencies["all"] = list(set(sum(extra_dependencies.values(), [])))
 extra_dependencies["dev"] = extra_dependencies["all"] + [
     # Docs
     "alabaster",
-    "sphinx<1.8",
+    "sphinx==4.1.1",
     "sphinxcontrib-napoleon",
     "sphinxcontrib-versioning",
+    "sphinx-copybutton",
     # Linting
     "flake8",
     "flake8-bugbear",

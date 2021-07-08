@@ -1,3 +1,5 @@
+.. _Reference API Reference:
+
 API Reference
 =============
 
@@ -47,6 +49,7 @@ Encoders are used to serialize and deserialize messages over the wire.
 .. autoclass:: PickleEncoder
 
 
+
 Brokers
 -------
 
@@ -64,6 +67,8 @@ Brokers
    :inherited-members:
 
 
+.. _Reference Middleware:
+
 Middleware
 ----------
 
@@ -80,8 +85,8 @@ The following middleware are all enabled by default.
 .. autoclass:: remoulade.middleware.ShutdownNotifications
 .. autoclass:: remoulade.middleware.TimeLimit
 
-Errors
-^^^^^^
+Middleware Errors
+^^^^^^^^^^^^^^^^^
 
 The class hierarchy for middleware exceptions:
 
@@ -118,8 +123,9 @@ Result objects
 .. autoclass:: remoulade.result.Result
 .. autoclass:: remoulade.collection_results.CollectionResults
 
-Middleware
-^^^^^^^^^^
+
+Result Middleware
+^^^^^^^^^^^^^^^^^
 
 .. autoclass:: remoulade.results.Results
 
@@ -138,8 +144,8 @@ Rate limiters can be used to determine whether or not an operation can
 be run at the current time across many processes and machines by using
 a shared storage backend.
 
-Backends
-^^^^^^^^
+Rate Limiter Backends
+^^^^^^^^^^^^^^^^^^^^^
 
 Rate limiter backends are used to store metadata about rate limits.
 
