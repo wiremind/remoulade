@@ -180,8 +180,7 @@ Added
 
 Changed
 ^^^^^^^
-* ``hmset`` to ``hset`` in class |RedisBackend| as the former is deprecated, this requires at least Redis 4.0.0 and
-at least redis-py 3.5.0
+* ``hmset`` to ``hset`` in class |RedisResBackend| as the former is deprecated, this requires at least Redis 4.0.0 and at least redis-py 3.5.0
 * Method ``api`` ``get_states`` now 
     - can receive arguments defined in schema |PageSchema|
        * ``search_value``
@@ -207,7 +206,7 @@ Added
    - ``started_datetime(date)``
    - ``end_datetime(date)``
    - ``progress``
-* Use of ``pipelines`` in ``get_state`` and ``set_state`` for |RedisBackend|
+* Use of ``pipelines`` in ``get_state`` and ``set_state`` for |RedisResBackend|
 * Url to ``api`` to get all scheduled jobs
    - url ``/scheduled/jobs``
 * Method ``set_progress`` in Class |Message|, the progress is update using ``set_state`` of Classes type |StateBackend|
@@ -220,13 +219,13 @@ Changed
 
 * Signature ``asdict`` of Class |State| to ``as_dict``
 * Location of ``_encoded_dict`` and ``_decoded_dict``, now is in the class |StateBackend|
-* ``set`` to ``hmset`` in class |RedisBackend|
+* ``set`` to ``hmset`` in class |RedisResBackend|
 * Behaviour of ``set_state`` of classes type ``StateBackend``. If the message_id does not exist, a new register is created, if not it updates the fields in the state, without deleting those who are not present.
 * Save the datetime for states
-   - |Pending|, datetime of enqueued saved in ``enqueued_datetime``
-   - if |Started| datetime saved in ``started_datetime``
-   - if |Failure| datetime saved in ``end_datetime``
-   - if |Success| datetime saved in ``end_datetime``
+   - **Pending**, datetime of enqueued saved in ``enqueued_datetime``
+   - if **Started** datetime saved in ``started_datetime``
+   - if **Failure** datetime saved in ``end_datetime``
+   - if **Success** datetime saved in ``end_datetime``
 * Allow to define States with `name=None`, to be able to update the `progress` without passing the name again
 
 `0.21.0`_ -- 2020-05-07
@@ -243,7 +242,7 @@ Added
    - url ``/messages/states?name=NameState`` returns all states in the backend whose state is equal to NameState, this should be defined in |StateNamesEnum|
    - url ``/messages/state/message_id`` return the state of a given ``message_id``
 * Class |TestMessageStateAPI| responsible to test the API of |StateBackend|
-* Add |Flask| as an extra dependency
+* Add **Flask** as an extra dependency
 * Add |CurrentMessage| Middleware that exposes the current message via a thread local variable, useful to access the message within the actor
 * Add |CurrentMessage| to the list of ``default_middleware``
 * Add new POST method ``cancel_message`` in module ``api``
@@ -258,15 +257,15 @@ BREAKING CHANGE
 
 Added
 ^^^^^
-* |StateNamesEnum| (type :|Enum|) contains the possible states that can have a message:
-   - |Started| a |Message| that  has not been processed
-   - |Pending| a |Message| that has been enqueued
-   - |Skipped| a |Message| that has been skipped
-   - |Canceled| a |Message| that has been cancelled
-   - |Failure| a |Message| that has been processed and raise an |Exception|
-   - |Success| a |Message| that has been processed and does not raise an |Exception|
+* |StateNamesEnum| (type :**Enum**) contains the possible states that can have a message:
+   - **Started** a |Message| that  has not been processed
+   - **Pending** a |Message| that has been enqueued
+   - **Skipped** a |Message| that has been skipped
+   - **Canceled** a |Message| that has been cancelled
+   - **Failure** a |Message| that has been processed and raise an **Exception**
+   - **Success** a |Message| that has been processed and does not raise an **Exception**
 * Class |State| represents the current state of a message, the state is defined by:
-   - |StateNamesEnum.name| the name of the state
+   - **StateNamesEnum.name** the name of the state
    - args The arguments of the message, they are storage if they are less than  MessageState.max_size
    - kwargs The keyword arguments of the message, they are storage if they are less than  MessageState.max_size
 * Middleware |MessageState| used to update the state of a message in a Backend, the constructor receives
@@ -274,15 +273,14 @@ Added
    - state_ttl
    - max_size
 * Abstract Backend |StateBackend| with methods |set_state| and |get_state| to set and get a |State| from the Backend
-* |RedisBackend| and |StubBackend| (type :|StateBackend|)
+* |RedisResBackend| and |StubBackend| (type :|StateBackend|)
 * |InvalidStateError| raised when is tried to create an Invalid State
 
 `0.19.0`_ -- 2019-01-31
 -----------------------
 BREAKING CHANGE
 ^^^^^^^^^^^^^^^
-* result: when passing raise_on_error=False to a function to get a result (message, group, backend), the returned
-object in case of error is an instance of ErrorStored instead of the FailureResult singleton value.
+* result: when passing raise_on_error=False to a function to get a result (message, group, backend), the returned object in case of error is an instance of ErrorStored instead of the FailureResult singleton value.
 
 
 `0.18.3`_ -- 2019-01-29
@@ -338,9 +336,7 @@ Fix
 
 Added
 ^^^^^
-* Channel pool: prevent the opening of one channel per thread (`#86`_)
-.. _#86: https://github.com/wiremind/remoulade/pull/91
-
+* Channel pool: prevent the opening of one channel per thread (`#91`_)
 
 `0.15.0`_ -- 2019-05-24
 -----------------------
@@ -348,8 +344,6 @@ Added
 Added
 ^^^^^
 * Remoulade scheduler (`#86`_)
-.. _#86: https://github.com/wiremind/remoulade/pull/86
-
 
 `0.14.0`_ -- 2018-04-09
 -----------------------
@@ -357,13 +351,10 @@ Added
 Changed
 ^^^^^^^
 * Use (thread safe) amqpstorm_ instead of pika (`#77`_)
-.. _#77: https://github.com/wiremind/remoulade/issues/77
-.. _amqpstorm: https://www.amqpstorm.io/
 
 Added
 ^^^^^
 * Raise error when starting worker with LocalBroker (`#84`_)
-.. _#84: https://github.com/wiremind/remoulade/issues/84
 
 
 `0.13.0`_ -- 2018-03-20
@@ -376,8 +367,6 @@ Added
 Fix
 ^^^
 * Store group message_ids in backend (`#79`_)
-
-.. _#79: https://github.com/wiremind/remoulade/issues/79
 
 `0.12.0`_ -- 2018-03-14
 -----------------------
@@ -441,8 +430,7 @@ Fixed
 Fixed
 ^^^^^
 
-* Declare queues on each ConnectionError even if the queue has already been declare (before a worker restart was
-needed if a queue was deleted)
+* Declare queues on each ConnectionError even if the queue has already been declare (before a worker restart was needed if a queue was deleted)
 * RedisBackend.get_result saving a ForgottenResult every time
 
 `0.8.0`_ -- 2018-12-07
@@ -499,11 +487,9 @@ Added
 
 Breaking Changes
 ^^^^^^^^^^^^^^^^
-* Added property result to |Message| (type: |Result|), and |pipeline| (type: PipelineResult) and results to |group|
- (type: GroupResults). These new Class get the all result linked logic (get instead of get_result)
+* Added property result to |Message| (type: |Result|), and |pipeline| (type: PipelineResult) and results to |group| (type: GroupResults). These new Class get the all result linked logic (get instead of get_result)
 * Rename MessageResult to |Result|
-* Removed get_results from |Message|, |group| and |pipeline| (and all results related methods
-like completed_count, ...). Use the new result property for |Message| and |pipeline|, and results for |group|.
+* Removed get_results from |Message|, |group| and |pipeline| (and all results related method like completed_count, ...). Use the new result property for |Message| and |pipeline|, and results for |group|.
 
 `0.4.0`_ -- 2018-11-15
 ----------------------
@@ -511,13 +497,12 @@ like completed_count, ...). Use the new result property for |Message| and |pipel
 Changed
 ^^^^^^^
 
-* Rename FAILURE_RESULT to |FailureResult| (for consistency)
+* Rename FAILURE_RESULT to **FailureResult** (for consistency)
 
 Added
 ^^^^^
 
-* Add MessageResult which can be created from a message_id and can be used to retrieved the result of the linked
-message
+* Add MessageResult which can be created from a message_id and can be used to retrieved the result of the linked message
 
 Fixed
 ^^^^^
@@ -530,8 +515,7 @@ Fixed
 Changed
 ^^^^^^^
 
-* |message_get_result| has a forget parameter, if True, the result will be deleted from the result backend when
-retrieved
+* |message_get_result| has a forget parameter, if True, the result will be deleted from the result backend when retrieved
 * Remove support for memcached
 * Log an error when an exception is raised while processing a message (previously it was a warning)
 
@@ -543,11 +527,10 @@ Changed
 ^^^^^^^
 
 * |Results| now stores errors as well as results and will raise an |ErrorStored| the actor fail
-* |message_get_result| has a raise_on_error parameter, True by default. If False, the method return |FailureResult| if
-there is no Error else raise an |ErrorStored|.
+* |message_get_result| has a raise_on_error parameter, True by default. If False, the method return **FailureResult** if there is no Error else raise an |ErrorStored|.
 * |Middleware| have a ``default_before`` and  ``default_after`` to place them by default in the middleware list
 * |Results| needs to be before |Retries|
-* |Promotheus| removed from default middleware
+* **Promotheus** removed from default middleware
 
 `0.1.0`_ -- 2018-10-24
 ----------------------
@@ -571,6 +554,24 @@ Fixed
 
 * pipe_ignore was not recovered from right message
 
+.. _amqpstorm: https://www.amqpstorm.io/
+
+.. _#91: https://github.com/wiremind/remoulade/pull/91
+.. _#86: https://github.com/wiremind/remoulade/pull/86
+.. _#79: https://github.com/wiremind/remoulade/issues/79
+.. _#84: https://github.com/wiremind/remoulade/issues/84
+.. _#77: https://github.com/wiremind/remoulade/issues/77
+
+.. _0.30.3: https://github.com/wiremind/remoulade/releases/tag/v0.30.3
+.. _0.30.2: https://github.com/wiremind/remoulade/releases/tag/v0.30.2
+.. _0.30.1: https://github.com/wiremind/remoulade/releases/tag/v0.30.1
+.. _0.30.0: https://github.com/wiremind/remoulade/releases/tag/v0.30.0
+.. _0.29.1: https://github.com/wiremind/remoulade/releases/tag/v0.29.1
+.. _0.29.0: https://github.com/wiremind/remoulade/releases/tag/v0.29.0
+.. _0.28.3: https://github.com/wiremind/remoulade/releases/tag/v0.28.3
+.. _0.28.2: https://github.com/wiremind/remoulade/releases/tag/v0.28.2
+.. _0.28.1: https://github.com/wiremind/remoulade/releases/tag/v0.28.1
+.. _0.28.0: https://github.com/wiremind/remoulade/releases/tag/v0.28.0
 .. _0.27.0: https://github.com/wiremind/remoulade/releases/tag/v0.27.0
 .. _0.26.7: https://github.com/wiremind/remoulade/releases/tag/v0.26.7
 .. _0.26.6: https://github.com/wiremind/remoulade/releases/tag/v0.26.6

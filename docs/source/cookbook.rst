@@ -5,7 +5,7 @@ Cookbook
 
 This part of the docs contains recipes for various things you might
 want to do using Remoulade.  Each section will be light on prose and
-code heavy, so if you have any questions about one of the recipes,
+code-heavy, so if you have any questions about one of the recipes,
 open an `issue on GitHub`_.
 
 .. _issue on GitHub: https://github.com/wiremind/remoulade/issues
@@ -47,7 +47,7 @@ time an actor fails, even if the message is going to be retried.
 Composition
 -----------
 
-Remoulade has built-in support for a couple high-level composition
+Remoulade has built-in support for a couple of high-level composition
 constructs.  You can use these to combine generalized tasks that don't
 know about one another into complex workflows.
 
@@ -87,7 +87,7 @@ the group.
 Pipelines
 ^^^^^^^^^
 
-Actors can be chained together using the |pipeline| function.  For
+Actors can be chained together using the |pipeline| function. For
 example, if you have an actor that gets the text contents of a website
 and one that counts the number of "words" in a piece of text:
 
