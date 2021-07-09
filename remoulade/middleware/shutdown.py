@@ -17,6 +17,7 @@
 
 import threading
 import warnings
+from typing import Set
 
 from ..logging import get_logger
 from .middleware import Middleware
@@ -48,7 +49,7 @@ class ShutdownNotifications(Middleware):
     def __init__(self, notify_shutdown=False):
         self.logger = get_logger(__name__, type(self))
         self.notify_shutdown = notify_shutdown
-        self.notifications = set()
+        self.notifications: Set[int] = set()
 
     @property
     def actor_options(self):

@@ -14,7 +14,7 @@
 #
 # You should have received a copy of the GNU Lesser General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
-from typing import Iterable
+from typing import Iterable, Optional
 
 DEFAULT_CANCELLATION_TTL = 3600
 
@@ -27,7 +27,7 @@ class CancelBackend:
             should be kept in the backend (default 1h).
         """
 
-    def __init__(self, *, cancellation_ttl=None):
+    def __init__(self, *, cancellation_ttl: Optional[int] = None) -> None:
         self.cancellation_ttl = cancellation_ttl or DEFAULT_CANCELLATION_TTL
 
     def is_canceled(self, message_id: str, group_id: str) -> bool:

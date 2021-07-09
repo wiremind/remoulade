@@ -14,13 +14,14 @@
 #
 # You should have received a copy of the GNU Lesser General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
+from typing import Callable, List
 
 
 class RateLimiterBackend:
     """ABC for rate limiter backends.
     """
 
-    def add(self, key, value, ttl):  # pragma: no cover
+    def add(self, key: str, value: int, ttl: int) -> bool:  # pragma: no cover
         """Add a key to the backend iff it doesn't exist.
 
         Parameters:
@@ -31,9 +32,8 @@ class RateLimiterBackend:
         """
         raise NotImplementedError
 
-    def incr(self, key, amount, maximum, ttl):  # pragma: no cover
-        """Atomically increment a key in the backend up to the given
-        maximum.
+    def incr(self, key: str, amount: int, maximum: int, ttl: int) -> bool:  # pragma: no cover
+        """Atomically increment a key in the backend up to the given maximum.
 
         Parameters:
           key(str): The key to increment.
@@ -47,9 +47,8 @@ class RateLimiterBackend:
         """
         raise NotImplementedError
 
-    def decr(self, key, amount, minimum, ttl):  # pragma: no cover
-        """Atomically decrement a key in the backend up to the given
-        maximum.
+    def decr(self, key: str, amount: int, minimum: int, ttl: int) -> bool:  # pragma: no cover
+        """Atomically decrement a key in the backend up to the given maximum.
 
         Parameters:
           key(str): The key to decrement.
@@ -63,9 +62,10 @@ class RateLimiterBackend:
         """
         raise NotImplementedError
 
-    def incr_and_sum(self, key, keys, amount, maximum, ttl):  # pragma: no cover
-        """Atomically increment a key unless the sum of keys is greater
-        than the given maximum.
+    def incr_and_sum(
+        self, key: str, keys: Callable[[], List[str]], amount: int, maximum: int, ttl: int
+    ):  # pragma: no cover
+        """Atomically increment a key unless the sum of keys is greater than the given maximum.
 
         Parameters:
           key(str): The key to increment.

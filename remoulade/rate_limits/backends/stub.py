@@ -17,6 +17,7 @@
 
 import time
 from threading import Lock
+from typing import Callable, Dict, List, Optional, Tuple
 
 from ..backend import RateLimiterBackend
 
@@ -27,9 +28,9 @@ class StubBackend(RateLimiterBackend):
 
     def __init__(self):
         self.mutex = Lock()
-        self.db = {}
+        self.db: Dict[str, Tuple[int, float]] = {}
 
-    def add(self, key, value, ttl):
+    def add(self, key: str, value: int, ttl: int) -> bool:
         with self.mutex:
             res = self._get(key)
             if res is not None:
@@ -37,7 +38,7 @@ class StubBackend(RateLimiterBackend):
 
             return self._put(key, value, ttl)
 
-    def incr(self, key, amount, maximum, ttl):
+    def incr(self, key: str, amount: int, maximum: int, ttl: int) -> bool:
         with self.mutex:
             value = self._get(key, default=0) + amount
             if value > maximum:
@@ -45,7 +46,7 @@ class StubBackend(RateLimiterBackend):
 
             return self._put(key, value, ttl)
 
-    def decr(self, key, amount, minimum, ttl):
+    def decr(self, key: str, amount: int, minimum: int, ttl: int) -> bool:
         with self.mutex:
             value = self._get(key, default=0) - amount
             if value < minimum:
@@ -53,7 +54,7 @@ class StubBackend(RateLimiterBackend):
 
             return self._put(key, value, ttl)
 
-    def incr_and_sum(self, key, keys, amount, maximum, ttl):
+    def incr_and_sum(self, key: str, keys: Callable[[], List[str]], amount: int, maximum: int, ttl: int) -> bool:
         self.add(key, 0, ttl)
         with self.mutex:
             value = self._get(key, default=0) + amount
@@ -69,12 +70,12 @@ class StubBackend(RateLimiterBackend):
 
             return self._put(key, value, ttl)
 
-    def _get(self, key, *, default=None):
+    def _get(self, key: str, *, default: Optional[int] = None) -> Optional[int]:
         value, expiration = self.db.get(key, (None, None))
         if expiration and time.monotonic() < expiration:
             return value
         return default
 
-    def _put(self, key, value, ttl):
+    def _put(self, key: str, value: int, ttl: int) -> bool:
         self.db[key] = (value, time.monotonic() + ttl / 1000)
         return True

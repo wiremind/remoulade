@@ -67,7 +67,7 @@ class CollectionResults:
 
     @property
     def message_ids(self) -> List[str]:
-        message_ids = []
+        message_ids: List[str] = []
         for child in self.children:
             if isinstance(child, CollectionResults):
                 message_ids += child.message_ids

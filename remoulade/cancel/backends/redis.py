@@ -15,7 +15,7 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 import time
-from typing import Iterable
+from typing import Iterable, Optional
 
 import redis
 
@@ -44,7 +44,15 @@ class RedisBackend(CancelBackend):
     .. _redis: https://redis.io
     """
 
-    def __init__(self, *, cancellation_ttl=None, key="remoulade-cancellations", client=None, url=None, **parameters):
+    def __init__(
+        self,
+        *,
+        cancellation_ttl: Optional[int] = None,
+        key: str = "remoulade-cancellations",
+        client: Optional[redis.Redis] = None,
+        url: Optional[str] = None,
+        **parameters,
+    ) -> None:
         super().__init__(cancellation_ttl=cancellation_ttl)
 
         if url:

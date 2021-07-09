@@ -14,6 +14,8 @@
 #
 # You should have received a copy of the GNU Lesser General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
+from typing import Set
+
 from ..logging import get_logger
 from ..middleware import Middleware, Retries
 from .backend import BackendResult
@@ -107,7 +109,7 @@ class Results(Middleware):
         """ Get the ids of all the following messages in the pipeline which have store_results """
         from ..message import Message
 
-        message_ids = set()
+        message_ids: Set[str] = set()
 
         if isinstance(pipe_target, list):
             for message_data in pipe_target:
