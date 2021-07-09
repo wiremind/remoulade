@@ -41,12 +41,12 @@ depends on your broker.
 Messages that have been pulled by workers but not processed are
 returned to the broker on graceful shutdown and any messages that are
 in flight when a worker is terminated are going to be redelivered
-later.  Messages are only ever acknowledged to (removed from) the
+later. Messages are only ever acknowledged to (removed from) the
 broker after they have been successfully processed.
 
 When a worker goes down while processing messages (eg. due to
-hardware, power or network failure) then the messages it pulled from
-the broker will eventually be re-delivered to it (assuming it
+hardware, power, or network failure) then the messages it pulled from
+the broker will eventually be redelivered to it (assuming it
 recovers) or another worker.
 
 Message Results

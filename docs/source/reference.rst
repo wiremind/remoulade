@@ -184,6 +184,8 @@ Errors
    :members:
 .. autoclass:: RateLimitExceeded
    :members:
+.. autoclass:: NoResultBackend
+   :members:
 .. autoclass:: remoulade.results.ResultError
    :members:
 .. autoclass:: remoulade.results.ResultMissing

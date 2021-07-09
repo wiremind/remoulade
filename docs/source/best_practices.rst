@@ -18,16 +18,16 @@ Retriable Actors
 ----------------
 
 Remoulade actors may receive the same message multiple times in the
-event of a worker failure (hardware, network or power failure).  This
+event of a worker failure (hardware, network, or power failure). This
 means that, for any given message, running your actor multiple times
-must be safe.  This is also known as being "idempotent".
+must be safe. This is also known as being "idempotent".
 
 
 Simple Messages
 ---------------
 
 Attempting to send an actor any object that can't be encoded to JSON
-by the standard ``json`` package will fail immediately so you'll want
+by the standard ``json`` package will immediately fail so you'll want
 to limit your actor parameters to the following object types: `bool`,
 `int`, `float`, `bytes`, `string`, `list` and `dict`.
 
