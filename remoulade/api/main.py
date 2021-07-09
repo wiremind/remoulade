@@ -3,9 +3,11 @@ import datetime
 import sys
 from collections import defaultdict
 from operator import itemgetter
+from typing import Dict, Iterable, List
 
 from flask import Flask, request
 from marshmallow import ValidationError
+from typing_extensions import DefaultDict, TypedDict
 from werkzeug.exceptions import HTTPException, NotFound
 
 import remoulade
@@ -30,6 +32,11 @@ def sort_dicts(data, column, reverse=False):
 def dict_has(item, keys, value):
     """ Check if the value of some key in keys has a value"""
     return chr(0).join([str(item[k]) for k in keys if item.get(k)]).lower().find(value) >= 0
+
+
+class GroupMessagesT(TypedDict):
+    group_id: str
+    messages: List[dict]
 
 
 @app.route("/messages/states")
@@ -129,7 +136,7 @@ def get_actors():
 def get_groups():
     args = PageSchema().load(request.args.to_dict())
     backend = remoulade.get_broker().get_state_backend()
-    groups = defaultdict(list)
+    groups_by_id: DefaultDict[str, List[Dict]] = defaultdict(list)
     states = (state for state in backend.get_states() if state.group_id)
 
     if args.get("search_value"):
@@ -138,14 +145,15 @@ def get_groups():
         states = [state for state in states if dict_has(state.as_dict(), keys, value)]  # type: ignore
 
     for state in states:
-        groups[state.group_id].append(state.as_dict(exclude_keys=("args", "kwargs", "options")))
+        groups_by_id[state.group_id].append(state.as_dict(exclude_keys=("args", "kwargs", "options")))
 
-    groups = sorted(  # type: ignore
-        ({"group_id": group_id, "messages": messages} for group_id, messages in groups.items()),
-        key=lambda x: x["messages"][0].get("enqueued_datetime") or datetime.datetime.min,
-        reverse=True,
+    groups: Iterable[GroupMessagesT] = (
+        {"group_id": group_id, "messages": messages} for group_id, messages in groups_by_id.items()
     )
-    return {"data": groups[args["offset"] : args["size"] + args["offset"]], "count": len(groups)}
+    sorted_groups: List[GroupMessagesT] = sorted(
+        groups, key=lambda x: x["messages"][0].get("enqueued_datetime") or datetime.datetime.min, reverse=True,
+    )
+    return {"data": sorted_groups[args["offset"] : args["size"] + args["offset"]], "count": len(sorted_groups)}
 
 
 @app.errorhandler(RemouladeError)

@@ -14,6 +14,7 @@
 #
 # You should have received a copy of the GNU Lesser General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
+from typing import Callable, List
 
 import redis
 
@@ -40,15 +41,15 @@ class RedisBackend(RateLimiterBackend):
 
         self.client = client or redis.Redis(**parameters)
 
-    def add(self, key, value, ttl):
+    def add(self, key: str, value: int, ttl: int) -> bool:
         return bool(self.client.set(key, value, px=ttl, nx=True))
 
-    def incr(self, key, amount, maximum, ttl):
+    def incr(self, key: str, amount: int, maximum: int, ttl: int) -> bool:
         with self.client.pipeline() as pipe:
             while True:
                 try:
                     pipe.watch(key)
-                    value = int(pipe.get(key) or b"0")
+                    value = int(pipe.get(key) or b"0")  # type: ignore
                     value += amount
                     if value > maximum:
                         return False
@@ -60,12 +61,12 @@ class RedisBackend(RateLimiterBackend):
                 except redis.WatchError:
                     continue
 
-    def decr(self, key, amount, minimum, ttl):
+    def decr(self, key: str, amount: int, minimum: int, ttl: int) -> bool:
         with self.client.pipeline() as pipe:
             while True:
                 try:
                     pipe.watch(key)
-                    value = int(pipe.get(key) or b"0")
+                    value = int(pipe.get(key) or b"0")  # type: ignore
                     value -= amount
                     if value < minimum:
                         return False
@@ -77,21 +78,21 @@ class RedisBackend(RateLimiterBackend):
                 except redis.WatchError:
                     continue
 
-    def incr_and_sum(self, key, keys, amount, maximum, ttl):
+    def incr_and_sum(self, key: str, keys: Callable[[], List[str]], amount: int, maximum: int, ttl: int) -> bool:
         with self.client.pipeline() as pipe:
             while True:
                 try:
                     # TODO: Drop non-callable keys in Remoulade v2.
                     key_list = keys() if callable(keys) else keys
                     pipe.watch(key, *key_list)
-                    value = int(pipe.get(key) or b"0")
+                    value = int(pipe.get(key) or b"0")  # type: ignore
                     value += amount
                     if value > maximum:
                         return False
 
                     # Fetch keys again to account for net/server latency.
                     values = pipe.mget(keys() if callable(keys) else keys)
-                    total = amount + sum(int(n) for n in values if n)
+                    total = amount + sum(int(n) for n in values if n)  # type: ignore
                     if total > maximum:
                         return False
 

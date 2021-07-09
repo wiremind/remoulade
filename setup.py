@@ -44,6 +44,8 @@ extra_dependencies["dev"] = extra_dependencies["all"] + [
     "isort",
     "black==19.10b0",
     "mypy",
+    "types-redis",
+    "types-python-dateutil",
     # Misc
     "bumpversion",
     "hiredis",

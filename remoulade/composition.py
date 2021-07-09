@@ -99,7 +99,7 @@ class pipeline:
             else:
                 options = last_options or {}
 
-            if isinstance(child, group) or isinstance(child, pipeline):
+            if isinstance(child, group):
                 next_child = child.build(options)
             else:
                 next_child = [child.build(options)]
@@ -209,7 +209,7 @@ class group:
     def __str__(self) -> str:  # pragma: no cover
         return f"group({', '.join(str(child) for child in self.children)})"
 
-    def build(self, options=None):
+    def build(self, options=None) -> "List[Message]":
         """ Build group for pipeline """
         if options is None:
             options = {}
@@ -217,7 +217,7 @@ class group:
             self.broker.emit_before("build_group_pipeline", group_id=self.group_id, message_ids=list(self.message_ids))
 
         options = {"group_info": self.info.asdict(), **options}
-        messages = []
+        messages: "List[Message]" = []
         for group_child in self.children:
             if isinstance(group_child, pipeline):
                 messages += group_child.build(last_options=options)

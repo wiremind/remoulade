@@ -21,13 +21,16 @@ from collections import defaultdict
 from itertools import chain
 from queue import Empty, PriorityQueue
 from threading import Event, Thread
-from typing import List
+from typing import TYPE_CHECKING, DefaultDict, Dict, List
 
 from .cancel import MessageCanceled
 from .common import compute_backoff, current_millis, iter_queue, join_all, q_name
 from .errors import ActorNotFound, ConnectionError, RateLimitExceeded, RemouladeError
 from .logging import get_logger
 from .middleware import Middleware, SkipMessage
+
+if TYPE_CHECKING:
+    from .message import Message
 
 #: The number of try to restart consumers (with exponential backoff) after a connection error
 #: 0 to disable consumer restart and exit with an error
@@ -59,7 +62,7 @@ class Worker:
         if broker.local:
             raise RemouladeError("LocalBroker is not destined to be used with a Worker")
 
-        self.consumers = {}
+        self.consumers: Dict[str, _ConsumerThread] = {}
         if queues is None or len(queues) != 1:
             self.logger.warning(
                 "You are listening on multiple queues, RMQ is adapted to single queue consuming only. "
@@ -125,7 +128,7 @@ class Worker:
         self.logger.debug("Consumers and workers stopped.")
 
         self.logger.debug("Requeueing in-memory messages...")
-        messages_by_queue = defaultdict(list)
+        messages_by_queue: "DefaultDict[str, List[Message]]" = defaultdict(list)
         for _, message in iter_queue(self.work_queue):
             messages_by_queue[message.queue_name].append(message)
 

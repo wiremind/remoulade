@@ -17,6 +17,7 @@
 import time
 from itertools import chain
 from queue import Empty, Queue
+from typing import List
 
 from ..broker import Broker, Consumer, MessageProxy
 from ..common import current_millis, dq_name, iter_queue, join_queue
@@ -35,7 +36,7 @@ class StubBroker(Broker):
     def __init__(self, middleware=None):
         super().__init__(middleware)
 
-        self.dead_letters = []
+        self.dead_letters: List[Message] = []
 
     def consume(self, queue_name, prefetch=1, timeout=100):
         """Create a new consumer for a queue.
