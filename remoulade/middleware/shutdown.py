@@ -55,14 +55,6 @@ class ShutdownNotifications(Middleware):
     def actor_options(self):
         return {"notify_shutdown"}
 
-    def should_notify(self, actor, message):
-        notify = message.options.get("notify_shutdown")
-        if notify is None:
-            notify = actor.options.get("notify_shutdown")
-        if notify is None:
-            notify = self.notify_shutdown
-        return bool(notify)
-
     def after_process_boot(self, broker):
         if current_platform not in supported_platforms:  # pragma: no cover
             msg = "ShutdownNotifications cannot kill threads on your current platform (%r)."
@@ -75,9 +67,7 @@ class ShutdownNotifications(Middleware):
             raise_thread_exception(thread_id, Shutdown)
 
     def before_process_message(self, broker, message):
-        actor = broker.get_actor(message.actor_name)
-
-        if self.should_notify(actor, message):
+        if self.get_option("notify_shutdown", broker=broker, message=message):
             self.notifications.add(threading.get_ident())
 
     def after_process_message(self, broker, message, *, result=None, exception=None):

@@ -38,6 +38,26 @@ class Middleware:
     default_before = None  # type: Type[Middleware]
     default_after = None  # type: Type[Middleware]
 
+    def get_option(self, option_name, *, broker, message, default=None):
+
+        # get option at message level
+        option = message.options.get(option_name)
+        if option is not None:
+            return option
+
+        # it doesn't make sense to get pipe_target and group_info at any other level than message
+        if option == "pipe_target" or option == "group_info":
+            return None
+
+        # get option at actor level
+        actor = broker.get_actor(message.actor_name)
+        option = actor.options.get(option_name)
+        if option is not None:
+            return option
+
+        # get option at middleware level or return default value
+        return getattr(self, option_name, default)
+
     @property
     def actor_options(self):
         """The set of options that may be configured on each actor."""

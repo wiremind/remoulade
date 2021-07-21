@@ -70,10 +70,8 @@ class Results(Middleware):
         return {"store_results", "result_ttl"}
 
     def after_process_message(self, broker, message, *, result=None, exception=None):
-        actor = broker.get_actor(message.actor_name)
-
-        store_results = message.options.get("store_results", actor.options.get("store_results", self.store_results))
-        result_ttl = actor.options.get("result_ttl", self.result_ttl)
+        store_results = self.get_option("store_results", broker=broker, message=message)
+        result_ttl = self.get_option("result_ttl", broker=broker, message=message)
         message_failed = getattr(message, "failed", False)
 
         results = []
@@ -90,7 +88,9 @@ class Results(Middleware):
             exception = ParentFailed("%s failed because of %s" % (message, error_str))
             children_result = BackendResult(result=None, error=self._serialize_exception(exception))
 
-            for message_id in self._get_children_message_ids(broker, message.options.get("pipe_target")):
+            for message_id in self._get_children_message_ids(
+                broker, self.get_option("pipe_target", broker=broker, message=message)
+            ):
                 results.append((message_id, children_result))
 
         if results:
@@ -116,12 +116,12 @@ class Results(Middleware):
                 message_ids |= self._get_children_message_ids(broker, message_data)
         elif pipe_target:
             message = Message(**pipe_target)
-            actor = broker.get_actor(message.actor_name)
-
-            if message.options.get("store_results", actor.options.get("store_results", self.store_results)):
+            if self.get_option("store_results", broker=broker, message=message):
                 message_ids.add(message.message_id)
 
-            message_ids |= self._get_children_message_ids(broker, message.options.get("pipe_target"))
+            message_ids |= self._get_children_message_ids(
+                broker, self.get_option("pipe_target", broker=broker, message=message)
+            )
 
         return message_ids
 

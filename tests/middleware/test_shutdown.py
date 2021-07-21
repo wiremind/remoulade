@@ -97,7 +97,7 @@ def test_shutdown_notifications_options(stub_broker, actor_opt, message_opt, sho
     message = do_work.message_with_options(notify_shutdown=message_opt)
 
     # The notification should only be set when expected
-    assert middleware.should_notify(do_work, message) == should_notify
+    assert middleware.get_option("notify_shutdown", broker=stub_broker, message=message) == should_notify
 
 
 @pytest.mark.skipif(not_supported, reason="Threading not supported on this platform.")

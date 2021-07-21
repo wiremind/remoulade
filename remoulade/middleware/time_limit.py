@@ -116,8 +116,7 @@ class TimeLimit(Middleware):
         signal.setitimer(signal.ITIMER_REAL, 0)
 
     def before_process_message(self, broker: "Broker", message: "Message") -> None:
-        actor = broker.get_actor(message.actor_name)
-        limit = message.options.get("time_limit") or actor.options.get("time_limit", self.time_limit)
+        limit = self.get_option("time_limit", broker=broker, message=message)
         deadline = time.monotonic() + limit / 1000
         with self.lock:
             self.deadlines[threading.get_ident()] = deadline, False, message

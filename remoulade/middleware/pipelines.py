@@ -46,8 +46,8 @@ class Pipelines(Middleware):
         if exception is not None or getattr(message, "failed", False):
             return
 
-        pipe_target = message.options.get("pipe_target")
-        group_info = message.options.get("group_info")
+        pipe_target = self.get_option("pipe_target", broker=broker, message=message)
+        group_info = self.get_option("group_info", broker=broker, message=message)
         if group_info:
             group_info = GroupInfo(**group_info)
 
@@ -84,8 +84,7 @@ class Pipelines(Middleware):
 
         for message_data in pipe_target:
             next_message = Message(**message_data)
-            next_actor = broker.get_actor(next_message.actor_name)
-            pipe_ignore = next_message.options.get("pipe_ignore") or next_actor.options.get("pipe_ignore")
+            pipe_ignore = self.get_option("pipe_ignore", broker=broker, message=next_message, default=False)
 
             if not pipe_ignore:
                 if group_info:
