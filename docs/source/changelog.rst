@@ -5,6 +5,14 @@ Changelog
 
 All notable changes to this project will be documented in this file.
 
+`0.31.4`_ -- 2021-08-09
+-----------------------
+Changed
+^^^^^^^
+* api: adds option route which sends the list of available options
+* api: searches using the /messages/states now include the args, kwargs and options values
+* api: the /actors route now sends the actors' arguments as well
+
 `0.31.3`_ -- 2021-08-06
 -----------------------
 Fixed
@@ -616,6 +624,7 @@ Fixed
 .. _#84: https://github.com/wiremind/remoulade/issues/84
 .. _#77: https://github.com/wiremind/remoulade/issues/77
 
+.. _0.31.4: https://github.com/wiremind/remoulade/releases/tag/v0.31.4
 .. _0.31.3: https://github.com/wiremind/remoulade/releases/tag/v0.31.3
 .. _0.31.2: https://github.com/wiremind/remoulade/releases/tag/v0.31.2
 .. _0.31.1: https://github.com/wiremind/remoulade/releases/tag/v0.31.1
