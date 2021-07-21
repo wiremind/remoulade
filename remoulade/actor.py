@@ -26,6 +26,8 @@ from .message import Message
 if TYPE_CHECKING:
     from .broker import Broker
 
+from inspect import signature
+
 #: The regular expression that represents valid queue names.
 _queue_name_re = re.compile(r"[a-zA-Z_][a-zA-Z0-9._-]*")
 
@@ -36,6 +38,7 @@ class ActorDict(TypedDict):
     name: str
     queue_name: str
     priority: int
+    args: list
 
 
 @overload
@@ -239,7 +242,22 @@ class Actor(Generic[F]):
         return self.broker.enqueue(message, delay=delay)
 
     def as_dict(self) -> ActorDict:
-        return {"name": self.actor_name, "queue_name": self.queue_name, "priority": self.priority}
+        params = signature(self.fn).parameters
+
+        def parsetype(rawtype):
+            cleantype = ""
+            try:
+                cleantype = rawtype.__name__
+            except AttributeError:
+                cleantype = str(rawtype)[str(rawtype).find(".")+1:]
+            return cleantype
+
+        return {
+            "name": self.actor_name,
+            "queue_name": self.queue_name,
+            "priority": self.priority,
+            "args": [{"name": params[param].name, "type": parsetype(params[param].annotation)} for param in params],
+        }
 
     def __call__(self, *args, **kwargs):
         """Synchronously call this actor.

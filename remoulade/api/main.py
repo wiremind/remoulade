@@ -45,7 +45,7 @@ def get_states():
     backend = remoulade.get_broker().get_state_backend()
     data = [s.as_dict(exclude_keys=("args", "kwargs", "options")) for s in backend.get_states()]
     if args.get("search_value"):
-        keys = ["message_id", "name", "actor_name", "args", "kwargs"]
+        keys = ["message_id", "name", "actor_name", "args", "kwargs", "options"]
         value = args["search_value"].lower()
         data = [item for item in data if dict_has(item, keys, value)]
 
@@ -54,7 +54,7 @@ def get_states():
         sort_column = args["sort_column"]
         data = sort_dicts(data, sort_column, reverse)
 
-    return {"data": data[args["offset"] : args["size"] + args["offset"]], "count": len(data)}
+    return {"data": data[args["offset"]: args["size"] + args["offset"]], "count": len(data)}
 
 
 @app.route("/messages/state/<message_id>")
@@ -120,6 +120,7 @@ def get_scheduled_jobs():
 
 @app.route("/messages", methods=["POST"])
 def enqueue_message():
+    print(request.data)
     payload = MessageSchema().load(request.json)
     actor = get_broker().get_actor(payload.pop("actor_name"))
     options = payload.pop("options") or {}
@@ -153,7 +154,13 @@ def get_groups():
     sorted_groups: List[GroupMessagesT] = sorted(
         groups, key=lambda x: x["messages"][0].get("enqueued_datetime") or datetime.datetime.min, reverse=True
     )
-    return {"data": sorted_groups[args["offset"] : args["size"] + args["offset"]], "count": len(sorted_groups)}
+    return {"data": sorted_groups[args["offset"]: args["size"] + args["offset"]], "count": len(sorted_groups)}
+
+
+@app.route("/options")
+def get_options():
+    broker = remoulade.get_broker()
+    return {"options": list(broker.actor_options)}
 
 
 @app.errorhandler(RemouladeError)

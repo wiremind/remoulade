@@ -22,6 +22,9 @@ from itertools import chain
 from queue import Empty, PriorityQueue
 from threading import Event, Thread
 from typing import TYPE_CHECKING, DefaultDict, Dict, List
+from marshmallow import Schema, fields
+from inspect import signature
+import re
 
 from .cancel import MessageCanceled
 from .common import compute_backoff, current_millis, iter_queue, join_all, q_name
@@ -35,6 +38,56 @@ if TYPE_CHECKING:
 #: The number of try to restart consumers (with exponential backoff) after a connection error
 #: 0 to disable consumer restart and exit with an error
 CONSUMER_RESTART_MAX_RETRIES = int(os.getenv("remoulade_restart_max_retries", 10))
+
+
+def get_schema(actor):
+    params = signature(actor.fn).parameters
+    args = {}
+    for el in params:
+        args[params[el].name] = parse_type(str(params[el].annotation))
+    schema = Schema.from_dict(args)()
+    return schema
+
+
+def parse_type(raw_type):
+    if raw_type == "str" or raw_type == "<class 'str'>":
+        return fields.Str()
+    if raw_type == "int" or raw_type == "<class 'int'>":
+        return fields.Int()
+    if raw_type == "float" or raw_type == "<class 'float'>":
+        return fields.Float()
+    if raw_type == "bool" or raw_type == "<class 'bool'>":
+        return fields.Bool()
+    if raw_type == "datetime.datetime" or raw_type == "<class 'datetime.datetime'>":
+        return fields.DateTime()
+    if raw_type == "datetime.date" or raw_type == "<class 'datetime.date'>":
+        return fields.Date()
+    if raw_type == "list" or raw_type == "<class 'list'>":
+        return fields.List(fields.Raw())
+    if raw_type == "dict" or raw_type == "<class 'dict'>":
+        return fields.Dict(fields.Raw, fields.Raw)
+    if re.compile("typing.List").match(raw_type):
+        list_type = raw_type[raw_type.find("[") + 1 : raw_type.rfind("]")]
+        return fields.List(parse_type(list_type))
+    if re.compile("typing.Dict").match(raw_type):
+        inner_type = raw_type[raw_type.find("[") + 1 : raw_type.rfind("]")]
+        level = 0
+        index_comma = 0
+        index_start = 0
+        while index_comma != -1:
+            index_open = inner_type.find("[", index_start)
+            index_close = inner_type.find("]", index_start)
+            index_comma = inner_type.find(",", index_start)
+            if level == 0 and (index_open == -1 or index_comma < index_open):
+                return fields.Dict(parse_type(inner_type[:index_comma]), parse_type(inner_type[index_comma + 2 :]))
+            if (index_close != -1 and index_open == -1) or index_close < index_open:
+                level -= 1
+                index_start = index_close + 1
+            else:
+                level += 1
+                index_start = index_open + 1
+        raise Exception
+    return fields.Raw()
 
 
 class Worker:
@@ -321,7 +374,9 @@ class _ConsumerThread(Thread):
                 self.work_queue.put((-actor.priority, message))
         except ActorNotFound:
             self.logger.error(
-                "Received message for undefined actor %r. Moving it to the DLQ.", message.actor_name, exc_info=True
+                "Received message for undefined actor %r. Moving it to the DLQ.",
+                message.actor_name,
+                exc_info=True,
             )
             message.fail()
             self.post_process_message(message)
@@ -490,7 +545,9 @@ class _WorkerThread(Thread):
             }
             self.logger.info("Started Actor %s", message, extra=extra)
             start = time.perf_counter()
-            return actor(*message.args, **message.kwargs)
+            print(message.kwargs)
+            kwargs = get_schema(actor).load(message.kwargs)
+            return actor(*message.args, **kwargs)
         finally:
             runtime = (time.perf_counter() - start) * 1000
             extra = {"message_id": message_id, "runtime": runtime}
