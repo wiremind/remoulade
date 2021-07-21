@@ -43,9 +43,9 @@ class GroupMessagesT(TypedDict):
 def get_states():
     args = PageSchema().load(request.args.to_dict())
     backend = remoulade.get_broker().get_state_backend()
-    data = [s.as_dict(exclude_keys=("args", "kwargs", "options")) for s in backend.get_states()]
+    data = [s.as_dict() for s in backend.get_states()]
     if args.get("search_value"):
-        keys = ["message_id", "name", "actor_name", "args", "kwargs"]
+        keys = ["message_id", "name", "actor_name", "args", "kwargs", "options"]
         value = args["search_value"].lower()
         data = [item for item in data if dict_has(item, keys, value)]
 
@@ -154,6 +154,12 @@ def get_groups():
         groups, key=lambda x: x["messages"][0].get("enqueued_datetime") or datetime.datetime.min, reverse=True
     )
     return {"data": sorted_groups[args["offset"] : args["size"] + args["offset"]], "count": len(sorted_groups)}
+
+
+@app.route("/options")
+def get_options():
+    broker = remoulade.get_broker()
+    return {"options": list(broker.actor_options)}
 
 
 @app.errorhandler(RemouladeError)

@@ -1,5 +1,5 @@
 import remoulade
-from remoulade.helpers import reduce
+from remoulade.helpers import reduce, get_actor_arguments
 from remoulade.results import Results
 
 
@@ -28,3 +28,11 @@ def test_reduce_messages(stub_broker, stub_worker, result_backend):
     result = merged_message.result.get(block=True)
 
     assert 10 == result
+
+
+def test_actor_arguments():
+    @remoulade.actor
+    def do_work(a: int = None):
+        return 1
+
+    assert get_actor_arguments(do_work) == [{"default": "", "name": "a", "type": "int"}]

@@ -20,11 +20,13 @@ from typing import TYPE_CHECKING, Any, Callable, Generic, Optional, TypeVar, ove
 
 from typing_extensions import Literal, TypedDict
 
+from .helpers.actor_arguments import get_actor_arguments
 from .logging import get_logger
 from .message import Message
 
 if TYPE_CHECKING:
     from .broker import Broker
+
 
 #: The regular expression that represents valid queue names.
 _queue_name_re = re.compile(r"[a-zA-Z_][a-zA-Z0-9._-]*")
@@ -36,6 +38,7 @@ class ActorDict(TypedDict):
     name: str
     queue_name: str
     priority: int
+    args: list
 
 
 @overload
@@ -239,7 +242,12 @@ class Actor(Generic[F]):
         return self.broker.enqueue(message, delay=delay)
 
     def as_dict(self) -> ActorDict:
-        return {"name": self.actor_name, "queue_name": self.queue_name, "priority": self.priority}
+        return {
+            "name": self.actor_name,
+            "queue_name": self.queue_name,
+            "priority": self.priority,
+            "args": get_actor_arguments(self),
+        }
 
     def __call__(self, *args, **kwargs):
         """Synchronously call this actor.
