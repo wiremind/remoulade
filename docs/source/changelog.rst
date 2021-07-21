@@ -5,6 +5,14 @@ Changelog
 
 All notable changes to this project will be documented in this file.
 
+`0.31.0`_ -- 2021-07-26
+-----------------------
+Changed
+^^^^^
+* Middleware : The value of all broker and middleware options are now obtained with the middleware get_option_value method
+* Middleware : The value returned is from higher to lower priority : message option, actor decorator option, broker option and default value.
+* Middleware : It is now possible to send any option with either message, actor or broker when it makes sense
+
 
 `0.30.6`_ -- 2020-07-23
 -----------------------
@@ -588,6 +596,7 @@ Fixed
 .. _#84: https://github.com/wiremind/remoulade/issues/84
 .. _#77: https://github.com/wiremind/remoulade/issues/77
 
+.. _0.31.0: https://github.com/wiremind/remoulade/releases/tag/v0.31.0
 .. _0.30.6: https://github.com/wiremind/remoulade/releases/tag/v0.30.6
 .. _0.30.5: https://github.com/wiremind/remoulade/releases/tag/v0.30.5
 .. _0.30.4: https://github.com/wiremind/remoulade/releases/tag/v0.30.4

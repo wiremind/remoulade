@@ -65,10 +65,9 @@ class Retries(Middleware):
         if exception is None:
             return
 
-        actor = broker.get_actor(message.actor_name)
         retries = message.options.setdefault("retries", 0)
-        max_retries = actor.options.get("max_retries", self.max_retries)
-        retry_when = actor.options.get("retry_when", self.retry_when)
+        max_retries = self.get_option("max_retries", broker=broker, message=message)
+        retry_when = self.get_option("retry_when", broker=broker, message=message)
         if (
             retry_when is not None
             and not retry_when(retries, exception)
@@ -83,8 +82,8 @@ class Retries(Middleware):
 
         message.options["retries"] += 1
         message.options["traceback"] = traceback.format_exc(limit=30)
-        min_backoff = actor.options.get("min_backoff", self.min_backoff)
-        max_backoff = actor.options.get("max_backoff", self.max_backoff)
+        min_backoff = self.get_option("min_backoff", broker=broker, message=message)
+        max_backoff = self.get_option("max_backoff", broker=broker, message=message)
         max_backoff = min(max_backoff, DEFAULT_MAX_BACKOFF)
         _, backoff = compute_backoff(retries, factor=min_backoff, max_backoff=max_backoff)
         self.logger.info("Retrying message %r in %d milliseconds.", message.message_id, backoff)
