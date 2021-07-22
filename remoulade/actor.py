@@ -249,7 +249,7 @@ class Actor(Generic[F]):
             try:
                 cleantype = rawtype.__name__
             except AttributeError:
-                cleantype = str(rawtype)[str(rawtype).find(".")+1:]
+                cleantype = str(rawtype)[str(rawtype).find(".") + 1 :]
             return cleantype
 
         return {

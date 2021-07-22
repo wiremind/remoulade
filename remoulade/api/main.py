@@ -54,7 +54,7 @@ def get_states():
         sort_column = args["sort_column"]
         data = sort_dicts(data, sort_column, reverse)
 
-    return {"data": data[args["offset"]: args["size"] + args["offset"]], "count": len(data)}
+    return {"data": data[args["offset"] : args["size"] + args["offset"]], "count": len(data)}
 
 
 @app.route("/messages/state/<message_id>")
@@ -154,7 +154,7 @@ def get_groups():
     sorted_groups: List[GroupMessagesT] = sorted(
         groups, key=lambda x: x["messages"][0].get("enqueued_datetime") or datetime.datetime.min, reverse=True
     )
-    return {"data": sorted_groups[args["offset"]: args["size"] + args["offset"]], "count": len(sorted_groups)}
+    return {"data": sorted_groups[args["offset"] : args["size"] + args["offset"]], "count": len(sorted_groups)}
 
 
 @app.route("/options")
