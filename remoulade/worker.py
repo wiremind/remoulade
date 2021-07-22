@@ -16,15 +16,16 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 import logging
 import os
+import re
 import time
 from collections import defaultdict
+from inspect import signature
 from itertools import chain
 from queue import Empty, PriorityQueue
 from threading import Event, Thread
 from typing import TYPE_CHECKING, DefaultDict, Dict, List
+
 from marshmallow import Schema, fields
-from inspect import signature
-import re
 
 from .cancel import MessageCanceled
 from .common import compute_backoff, current_millis, iter_queue, join_all, q_name
