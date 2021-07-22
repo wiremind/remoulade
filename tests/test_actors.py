@@ -620,6 +620,16 @@ def test_workers_log_rate_limit_exceeded_errors_differently(stub_broker, stub_wo
         assert "Rate limit exceeded in message %s: %s." in warning_messages
 
 
-def test_as_dict_actor(stub_broker, do_work):
+def test_as_dict_actor(stub_broker):
+
+    @remoulade.actor
+    def do_work(arg):
+        return 1
+
     res = do_work.as_dict()
-    assert res == {"args": [], "name": "do_work", "priority": 0, "queue_name": "default"}
+    assert res == {
+        "args": [{'name': 'arg', 'type': '_empty'}],
+        "name": "do_work",
+        "priority": 0,
+        "queue_name": "default"
+    }
