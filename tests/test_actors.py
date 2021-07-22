@@ -622,4 +622,4 @@ def test_workers_log_rate_limit_exceeded_errors_differently(stub_broker, stub_wo
 
 def test_as_dict_actor(stub_broker, do_work):
     res = do_work.as_dict()
-    assert res == {"name": "do_work", "priority": 0, "queue_name": "default"}
+    assert res == {"args": [], "name": "do_work", "priority": 0, "queue_name": "default"}
