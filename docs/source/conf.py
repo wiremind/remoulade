@@ -17,6 +17,7 @@ import os
 import sys
 
 import alabaster  # noqa
+
 import remoulade  # noqa
 
 sys.path.insert(0, os.path.abspath("../.."))
@@ -45,8 +46,8 @@ extensions = [
     "sitemap",
 ]
 
-#Remove '$ ' and '>>> ' from copied code when using the copybutton
-copybutton_prompt_text = r'\$ |>>> '
+# Remove '$ ' and '>>> ' from copied code when using the copybutton
+copybutton_prompt_text = r"\$ |>>> "
 copybutton_prompt_is_regexp = True
 
 autosectionlabel_prefix_document = True
