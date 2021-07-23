@@ -544,7 +544,6 @@ class _WorkerThread(Thread):
             }
             self.logger.info("Started Actor %s", message, extra=extra)
             start = time.perf_counter()
-            print(message.kwargs)
             kwargs = get_schema(actor).load(message.kwargs)
             return actor(*message.args, **kwargs)
         finally:

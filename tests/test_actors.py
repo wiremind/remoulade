@@ -1,5 +1,6 @@
 import platform
 import time
+from typing import List
 from unittest.mock import patch
 
 import pytest
@@ -621,15 +622,70 @@ def test_workers_log_rate_limit_exceeded_errors_differently(stub_broker, stub_wo
 
 
 def test_as_dict_actor(stub_broker):
-
     @remoulade.actor
     def do_work(arg):
         return 1
 
     res = do_work.as_dict()
     assert res == {
-        "args": [{'name': 'arg', 'type': '_empty'}],
+        "args": [{"default": "<class 'inspect._empty'>", "name": "arg", "type": "_empty"}],
         "name": "do_work",
         "priority": 0,
-        "queue_name": "default"
+        "queue_name": "default",
+    }
+
+
+def test_as_dict_default(stub_broker):
+    @remoulade.actor
+    def do_work(arg=0):
+        return 1
+
+    res = do_work.as_dict()
+    assert res == {
+        "args": [{"default": "0", "name": "arg", "type": "_empty"}],
+        "name": "do_work",
+        "priority": 0,
+        "queue_name": "default",
+    }
+
+
+def test_as_dict_typing(stub_broker):
+    @remoulade.actor
+    def do_work(arg: List[int]):
+        return 1
+
+    res = do_work.as_dict()
+    assert res == {
+        "args": [{"default": "<class 'inspect._empty'>", "name": "arg", "type": "typing.List[int]"}],
+        "name": "do_work",
+        "priority": 0,
+        "queue_name": "default",
+    }
+
+
+def test_as_dict_args(stub_broker):
+    @remoulade.actor
+    def do_work(*args):
+        return 1
+
+    res = do_work.as_dict()
+    assert res == {
+        "args": [{"default": "<class 'inspect._empty'>", "name": "args", "type": "_empty"}],
+        "name": "do_work",
+        "priority": 0,
+        "queue_name": "default",
+    }
+
+
+def test_as_dict_kwargs(stub_broker):
+    @remoulade.actor
+    def do_work(**kwargs):
+        return 1
+
+    res = do_work.as_dict()
+    assert res == {
+        "args": [{"default": "<class 'inspect._empty'>", "name": "kwargs", "type": "_empty"}],
+        "name": "do_work",
+        "priority": 0,
+        "queue_name": "default",
     }

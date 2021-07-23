@@ -245,18 +245,21 @@ class Actor(Generic[F]):
         params = signature(self.fn).parameters
 
         def parsetype(rawtype):
-            cleantype = ""
             try:
-                cleantype = rawtype.__name__
+                if re.match("typing", str(rawtype)):
+                    return str(rawtype)
+                return rawtype.__name__
             except AttributeError:
-                cleantype = str(rawtype)[str(rawtype).find(".") + 1 :]
-            return cleantype
+                return str(rawtype)
 
         return {
             "name": self.actor_name,
             "queue_name": self.queue_name,
             "priority": self.priority,
-            "args": [{"name": params[param].name, "type": parsetype(params[param].annotation)} for param in params],
+            "args": [
+                {"name": param.name, "type": parsetype(param.annotation), "default": str(param.default)}
+                for param in params.values()
+            ],
         }
 
     def __call__(self, *args, **kwargs):
