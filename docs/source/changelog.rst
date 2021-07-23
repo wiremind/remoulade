@@ -5,6 +5,24 @@ Changelog
 
 All notable changes to this project will be documented in this file.
 
+
+`0.30.5`_ -- 2020-07-21
+-----------------------
+
+Changed
+^^^^^^^
+* Doc: add getting started
+
+`0.30.4`_ -- 2020-07-09
+-----------------------
+Fixed
+^^^^^
+* Doc: fix all build errors
+
+Changed
+^^^^^^^
+* add type hints
+
 `0.30.3`_ -- 2020-05-20
 -----------------------
 Fixed
@@ -563,6 +581,8 @@ Fixed
 .. _#84: https://github.com/wiremind/remoulade/issues/84
 .. _#77: https://github.com/wiremind/remoulade/issues/77
 
+.. _0.30.5: https://github.com/wiremind/remoulade/releases/tag/v0.30.5
+.. _0.30.4: https://github.com/wiremind/remoulade/releases/tag/v0.30.4
 .. _0.30.3: https://github.com/wiremind/remoulade/releases/tag/v0.30.3
 .. _0.30.2: https://github.com/wiremind/remoulade/releases/tag/v0.30.2
 .. _0.30.1: https://github.com/wiremind/remoulade/releases/tag/v0.30.1
