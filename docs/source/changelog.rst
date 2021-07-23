@@ -6,6 +6,13 @@ Changelog
 All notable changes to this project will be documented in this file.
 
 
+`0.30.6`_ -- 2020-07-23
+-----------------------
+Fixed
+^^^^^
+* Doc: fix doc requirements
+
+
 `0.30.5`_ -- 2020-07-21
 -----------------------
 
@@ -581,6 +588,7 @@ Fixed
 .. _#84: https://github.com/wiremind/remoulade/issues/84
 .. _#77: https://github.com/wiremind/remoulade/issues/77
 
+.. _0.30.6: https://github.com/wiremind/remoulade/releases/tag/v0.30.6
 .. _0.30.5: https://github.com/wiremind/remoulade/releases/tag/v0.30.5
 .. _0.30.4: https://github.com/wiremind/remoulade/releases/tag/v0.30.4
 .. _0.30.3: https://github.com/wiremind/remoulade/releases/tag/v0.30.3
