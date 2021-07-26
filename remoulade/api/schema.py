@@ -3,7 +3,7 @@ from marshmallow import Schema, ValidationError, fields, validate, validates_sch
 
 class MessageSchema(Schema):
     """
-        Class to validate post data in /messages
+    Class to validate post data in /messages
     """
 
     actor_name = fields.Str(validate=validate.Length(min=1), required=True)
@@ -15,7 +15,7 @@ class MessageSchema(Schema):
 
 class PageSchema(Schema):
     """
-        Class to validate the attributes of a page
+    Class to validate the attributes of a page
     """
 
     sort_column = fields.Str(allow_none=True)

@@ -8,13 +8,9 @@ from remoulade import get_broker
 
 def parse_arguments():
     parser = argparse.ArgumentParser(
-        prog="remoulade-run",
-        description="Runs a remoulade actor",
-        formatter_class=argparse.RawDescriptionHelpFormatter,
+        prog="remoulade-run", description="Runs a remoulade actor", formatter_class=argparse.RawDescriptionHelpFormatter
     )
-    parser.add_argument(
-        "modules", metavar="module", nargs="*", help="additional python modules to import",
-    )
+    parser.add_argument("modules", metavar="module", nargs="*", help="additional python modules to import")
     parser.add_argument("--path", "-P", default=".", nargs="*", type=str, help="the module import path (default: .)")
     parser.add_argument("--actor-name", "-N", type=str, help="The actor to be ran")
     parser.add_argument("--args", "-A", type=json.loads, help="The actor's args")

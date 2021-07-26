@@ -84,9 +84,7 @@ def test_multiple_schedulers(start_scheduler, start_cli):
 def test_scheduler_daily_time(start_scheduler, start_cli, suffix):
     start_scheduler("tests.scheduler_configs.daily{}".format(suffix))
 
-    start_cli(
-        "tests.scheduler_configs.daily{}".format(suffix), extra_args=["--threads", "1"],
-    )
+    start_cli("tests.scheduler_configs.daily{}".format(suffix), extra_args=["--threads", "1"])
 
     time.sleep(3)
 

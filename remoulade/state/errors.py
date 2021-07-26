@@ -7,5 +7,5 @@ class StateError(RemouladeError):
 
 class InvalidStateError(StateError):
     """Raised when you try to declare an state
-       that is not defined.
+    that is not defined.
     """

@@ -276,7 +276,7 @@ def frozen_datetime():
 
 @pytest.fixture
 def scheduler(stub_broker):
-    scheduler = Scheduler(stub_broker, [], period=0.1,)
+    scheduler = Scheduler(stub_broker, [], period=0.1)
     check_redis(scheduler.client)
     remoulade.set_scheduler(scheduler)
     return scheduler

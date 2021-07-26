@@ -43,7 +43,7 @@ extra_dependencies["dev"] = extra_dependencies["all"] + [
     "flake8-bugbear",
     "flake8-quotes",
     "isort",
-    "black==19.10b0",
+    "black==21.7b0",
     "mypy",
     "types-redis",
     "types-python-dateutil",

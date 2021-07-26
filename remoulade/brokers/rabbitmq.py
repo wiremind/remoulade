@@ -370,7 +370,7 @@ class _RabbitmqConsumer(Consumer):
         """
 
     def __next__(self):
-        """ Return None if no value after timeout seconds """
+        """Return None if no value after timeout seconds"""
         try:
             deadline = time.monotonic() + self.timeout / 1000
             message = None

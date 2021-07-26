@@ -9,7 +9,7 @@ from remoulade import Message, Middleware
 from remoulade.errors import RateLimitExceeded
 from remoulade.middleware import SkipMessage
 
-from .common import worker, get_logs
+from .common import get_logs, worker
 
 _current_platform = platform.python_implementation()
 
@@ -385,7 +385,7 @@ def test_actors_can_delay_messages_independent_of_each_other(stub_broker, stub_w
 def test_messages_belonging_to_missing_actors_are_rejected(stub_broker, stub_worker):
     # Given that I have a broker without actors
     # If I send it a message
-    message = Message(queue_name="some-queue", actor_name="some-actor", args=(), kwargs={}, options={},)
+    message = Message(queue_name="some-queue", actor_name="some-actor", args=(), kwargs={}, options={})
     stub_broker.declare_queue("some-queue")
     stub_broker.enqueue(message)
 

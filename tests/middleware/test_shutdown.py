@@ -44,9 +44,7 @@ def test_shutdown_notifications_worker_shutdown_messages(raise_thread_exception,
     broker.emit_before("worker_shutdown", None)
 
     # Shutdown interrupts are raised in both threads
-    raise_thread_exception.assert_has_calls(
-        [mock.call(1, shutdown.Shutdown), mock.call(2, shutdown.Shutdown),]
-    )
+    raise_thread_exception.assert_has_calls([mock.call(1, shutdown.Shutdown), mock.call(2, shutdown.Shutdown)])
 
     # And shutdown notifications are logged
     assert len(caplog.record_tuples) == 3

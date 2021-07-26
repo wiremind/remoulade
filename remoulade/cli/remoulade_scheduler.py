@@ -15,9 +15,7 @@ def parse_arguments():
         description="Run remoulade scheduler",
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
-    parser.add_argument(
-        "modules", metavar="module", nargs="*", help="additional python modules to import",
-    )
+    parser.add_argument("modules", metavar="module", nargs="*", help="additional python modules to import")
     parser.add_argument("--path", "-P", default=".", nargs="*", type=str, help="the module import path (default: .)")
     parser.add_argument("--verbose", "-v", action="count", default=0, help="turn on verbose log output")
     return parser.parse_args()

@@ -96,8 +96,7 @@ class Worker:
         self.broker.emit_after("worker_boot", self)
 
     def pause(self):
-        """Pauses all the worker threads.
-        """
+        """Pauses all the worker threads."""
         for child in chain(self.consumers.values(), self.workers):
             child.pause()
 
@@ -105,8 +104,7 @@ class Worker:
             child.paused_event.wait()
 
     def resume(self):
-        """Resumes all the worker threads.
-        """
+        """Resumes all the worker threads."""
         for child in chain(self.consumers.values(), self.workers):
             child.resume()
 
@@ -291,8 +289,7 @@ class _ConsumerThread(Thread):
         self.logger.debug("Consumer thread stopped.")
 
     def handle_delayed_messages(self):
-        """Enqueue any delayed messages whose eta has passed.
-        """
+        """Enqueue any delayed messages whose eta has passed."""
         for eta, message in iter_queue(self.delay_queue):
             if eta > current_millis():
                 self.delay_queue.put((eta, message))
@@ -324,7 +321,7 @@ class _ConsumerThread(Thread):
                 self.work_queue.put((-actor.priority, message))
         except ActorNotFound:
             self.logger.error(
-                "Received message for undefined actor %r. Moving it to the DLQ.", message.actor_name, exc_info=True,
+                "Received message for undefined actor %r. Moving it to the DLQ.", message.actor_name, exc_info=True
             )
             message.fail()
             self.post_process_message(message)
@@ -354,14 +351,12 @@ class _ConsumerThread(Thread):
         self.consumer.requeue(messages)
 
     def pause(self):
-        """Pause this consumer.
-        """
+        """Pause this consumer."""
         self.paused = True
         self.paused_event.clear()
 
     def resume(self):
-        """Resume this consumer.
-        """
+        """Resume this consumer."""
         self.paused = False
         self.paused_event.clear()
 
@@ -375,8 +370,7 @@ class _ConsumerThread(Thread):
         self.running = False
 
     def close(self):
-        """Close this consumer thread and its underlying connection.
-        """
+        """Close this consumer thread and its underlying connection."""
         try:
             if self.consumer:
                 self.requeue_messages(m for _, m in iter_queue(self.delay_queue))
@@ -503,14 +497,12 @@ class _WorkerThread(Thread):
             self.logger.info("Finished Actor %s after %.02fms.", message, runtime, extra=extra)
 
     def pause(self):
-        """Pause this worker.
-        """
+        """Pause this worker."""
         self.paused = True
         self.paused_event.clear()
 
     def resume(self):
-        """Resume this worker.
-        """
+        """Resume this worker."""
         self.paused = False
         self.paused_event.clear()
 

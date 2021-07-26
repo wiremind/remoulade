@@ -72,7 +72,7 @@ class Cancel(Middleware):
             raise MessageCanceled("Message %s has been canceled" % message.message_id)
 
     def after_process_message(self, broker, message, *, result=None, exception=None):
-        """ Cancel all the messages in the group if one of the message of the group fail"""
+        """Cancel all the messages in the group if one of the message of the group fail"""
         from ..composition import GroupInfo
 
         if exception is None:

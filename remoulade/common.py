@@ -46,8 +46,7 @@ def compute_backoff(attempts, *, factor=5, jitter=True, max_backoff=2000, max_ex
 
 
 def current_millis():
-    """Returns the current UNIX time in milliseconds.
-    """
+    """Returns the current UNIX time in milliseconds."""
     return int(time() * 1000)
 
 
@@ -103,8 +102,7 @@ def join_all(joinables, timeout):
 
 
 def q_name(queue_name):
-    """Returns the canonical queue name for a given queue.
-    """
+    """Returns the canonical queue name for a given queue."""
     if queue_name.endswith(".DQ") or queue_name.endswith(".XQ"):
         return queue_name[:-3]
     return queue_name
@@ -137,13 +135,12 @@ def xq_name(queue_name):
 
 
 def generate_unique_id() -> str:
-    """Generate a globally-unique message id.
-    """
+    """Generate a globally-unique message id."""
     return str(uuid.uuid4())
 
 
 def flatten(iterable):
-    """ Flatten deep an iterable """
+    """Flatten deep an iterable"""
     for el in iterable:
         if isinstance(el, Iterable) and not isinstance(el, (str, bytes)):
             yield from flatten(el)
@@ -152,8 +149,7 @@ def flatten(iterable):
 
 
 def chunk(iterable: Iterable, size: int) -> Iterator[List]:
-    """Returns an iterator of a list of length size
-    """
+    """Returns an iterator of a list of length size"""
     i = iter(iterable)
     piece = list(islice(i, size))
     while piece:

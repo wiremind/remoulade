@@ -90,7 +90,7 @@ class StubBroker(Broker):
         if delay is not None:
             queue_name = dq_name(queue_name)
             message_eta = current_millis() + delay
-            message = message.copy(queue_name=queue_name, options={"eta": message_eta,},)
+            message = message.copy(queue_name=queue_name, options={"eta": message_eta})
 
         self.emit_before("enqueue", message, delay)
 
@@ -111,8 +111,7 @@ class StubBroker(Broker):
             self.queues[queue_name].task_done()
 
     def flush_all(self):
-        """Drop all messages from all declared queues.
-        """
+        """Drop all messages from all declared queues."""
         for queue_name in chain(self.queues, self.delay_queues):
             self.flush(queue_name)
 

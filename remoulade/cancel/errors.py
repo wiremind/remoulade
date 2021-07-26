@@ -18,4 +18,4 @@ from ..middleware.middleware import MiddlewareError
 
 
 class MessageCanceled(MiddlewareError):
-    """ Raised when a message has been canceled before it was processed """
+    """Raised when a message has been canceled before it was processed"""

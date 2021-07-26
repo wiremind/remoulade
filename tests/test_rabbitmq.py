@@ -186,7 +186,7 @@ def test_rabbitmq_actors_can_have_retry_limits(rabbitmq_broker, rabbitmq_worker)
 def test_rabbitmq_messages_belonging_to_missing_actors_are_rejected(rabbitmq_broker, rabbitmq_worker):
     # Given that I have a broker without actors
     # If I send it a message
-    message = Message(queue_name="some-queue", actor_name="some-actor", args=(), kwargs={}, options={},)
+    message = Message(queue_name="some-queue", actor_name="some-actor", args=(), kwargs={}, options={})
     rabbitmq_broker.declare_queue(message.queue_name)
     with pytest.raises(ActorNotFound):
         rabbitmq_broker.enqueue(message)

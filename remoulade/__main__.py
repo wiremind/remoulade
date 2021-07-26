@@ -77,11 +77,9 @@ def parse_arguments():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=HELP_EPILOG,
     )
+    parser.add_argument("modules", metavar="module", nargs="*", help="additional python modules to import")
     parser.add_argument(
-        "modules", metavar="module", nargs="*", help="additional python modules to import",
-    )
-    parser.add_argument(
-        "--threads", "-t", default=8, type=int, help="the number of worker threads per process (default: 8)",
+        "--threads", "-t", default=8, type=int, help="the number of worker threads per process (default: 8)"
     )
     parser.add_argument(
         "--prefetch-multiplier",
@@ -94,10 +92,10 @@ def parse_arguments():
     )
     parser.add_argument("--path", "-P", default=".", nargs="*", type=str, help="the module import path (default: .)")
     parser.add_argument(
-        "--queues", "-Q", nargs="*", type=str, help="listen to a subset of queues (default: all queues)",
+        "--queues", "-Q", nargs="*", type=str, help="listen to a subset of queues (default: all queues)"
     )
     parser.add_argument(
-        "--pid-file", type=str, help="write the PID of the master process to a file (default: no pid file)",
+        "--pid-file", type=str, help="write the PID of the master process to a file (default: no pid file)"
     )
     parser.add_argument(
         "--log-file",

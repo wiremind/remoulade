@@ -157,7 +157,7 @@ class ResultBackend:
         return self._store(message_keys, [r._asdict() for r in results], ttl)
 
     def forget_results(self, message_ids: List[str], ttl: int):
-        """ Forget the results associated to the given message_id """
+        """Forget the results associated to the given message_id"""
         result = ForgottenResult.asdict()
         message_keys = [self.build_message_key(message_id) for message_id in message_ids]
         self._store(message_keys, [result] * len(message_keys), ttl)
@@ -167,7 +167,7 @@ class ResultBackend:
         return f"{self.namespace}:{message_id}"
 
     def get_status(self, message_ids: Iterable[str]) -> int:
-        """ Given a list of messages ids return the number of messages with a result stored"""
+        """Given a list of messages ids return the number of messages with a result stored"""
         count = 0
         for message_id in message_ids:
             message_key = self.build_message_key(message_id)
@@ -214,7 +214,7 @@ class ResultBackend:
         raise NotImplementedError(f"{type(self).__name__} does not implement _store()")
 
     def _delete(self, key: str) -> None:  # pragma: no cover
-        """ Delete a key from the backend """
+        """Delete a key from the backend"""
         raise NotImplementedError(f"{type(self).__name__} does not implement _delete()")
 
     @contextmanager

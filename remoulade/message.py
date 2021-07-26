@@ -116,11 +116,11 @@ class Message(
         return self._replace(**attributes, options=options)
 
     def build(self, options):
-        """ Build message for pipeline """
+        """Build message for pipeline"""
         return self.copy(options=options)
 
     def cancel(self) -> None:
-        """ Mark a message as canceled """
+        """Mark a message as canceled"""
         broker = get_broker()
         backend = broker.get_cancel_backend()
         backend.cancel([self.message_id])

@@ -23,9 +23,9 @@ from .broker import get_broker
 class Result(namedtuple("Result", ("message_id",))):
     """Encapsulates metadata needed to retrieve the result of a message
 
-        Parameters:
-          message_id(str): The id of the message sent to the broker.
-        """
+    Parameters:
+      message_id(str): The id of the message sent to the broker.
+    """
 
     def __new__(cls, *, message_id: Optional[str] = None) -> "Result":
         return super().__new__(cls, message_id=message_id)

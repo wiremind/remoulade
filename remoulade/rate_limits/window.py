@@ -54,7 +54,7 @@ class WindowRateLimiter(RateLimiter):
 
     def _acquire(self):
         keys = self._get_keys()
-        return self.backend.incr_and_sum(keys[0], self._get_keys, 1, maximum=self.limit, ttl=self.window_millis,)
+        return self.backend.incr_and_sum(keys[0], self._get_keys, 1, maximum=self.limit, ttl=self.window_millis)
 
     def _release(self):
         pass
