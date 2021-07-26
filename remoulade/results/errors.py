@@ -19,30 +19,24 @@ from ..errors import RemouladeError
 
 
 class ResultError(RemouladeError):
-    """Base class for result errors.
-    """
+    """Base class for result errors."""
 
 
 class ResultTimeout(ResultError):
-    """Raised when waiting for a result times out.
-    """
+    """Raised when waiting for a result times out."""
 
 
 class ResultMissing(ResultError):
-    """Raised when a result can't be found.
-    """
+    """Raised when a result can't be found."""
 
 
 class ErrorStored(ResultError):
-    """Raised when an error is stored in the result backend and raise_on_error is True
-    """
+    """Raised when an error is stored in the result backend and raise_on_error is True"""
 
 
 class ParentFailed(ResultError):
-    """Error stored when a parent actor in the pipeline failed
-    """
+    """Error stored when a parent actor in the pipeline failed"""
 
 
 class MessageIdsMissing(ResultError):
-    """Raised when message_ids linked to a group_id can't be found
-    """
+    """Raised when message_ids linked to a group_id can't be found"""

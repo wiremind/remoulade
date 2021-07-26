@@ -145,7 +145,7 @@ class pipeline:
 
     @property
     def results(self) -> CollectionResults:
-        """ CollectionResults created from this pipeline, used for result related methods"""
+        """CollectionResults created from this pipeline, used for result related methods"""
         results: List[Union[Result, CollectionResults]] = []
         for element in self.children:
             results += [element.results if isinstance(element, group) else element.result]
@@ -153,12 +153,12 @@ class pipeline:
 
     @property
     def result(self):
-        """ Result of the last message/group of the pipeline"""
+        """Result of the last message/group of the pipeline"""
         last_child = self.children[-1]
         return last_child.results if isinstance(last_child, group) else last_child.result
 
     def cancel(self) -> None:
-        """ Mark all the children as cancelled """
+        """Mark all the children as cancelled"""
         broker = get_broker()
         backend = broker.get_cancel_backend()
         backend.cancel(list(flatten(self.message_ids)))
@@ -210,7 +210,7 @@ class group:
         return f"group({', '.join(str(child) for child in self.children)})"
 
     def build(self, options=None) -> "List[Message]":
-        """ Build group for pipeline """
+        """Build group for pipeline"""
         if options is None:
             options = {}
         else:
@@ -227,7 +227,7 @@ class group:
 
     @property
     def info(self) -> GroupInfo:
-        """ Info used for group completion and cancel"""
+        """Info used for group completion and cancel"""
         return GroupInfo(
             group_id=self.group_id, children_count=len(self.children), cancel_on_error=self.cancel_on_error
         )
@@ -254,11 +254,11 @@ class group:
 
     @property
     def results(self) -> CollectionResults:
-        """ CollectionResults created from this group, used for result related methods"""
+        """CollectionResults created from this group, used for result related methods"""
         return CollectionResults(children=[child.result for child in self.children])
 
     def cancel(self) -> None:
-        """ Mark all the children as cancelled """
+        """Mark all the children as cancelled"""
         broker = get_broker()
         backend = broker.get_cancel_backend()
         backend.cancel(list(flatten(self.message_ids)))

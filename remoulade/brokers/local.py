@@ -20,7 +20,7 @@ from ..results.backends import LocalBackend
 
 
 class LocalBroker(Broker):
-    """ Broker that calculate the message result immediately
+    """Broker that calculate the message result immediately
 
     It can only be used with LocalBackend as a result backend
     """

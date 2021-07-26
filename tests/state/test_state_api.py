@@ -24,7 +24,7 @@ def api_client(state_middleware):
 
 
 class TestMessageStateAPI:
-    """ Class Responsible to do the test of the API """
+    """Class Responsible to do the test of the API"""
 
     def test_no_messages(self, stub_broker, state_middleware, api_client):
         res = api_client.get("/messages/states")
@@ -59,7 +59,7 @@ class TestMessageStateAPI:
         # generate random test
         random_states = []
         for i in range(n):
-            random_state = State("id{}".format(i), choice(list(StateNamesEnum)),)  # random state
+            random_state = State("id{}".format(i), choice(list(StateNamesEnum)))  # random state
             random_states.append(random_state.as_dict())
             state_middleware.backend.set_state(random_state, ttl=1000)
 
@@ -91,7 +91,7 @@ class TestMessageStateAPI:
         timezone = pytz.timezone("Europe/Paris")
         scheduler.schedule = [
             ScheduledJob(
-                actor_name=do_work.actor_name, daily_time=(datetime.datetime.now(timezone)).time(), tz="Europe/Paris",
+                actor_name=do_work.actor_name, daily_time=(datetime.datetime.now(timezone)).time(), tz="Europe/Paris"
             )
         ]
         scheduler.sync_config()
@@ -174,18 +174,16 @@ class TestMessageStateAPI:
 
         stub_broker.declare_actor(do_job)
         res = api_client.get("/actors")
-        assert res.json["result"].sort(key=itemgetter("name")) == [
+        expected = [
             {"name": "do_work", "priority": 0, "queue_name": "default"},
             {"name": "do_job", "priority": 10, "queue_name": "foo"},
         ].sort(key=itemgetter("name"))
+        assert res.json["result"].sort(key=itemgetter("name")) == expected
 
     def test_filter_messages(self, stub_broker, api_client, state_middleware):
-        state = State("some_message_id",)
+        state = State("some_message_id")
         state_middleware.backend.set_state(state, ttl=1000)
-        data = {
-            "sort_column": "message_id",
-            "search_value": "some_mes",
-        }
+        data = {"sort_column": "message_id", "search_value": "some_mes"}
         res = api_client.get("/messages/states", query_string=data)
         assert res.json == {"count": 1, "data": [state.as_dict()]}
 

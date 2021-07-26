@@ -22,7 +22,7 @@ app = Flask(__name__)
 
 
 def sort_dicts(data, column, reverse=False):
-    """ Sort an array of dicts by a given column """
+    """Sort an array of dicts by a given column"""
     data_none = [item for item in data if item.get(column) is None]
     data = sorted((item for item in data if item.get(column)), key=itemgetter(column), reverse=reverse)
     data.extend(data_none)
@@ -30,7 +30,7 @@ def sort_dicts(data, column, reverse=False):
 
 
 def dict_has(item, keys, value):
-    """ Check if the value of some key in keys has a value"""
+    """Check if the value of some key in keys has a value"""
     return chr(0).join([str(item[k]) for k in keys if item.get(k)]).lower().find(value) >= 0
 
 
@@ -151,7 +151,7 @@ def get_groups():
         {"group_id": group_id, "messages": messages} for group_id, messages in groups_by_id.items()
     )
     sorted_groups: List[GroupMessagesT] = sorted(
-        groups, key=lambda x: x["messages"][0].get("enqueued_datetime") or datetime.datetime.min, reverse=True,
+        groups, key=lambda x: x["messages"][0].get("enqueued_datetime") or datetime.datetime.min, reverse=True
     )
     return {"data": sorted_groups[args["offset"] : args["size"] + args["offset"]], "count": len(sorted_groups)}
 

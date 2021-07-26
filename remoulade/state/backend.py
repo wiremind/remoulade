@@ -82,7 +82,7 @@ class State(
         )
 
     def as_dict(self, exclude_keys=(), encode_args=False):
-        """ Transform a State into a dict, can exclude some keys """
+        """Transform a State into a dict, can exclude some keys"""
         as_dict = {
             key: value for (key, value) in self._asdict().items() if value is not None and key not in exclude_keys
         }

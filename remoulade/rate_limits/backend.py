@@ -18,8 +18,7 @@ from typing import Callable, List
 
 
 class RateLimiterBackend:
-    """ABC for rate limiter backends.
-    """
+    """ABC for rate limiter backends."""
 
     def add(self, key: str, value: int, ttl: int) -> bool:  # pragma: no cover
         """Add a key to the backend iff it doesn't exist.

@@ -60,8 +60,7 @@ class Prometheus(Middleware):
 
     @property
     def actor_options(self):
-        """The set of options that may be configured on each actor.
-        """
+        """The set of options that may be configured on each actor."""
         return {"prometheus_label"}
 
     @staticmethod
@@ -86,7 +85,7 @@ class Prometheus(Middleware):
         if self.registry is None:
             self.registry = prom.CollectorRegistry()
         self.worker_busy = prom.Gauge(
-            "remoulade_worker_busy", "1 if the worker is processing a message, 0 if not", registry=self.registry,
+            "remoulade_worker_busy", "1 if the worker is processing a message, 0 if not", registry=self.registry
         )
         self.total_errored_messages = prom.Counter(
             "remoulade_message_errors_total",

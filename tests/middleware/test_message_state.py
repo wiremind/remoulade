@@ -67,9 +67,7 @@ class TestMessageState:
         assert state.name == StateNamesEnum.Failure
         assert state.end_datetime.isoformat() == "2020-02-03T00:00:00+00:00"
 
-    def test_cancel_state_message(
-        self, stub_broker, stub_worker, cancel_backend, state_middleware, do_work,
-    ):
+    def test_cancel_state_message(self, stub_broker, stub_worker, cancel_backend, state_middleware, do_work):
         stub_broker.add_middleware(Cancel(backend=cancel_backend))
         #  Pause the worker to be able to cancel the  message, and
         #   this does not been processed  when it enters the queue
@@ -99,9 +97,7 @@ class TestMessageState:
         # try again
         assert state.end_datetime is None
 
-    @pytest.mark.parametrize(
-        "ttl, result_type", [pytest.param(1000, State), pytest.param(1, type(None))],
-    )
+    @pytest.mark.parametrize("ttl, result_type", [pytest.param(1000, State), pytest.param(1, type(None))])
     def test_expiration_data_backend(self, ttl, result_type, stub_broker, state_backend):
         @remoulade.actor
         def wait():
@@ -115,9 +111,7 @@ class TestMessageState:
         # if the ttl is  greater than the expiration, the data should be None
         assert type(data) == result_type
 
-    @pytest.mark.parametrize(
-        "max_size", [200, 1000],
-    )
+    @pytest.mark.parametrize("max_size", [200, 1000])
     def test_maximum_size_args(self, max_size, stub_broker, state_backend, do_work):
         @remoulade.actor
         def do_work(x):
@@ -143,9 +137,7 @@ class TestMessageState:
         assert state.message_id == msg.message_id
         assert state.group_id == group_id
 
-    @pytest.mark.parametrize(
-        "state_ttl", [0, -1, None],
-    )
+    @pytest.mark.parametrize("state_ttl", [0, -1, None])
     def test_backend_not_called_if_no_state_ttl(self, stub_broker, do_work, state_ttl):
         backend = Mock()
         stub_broker.add_middleware(MessageState(backend=backend, state_ttl=state_ttl))

@@ -66,7 +66,7 @@ class Pipelines(Middleware):
                 message.fail()
 
     def _send_next_message(self, pipe_target, broker, result, group_info):
-        """ Send a message to the pipe target (if it's a list to all the pipe targets)
+        """Send a message to the pipe target (if it's a list to all the pipe targets)
 
         If it's a group, we need to get the result of each actor from the result backend because it's not present in
         the message.
@@ -96,7 +96,7 @@ class Pipelines(Middleware):
 
     @staticmethod
     def _group_results(group_info, broker):
-        """ Get the result of a group (fetch the group members message_ids then all the results) """
+        """Get the result of a group (fetch the group members message_ids then all the results)"""
         from ..collection_results import CollectionResults
 
         try:
@@ -109,7 +109,7 @@ class Pipelines(Middleware):
         return list(results.get())
 
     def _group_completed(self, message, group_info, broker):
-        """ Returns true if a group is completed, and increment the completion count of the group
+        """Returns true if a group is completed, and increment the completion count of the group
 
         Parameters:
             group_info(GroupInfo): the info of the group to get the completion from

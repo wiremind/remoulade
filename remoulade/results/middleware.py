@@ -106,7 +106,7 @@ class Results(Middleware):
             return "Exception could not be serialized"
 
     def _get_children_message_ids(self, broker, pipe_target):
-        """ Get the ids of all the following messages in the pipeline which have store_results """
+        """Get the ids of all the following messages in the pipeline which have store_results"""
         from ..message import Message
 
         message_ids: Set[str] = set()
@@ -126,7 +126,7 @@ class Results(Middleware):
         return message_ids
 
     def after_enqueue_pipe_target(self, _, group_info):
-        """ After a pipe target has been enqueued, we need to forget the result of the group (if it's a group) """
+        """After a pipe target has been enqueued, we need to forget the result of the group (if it's a group)"""
         if group_info:
             message_ids = self.backend.get_group_message_ids(group_info.group_id)
             self.backend.forget_results(message_ids, self.result_ttl)

@@ -167,7 +167,7 @@ class Broker:
         return self._get_backend("state")
 
     def _get_backend(self, name: str):
-        """ Get the backend associated with the broker either cancel or results """
+        """Get the backend associated with the broker either cancel or results"""
         message = "The default broker doesn't have a %s backend."
         backends = {
             "results": (Results, NoResultBackend(message % "results")),
