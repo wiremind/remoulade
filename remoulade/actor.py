@@ -20,6 +20,7 @@ from typing import TYPE_CHECKING, Any, Callable, Generic, Optional, TypeVar, ove
 
 from typing_extensions import Literal, TypedDict
 
+from .helpers.actor_arguments import get_actor_arguments
 from .logging import get_logger
 from .message import Message
 
@@ -242,24 +243,11 @@ class Actor(Generic[F]):
         return self.broker.enqueue(message, delay=delay)
 
     def as_dict(self) -> ActorDict:
-        params = signature(self.fn).parameters
-
-        def parsetype(rawtype):
-            try:
-                if re.match("typing", str(rawtype)):
-                    return str(rawtype)
-                return rawtype.__name__
-            except AttributeError:
-                return str(rawtype)
-
         return {
             "name": self.actor_name,
             "queue_name": self.queue_name,
             "priority": self.priority,
-            "args": [
-                {"name": param.name, "type": parsetype(param.annotation), "default": str(param.default)}
-                for param in params.values()
-            ],
+            "args": get_actor_arguments(self),
         }
 
     def __call__(self, *args, **kwargs):

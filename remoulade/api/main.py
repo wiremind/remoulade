@@ -120,7 +120,6 @@ def get_scheduled_jobs():
 
 @app.route("/messages", methods=["POST"])
 def enqueue_message():
-    print(request.data)
     payload = MessageSchema().load(request.json)
     actor = get_broker().get_actor(payload.pop("actor_name"))
     options = payload.pop("options") or {}
