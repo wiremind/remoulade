@@ -1,3 +1,4 @@
+import datetime
 import re
 from inspect import signature
 
@@ -8,34 +9,33 @@ def get_schema(actor):
     params = signature(actor.fn).parameters
     args = {}
     for el in params:
-        args[params[el].name] = parse_annotation_to_field(str(params[el].annotation))
+        args[params[el].name] = parse_annotation_to_field(params[el].annotation)
     schema = Schema.from_dict(args)()
     return schema
 
 
 def parse_annotation_to_field(annotation):
-    if annotation == "str" or annotation == "<class 'str'>":
+    if annotation == str or annotation == "str":
         return fields.Str()
-    if annotation == "int" or annotation == "<class 'int'>":
+    if annotation == int or annotation == "int":
         return fields.Int()
-    if annotation == "float" or annotation == "<class 'float'>":
+    if annotation == float or annotation == "float":
         return fields.Float()
-    if annotation == "bool" or annotation == "<class 'bool'>":
+    if annotation == bool or annotation == "bool":
         return fields.Bool()
-    if annotation == "datetime.datetime" or annotation == "<class 'datetime.datetime'>":
+    if annotation == datetime.datetime or annotation == "datetime.datetime":
         return fields.DateTime()
-    if annotation == "datetime.date" or annotation == "<class 'datetime.date'>":
+    if annotation == datetime.date or annotation == "datetime.date":
         return fields.Date()
-    if annotation == "list" or annotation == "<class 'list'>":
+    if annotation == list or annotation == "list":
         return fields.List(fields.Raw())
-    if annotation == "dict" or annotation == "<class 'dict'>":
+    if annotation == dict or annotation == "dict":
         return fields.Dict(fields.Raw, fields.Raw)
-    if re.compile("typing.List").match(annotation):
-        list_type = annotation[annotation.find("[") + 1: annotation.rfind("]")]
-        return fields.List(parse_annotation_to_field(list_type))
-    if re.compile("typing.Dict").match(annotation):
+    if re.compile("typing.List").match(str(annotation)):
+        return fields.List(parse_annotation_to_field(annotation.__args__[0]))
+    if re.compile("typing.Dict").match(str(annotation)):
         return fields.Dict(
-            parse_annotation_to_field(annotation[annotation.find("[") + 1: annotation.find(",")]),
-            annotation[annotation.find(",") + 2: annotation.rfind("]")],
+            parse_annotation_to_field(annotation.__args__[0]),
+            parse_annotation_to_field(annotation.__args__[1]),
         )
     return fields.Raw()
