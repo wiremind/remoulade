@@ -5,6 +5,13 @@ Changelog
 
 All notable changes to this project will be documented in this file.
 
+`0.31.1`_ -- 2021-07-28
+-----------------------
+Fixed
+^^^^^
+* include messages with values evaluated as false in sort_dict return data
+
+
 `0.31.0`_ -- 2021-07-26
 -----------------------
 Changed
@@ -155,7 +162,7 @@ Fix
 -----------------------
 Changed
 ^^^^^^^
-* Promotheus: add a registry parameter
+* Prometheus: add a registry parameter
 
 `0.26.0`_ -- 2020-10-26
 -----------------------
@@ -163,7 +170,7 @@ Changed
 ^^^^^^^
 * |TimeLimit|: Replace SIGKILL with regular sys.exit and make this behavior disabled by default
 * Rabbitmq: reconnect on connection error with exponential back-off
-* Promotheus: add remoulade_worker_busy metric
+* Prometheus: add remoulade_worker_busy metric
 
 `0.25.1`_ -- 2020-09-04
 -----------------------
@@ -564,7 +571,7 @@ Changed
 * |message_get_result| has a raise_on_error parameter, True by default. If False, the method return **FailureResult** if there is no Error else raise an |ErrorStored|.
 * |Middleware| have a ``default_before`` and  ``default_after`` to place them by default in the middleware list
 * |Results| needs to be before |Retries|
-* **Promotheus** removed from default middleware
+* **Prometheus** removed from default middleware
 
 `0.1.0`_ -- 2018-10-24
 ----------------------
@@ -596,6 +603,7 @@ Fixed
 .. _#84: https://github.com/wiremind/remoulade/issues/84
 .. _#77: https://github.com/wiremind/remoulade/issues/77
 
+.. _0.31.1: https://github.com/wiremind/remoulade/releases/tag/v0.31.1
 .. _0.31.0: https://github.com/wiremind/remoulade/releases/tag/v0.31.0
 .. _0.30.6: https://github.com/wiremind/remoulade/releases/tag/v0.30.6
 .. _0.30.5: https://github.com/wiremind/remoulade/releases/tag/v0.30.5
