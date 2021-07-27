@@ -24,7 +24,7 @@ app = Flask(__name__)
 def sort_dicts(data, column, reverse=False):
     """Sort an array of dicts by a given column"""
     data_none = [item for item in data if item.get(column) is None]
-    data = sorted((item for item in data if item.get(column)), key=itemgetter(column), reverse=reverse)
+    data = sorted((item for item in data if item.get(column) is not None), key=itemgetter(column), reverse=reverse)
     data.extend(data_none)
     return data
 
