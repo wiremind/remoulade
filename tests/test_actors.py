@@ -1,6 +1,6 @@
 import platform
 import time
-from typing import List
+from typing import List, Dict
 from unittest.mock import patch
 
 import pytest
@@ -386,7 +386,13 @@ def test_actors_can_delay_messages_independent_of_each_other(stub_broker, stub_w
 def test_messages_belonging_to_missing_actors_are_rejected(stub_broker, stub_worker):
     # Given that I have a broker without actors
     # If I send it a message
-    message = Message(queue_name="some-queue", actor_name="some-actor", args=(), kwargs={}, options={})
+    message = Message(
+        queue_name="some-queue",
+        actor_name="some-actor",
+        args=(),
+        kwargs={},
+        options={},
+    )
     stub_broker.declare_queue("some-queue")
     stub_broker.enqueue(message)
 
@@ -651,12 +657,16 @@ def test_as_dict_default(stub_broker):
 
 def test_as_dict_typing(stub_broker):
     @remoulade.actor
-    def do_work(arg: List[int]):
+    def do_work(a: List[int], b: Dict[str, bool], c: Dict[str, List[float]]):
         return 1
 
     res = do_work.as_dict()
     assert res == {
-        "args": [{"default": "<class 'inspect._empty'>", "name": "arg", "type": "typing.List[int]"}],
+        "args": [
+            {"name": "a", "type": "typing.List[int]"},
+            {"name": "b", "type": "typing.Dict[str, bool]"},
+            {"name": "c", "type": "typing.Dict[str, typing.List[float]]"},
+        ],
         "name": "do_work",
         "priority": 0,
         "queue_name": "default",
