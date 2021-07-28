@@ -27,7 +27,6 @@ from .message import Message
 if TYPE_CHECKING:
     from .broker import Broker
 
-from inspect import signature
 
 #: The regular expression that represents valid queue names.
 _queue_name_re = re.compile(r"[a-zA-Z_][a-zA-Z0-9._-]*")

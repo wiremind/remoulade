@@ -1,6 +1,6 @@
 import platform
 import time
-from typing import List, Dict
+from typing import Dict, List
 from unittest.mock import patch
 
 import pytest
@@ -634,7 +634,7 @@ def test_as_dict_actor(stub_broker):
 
     res = do_work.as_dict()
     assert res == {
-        "args": [{"default": "<class 'inspect._empty'>", "name": "arg", "type": "_empty"}],
+        "args": [{"name": "arg"}],
         "name": "do_work",
         "priority": 0,
         "queue_name": "default",
@@ -648,7 +648,7 @@ def test_as_dict_default(stub_broker):
 
     res = do_work.as_dict()
     assert res == {
-        "args": [{"default": "0", "name": "arg", "type": "_empty"}],
+        "args": [{"default": "0", "name": "arg"}],
         "name": "do_work",
         "priority": 0,
         "queue_name": "default",
@@ -680,7 +680,7 @@ def test_as_dict_args(stub_broker):
 
     res = do_work.as_dict()
     assert res == {
-        "args": [{"default": "<class 'inspect._empty'>", "name": "args", "type": "_empty"}],
+        "args": [{"name": "args"}],
         "name": "do_work",
         "priority": 0,
         "queue_name": "default",
@@ -694,7 +694,7 @@ def test_as_dict_kwargs(stub_broker):
 
     res = do_work.as_dict()
     assert res == {
-        "args": [{"default": "<class 'inspect._empty'>", "name": "kwargs", "type": "_empty"}],
+        "args": [{"name": "kwargs"}],
         "name": "do_work",
         "priority": 0,
         "queue_name": "default",

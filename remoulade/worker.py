@@ -322,7 +322,9 @@ class _ConsumerThread(Thread):
                 self.work_queue.put((-actor.priority, message))
         except ActorNotFound:
             self.logger.error(
-                "Received message for undefined actor %r. Moving it to the DLQ.", message.actor_name, exc_info=True,
+                "Received message for undefined actor %r. Moving it to the DLQ.",
+                message.actor_name,
+                exc_info=True,
             )
             message.fail()
             self.post_process_message(message)
