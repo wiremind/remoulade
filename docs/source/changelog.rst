@@ -5,6 +5,13 @@ Changelog
 
 All notable changes to this project will be documented in this file.
 
+
+`0.31.2`_ -- 2021-08-03
+-----------------------
+Fixed
+^^^^^
+* main: only log info when worker has stopped
+
 `0.31.1`_ -- 2021-07-28
 -----------------------
 Fixed

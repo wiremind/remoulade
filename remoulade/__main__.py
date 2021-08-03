@@ -197,7 +197,7 @@ def start_worker(args, logger):
         if worker.worker_stopped:
             running = False
             ret_code = RET_WORKER_STOP
-            logger.error("Worker thread is not running anymore, stopping Worker.")
+            logger.info("Worker thread is not running anymore, stopping Worker.")
         else:
             time.sleep(1)
 
