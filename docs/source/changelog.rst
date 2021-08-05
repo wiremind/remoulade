@@ -5,6 +5,12 @@ Changelog
 
 All notable changes to this project will be documented in this file.
 
+`0.31.3`_ -- 2021-08-06
+-----------------------
+Fixed
+^^^^^
+* time-limit: use background thread instead of signals
+
 
 `0.31.2`_ -- 2021-08-03
 -----------------------
@@ -610,6 +616,8 @@ Fixed
 .. _#84: https://github.com/wiremind/remoulade/issues/84
 .. _#77: https://github.com/wiremind/remoulade/issues/77
 
+.. _0.31.3: https://github.com/wiremind/remoulade/releases/tag/v0.31.3
+.. _0.31.2: https://github.com/wiremind/remoulade/releases/tag/v0.31.2
 .. _0.31.1: https://github.com/wiremind/remoulade/releases/tag/v0.31.1
 .. _0.31.0: https://github.com/wiremind/remoulade/releases/tag/v0.31.0
 .. _0.30.6: https://github.com/wiremind/remoulade/releases/tag/v0.30.6
