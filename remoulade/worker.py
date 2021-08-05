@@ -38,6 +38,14 @@ if TYPE_CHECKING:
 CONSUMER_RESTART_MAX_RETRIES = int(os.getenv("remoulade_restart_max_retries", 10))
 
 
+def build_extra(message, max_input_size: int = None):
+    return {
+        **message.options.get("logging_metadata", {}),
+        "message_id": message.message_id,
+        "input": {"args": str(message.args)[:max_input_size], "kwargs": str(message.kwargs)[:max_input_size]},
+    }
+
+
 class Worker:
     """Workers consume messages off of all declared queues and
     distribute those messages to individual worker threads for
@@ -165,7 +173,7 @@ class Worker:
             self.work_queue.join()
 
             # If nothing got put on the delay queues while we were
-            # joining on the work queue then it shoud be safe to exit.
+            # joining on the work queue then it should be safe to exit.
             # This could still miss stuff but the chances are slim.
             for consumer in self.consumers.values():
                 if consumer.delay_queue.unfinished_tasks:
@@ -433,7 +441,8 @@ class _WorkerThread(Thread):
           message(MessageProxy)
         """
         try:
-            self.logger.debug("Received message %s with id %r.", message, message.message_id)
+            extra = build_extra(message, 1000)
+            self.logger.debug("Received message %s with id %r.", message, message.message_id, extra=extra)
             self.broker.emit_before("process_message", message)
 
             res = None
@@ -443,26 +452,27 @@ class _WorkerThread(Thread):
             self.broker.emit_after("process_message", message, result=res)
 
         except SkipMessage:
-            self.logger.warning("Message %s was skipped.", message)
+            self.logger.warning("Message %s was skipped.", message, extra=extra)
             self.broker.emit_after("skip_message", message)
 
         except MessageCanceled:
-            self.logger.warning("Message %s has been canceled", message)
+            self.logger.warning("Message %s has been canceled", message, extra=extra)
             self.broker.emit_after("message_canceled", message)
 
         except BaseException as e:
             self.broker.emit_after("process_message", message, exception=e)
 
             if isinstance(e, RateLimitExceeded):
-                self.logger.warning("Rate limit exceeded in message %s: %s.", message, e)
+                self.logger.warning("Rate limit exceeded in message %s: %s.", message, e, extra=extra)
             else:
+                extra = build_extra(message)
                 self.logger.log(
                     logging.ERROR if message.failed else logging.WARNING,
                     "Failed to process message %s with unhandled %s",
                     message,
                     e.__class__.__name__,
                     exc_info=True,
-                    extra={"input": {"args": str(message.args), "kwargs": str(message.kwargs)}},
+                    extra=extra,
                 )
 
         finally:
@@ -484,19 +494,15 @@ class _WorkerThread(Thread):
         Returns:
           Whatever the actor returns.
         """
+        extra = build_extra(message, 1000)
         actor = self.broker.get_actor(message.actor_name)
-        message_id = message.message_id
         try:
-            extra = {
-                "message_id": message_id,
-                "input": {"args": str(message.args)[:1000], "kwargs": str(message.kwargs)[:1000]},
-            }
             self.logger.info("Started Actor %s", message, extra=extra)
             start = time.perf_counter()
             return actor(*message.args, **message.kwargs)
         finally:
             runtime = (time.perf_counter() - start) * 1000
-            extra = {"message_id": message_id, "runtime": runtime}
+            extra["runtime"] = runtime
             self.logger.info("Finished Actor %s after %.02fms.", message, runtime, extra=extra)
 
     def pause(self):

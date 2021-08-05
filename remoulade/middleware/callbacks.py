@@ -48,3 +48,16 @@ class Callbacks(Middleware):
             if actor_name:
                 actor = broker.get_actor(actor_name)
                 actor.send(message.asdict(), {"type": type(exception).__name__, "message": str(exception)})
+
+    def update_options_before_create_message(self, options, broker, actor_name):
+        from ..actor import Actor
+
+        for option_name in ["on_failure", "on_success"]:
+            callback = options.get(option_name)
+            if isinstance(callback, Actor):
+                options[option_name] = callback.actor_name
+
+            elif callback is not None and not isinstance(callback, str):
+                raise TypeError(f"{option_name} must be an Actor or a string, got {type(callback)} instead")
+
+        return options

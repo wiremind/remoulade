@@ -5,6 +5,12 @@ Changelog
 
 All notable changes to this project will be documented in this file.
 
+`0.33.0`_ -- 2021-08-16
+-----------------------
+Changed
+^^^^^^^
+* logging_metadata: adds a new middleware which enables passing logging metadata into the message and generating this metadata by passing a callback function that returns the metadata
+
 `0.32.0`_ -- 2021-08-13
 -----------------------
 Changed
@@ -630,6 +636,7 @@ Fixed
 .. _#84: https://github.com/wiremind/remoulade/issues/84
 .. _#77: https://github.com/wiremind/remoulade/issues/77
 
+.. _0.33.0: https://github.com/wiremind/remoulade/releases/tag/v0.33.0
 .. _0.32.0: https://github.com/wiremind/remoulade/releases/tag/v0.32.0
 .. _0.31.4: https://github.com/wiremind/remoulade/releases/tag/v0.31.4
 .. _0.31.3: https://github.com/wiremind/remoulade/releases/tag/v0.31.3

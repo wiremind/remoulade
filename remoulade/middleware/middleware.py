@@ -163,3 +163,9 @@ class Middleware:
 
     def before_build_group_pipeline(self, broker, group_id, message_ids):
         """Called before a group in a group pipeline is enqueued"""
+
+    def update_options_before_create_message(self, options, broker, actor_name):
+        """Called when a message is being built.
+        The message options is set to this function's return value"""
+
+        return options
