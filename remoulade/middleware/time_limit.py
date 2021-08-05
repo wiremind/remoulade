@@ -14,7 +14,6 @@
 #
 # You should have received a copy of the GNU Lesser General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
-import signal
 import threading
 import time
 import warnings
@@ -62,11 +61,7 @@ class TimeLimit(Middleware):
         self.lock = threading.Lock()
 
     def _handle(self, *_) -> None:
-        # Do no try to acquire the lock for more than the interval as handler will be called again
-        acquired = self.lock.acquire(timeout=self.interval / 1000)
-        if not acquired:
-            return
-        try:
+        with self.lock:
             current_time = time.monotonic()
             for thread_id, row in self.deadlines.items():
                 if row is None:
@@ -94,26 +89,27 @@ class TimeLimit(Middleware):
                     self.logger.warning("Time limit exceeded. Raising exception in worker thread %r.", thread_id)
                     self.deadlines[thread_id] = deadline, True, message
                     raise_thread_exception(thread_id, TimeLimitExceeded)
-        finally:
-            self.lock.release()
+
+    def _timer(self):
+        while True:
+            try:
+                self._handle()
+            except:  # noqa
+                self.logger.exception("Unhandled error while running the time limit handler.", exc_info=True)
+
+            time.sleep(self.interval / 1000)
 
     @property
     def actor_options(self) -> Set[str]:
         return {"time_limit"}
 
     def after_process_boot(self, _) -> None:
-        # Used because only the main thread can set a signal handler
-        self.logger.debug("Setting up timers...")
-        signal.setitimer(signal.ITIMER_REAL, self.interval / 1000, self.interval / 1000)
-        signal.signal(signal.SIGALRM, self._handle)
-
-        if current_platform not in supported_platforms:  # pragma: no cover
+        if current_platform in supported_platforms:
+            thread = threading.Thread(target=self._timer, daemon=True)
+            thread.start()
+        else:
             msg = f"TimeLimit cannot kill threads on your current platform {current_platform}."
             warnings.warn(msg, category=RuntimeWarning, stacklevel=2)
-
-    def before_process_stop(self, _) -> None:
-        self.logger.debug("Clear timers...")
-        signal.setitimer(signal.ITIMER_REAL, 0)
 
     def before_process_message(self, broker: "Broker", message: "Message") -> None:
         limit = self.get_option("time_limit", broker=broker, message=message)

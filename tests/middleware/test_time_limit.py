@@ -14,34 +14,34 @@
 #
 # You should have received a copy of the GNU Lesser General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
-import signal
 import time
-from unittest.mock import Mock
+from unittest import mock
 
-from remoulade.brokers.stub import StubBroker
-from remoulade.middleware import TimeLimit
+import remoulade
+from remoulade.middleware import TimeLimit, TimeLimitExceeded
 
 
-def test_no_timer_signal_after_shutdown():
-    # Given a broker
-    broker = StubBroker()
+@mock.patch("remoulade.middleware.time_limit.raise_thread_exception")
+def test_time_limit(raise_thread_exception, stub_broker, stub_worker, do_work):
+    @remoulade.actor(time_limit=1)
+    def do_work():
+        time.sleep(1)
+
+    stub_broker.declare_actor(do_work)
 
     # With a TimeLimit middleware
-    for middleware in broker.middleware:
+    for middleware in stub_broker.middleware:
         if isinstance(middleware, TimeLimit):
-            # That emit a signal every ms
+            # That emit a signal every ms and stop after 15ms
             middleware.interval = 1
+            middleware.time_limit = 15
 
-    broker.emit_after("process_boot")
+    # When I send it a message
+    do_work.send()
 
-    handler = Mock()
+    # And join on the queue
+    stub_broker.join(do_work.queue_name)
+    stub_worker.join()
 
-    signal.signal(signal.SIGALRM, handler)
-
-    broker.emit_before("process_stop")
-
-    # If i wait enough time to get a signal
-    time.sleep(2 / 1000)
-
-    # No signal should have been sent
-    assert not handler.called
+    assert raise_thread_exception.called
+    assert raise_thread_exception.call_args[0][1] == TimeLimitExceeded
