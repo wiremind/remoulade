@@ -16,6 +16,7 @@
 .. |InvalidProgress| replace:: :class:`InvalidProgress<remoulade.errors.InvalidProgress>`
 .. |InvalidStateError| replace:: :class:`InvalidStateError<remoulade.errors.InvalidStateError>`
 .. |LocalBroker| replace:: :class:`LocalBroker<remoulade.brokers.local.LocalBroker>`
+.. |LoggingMetadata| replace:: :class:`LoggingMetadata<remoulade.middleware.LoggingMetadata>`
 .. |MessageSchema| replace:: :class:`MessageSchema<remoulade.api.schema.MessageSchema>`
 .. |MessageState| replace:: :class:`MessageState<remoulade.state.MessageState>`
 .. |Messages| replace:: :class:`Messages<remoulade.Message>`

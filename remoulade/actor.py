@@ -179,7 +179,7 @@ class Actor(Generic[F]):
         return self.message_with_options(args=args, kwargs=kwargs)
 
     def message_with_options(self, *, args=None, kwargs=None, **options) -> Message:
-        """Build a message with an arbitray set of processing options.
+        """Build a message with an arbitrary set of processing options.
         This method is useful if you want to compose actors.  See the
         actor composition documentation for details.
 
@@ -192,13 +192,8 @@ class Actor(Generic[F]):
         Returns:
           Message: A message that can be enqueued on a broker.
         """
-        for name in ["on_failure", "on_success"]:
-            callback = options.get(name)
-            if isinstance(callback, Actor):
-                options[name] = callback.actor_name
-
-            elif not isinstance(callback, (type(None), str)):
-                raise TypeError(name + " value must be an Actor")
+        for middleware in self.broker.middleware:
+            options = middleware.update_options_before_create_message(options, self.broker, self.actor_name)
 
         return Message(
             queue_name=self.queue_name,

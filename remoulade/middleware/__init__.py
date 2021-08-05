@@ -20,6 +20,7 @@ import platform
 from .age_limit import AgeLimit
 from .callbacks import Callbacks
 from .current_message import CurrentMessage
+from .logging_metadata import LoggingMetadata
 from .max_memory import MaxMemory
 from .middleware import Middleware, MiddlewareError, SkipMessage
 from .pipelines import Pipelines
@@ -46,6 +47,7 @@ __all__ = [
     "AgeLimit",
     "Callbacks",
     "CurrentMessage",
+    "LoggingMetadata",
     "Pipelines",
     "Retries",
     "Shutdown",

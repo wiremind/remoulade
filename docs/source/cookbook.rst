@@ -141,6 +141,34 @@ call |pipeline_results_get|::
     ...
 
 
+Logging
+-------
+
+If you want to track your messages, you can use the |LoggingMetadata| middleware.
+
+This middleware enables you to pass metadata to your messages, either by using the logging_metadata option::
+
+    message = actor.message_with_options(logging_metadata={"id":"value"})
+
+Or by passing a callback that returns the metadata to the message using the logging_metadata_getter option::
+
+    def callback():
+        return {"id":"value}
+
+    message = actor.message_with_options(logging_metadata_getter=callback)
+
+Either way, the logging_metadata will be sent in all remoulade logs concerning this message, and can also be accessed like this::
+
+    message.options['logging_metadata']
+
+As with most options, you can pass these options at every level : message, actor and middleware.
+
+When a message is created, the value of the logging_metadata and return value of logging_metadata from every level are merged and passed to the message.
+Same fields in multiple levels or options are overwritten following the standard option priority : message level having higher priority than actor level, which has higher priority that middleware level. For each level, logging_metadata_getter has higher priority that logging_metadata.
+
+.. note::
+    Because they are already used in logging, "message_id" and "input" cannot be used as fields in logging_metadata.
+
 Error Reporting
 ---------------
 
