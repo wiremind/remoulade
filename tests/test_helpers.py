@@ -1,5 +1,6 @@
 import remoulade
-from remoulade.helpers import reduce, get_actor_arguments
+from remoulade.helpers import compute_backoff, get_actor_arguments
+from remoulade.helpers.reduce import reduce
 from remoulade.results import Results
 
 
@@ -36,3 +37,43 @@ def test_actor_arguments():
         return 1
 
     assert get_actor_arguments(do_work) == [{"default": "", "name": "a", "type": "int"}]
+
+
+def test_compute_backoff_exponential():
+    assert compute_backoff(4, min_backoff=10, jitter=False, max_backoff=50, max_retries=4) == (5, 50)
+    assert compute_backoff(4, min_backoff=10, jitter=False, max_backoff=100, max_retries=4) == (5, 80)
+    assert compute_backoff(5, min_backoff=10, jitter=False, max_backoff=100, max_retries=3) == (6, 40)
+
+
+def test_compute_backoff_constant():
+    for retry in range(5):
+        assert compute_backoff(retry, min_backoff=10, jitter=False, backoff_strategy="constant") == (retry + 1, 10)
+
+
+def test_compute_backoff_linear():
+    assert compute_backoff(3, min_backoff=10, jitter=False, backoff_strategy="linear") == (4, 30)
+    assert compute_backoff(4, min_backoff=10, jitter=False, backoff_strategy="linear") == (5, 40)
+
+
+def test_compute_backoff_spread_linear():
+    assert compute_backoff(
+        3, min_backoff=10, max_backoff=210, max_retries=5, jitter=False, backoff_strategy="spread_linear"
+    ) == (4, 110)
+    assert compute_backoff(
+        4, min_backoff=10, max_backoff=210, max_retries=5, jitter=False, backoff_strategy="spread_linear"
+    ) == (5, 160)
+    assert compute_backoff(
+        4, min_backoff=10, max_backoff=410, max_retries=5, jitter=False, backoff_strategy="spread_linear"
+    ) == (5, 310)
+
+
+def test_compute_backoff_spread_exponential():
+    assert compute_backoff(
+        1, min_backoff=10, jitter=False, max_backoff=100, max_retries=2, backoff_strategy="spread_exponential"
+    ) == (2, 10)
+    assert compute_backoff(
+        2, min_backoff=10, jitter=False, max_backoff=160, max_retries=3, backoff_strategy="spread_exponential"
+    ) == (3, 40)
+    assert compute_backoff(
+        5, min_backoff=10, jitter=False, max_backoff=160, max_retries=3, backoff_strategy="spread_exponential"
+    ) == (6, 160)

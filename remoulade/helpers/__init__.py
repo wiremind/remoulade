@@ -14,7 +14,8 @@
 #
 # You should have received a copy of the GNU Lesser General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
-from .actor_arguments import get_actor_arguments
-from .reduce import reduce
 
-__all__ = ["reduce", "get_actor_arguments"]
+from .actor_arguments import get_actor_arguments
+from .backoff import compute_backoff
+
+__all__ = ["compute_backoff", "get_actor_arguments"]

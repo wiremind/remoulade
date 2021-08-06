@@ -24,8 +24,9 @@ from threading import Event, Thread
 from typing import TYPE_CHECKING, DefaultDict, Dict, List
 
 from .cancel import MessageCanceled
-from .common import compute_backoff, current_millis, iter_queue, join_all, q_name
+from .common import current_millis, iter_queue, join_all, q_name
 from .errors import ActorNotFound, ConnectionError, RateLimitExceeded, RemouladeError
+from .helpers import compute_backoff
 from .logging import get_logger
 from .middleware import Middleware, SkipMessage
 
@@ -277,7 +278,7 @@ class _ConsumerThread(Thread):
             # While the consumer is running (i.e. hasn't been shut down),
             # try to restart it with exponential backoff for CONSUMER_RESTART_MAX_RETRIES times
             if self.running and attempts <= CONSUMER_RESTART_MAX_RETRIES:
-                attempts, delay = compute_backoff(attempts, factor=2, max_backoff=60)
+                attempts, delay = compute_backoff(attempts, min_backoff=2, max_backoff=60)
                 self.logger.info("Restarting consumer in %0.2f seconds.", delay)
                 self.close()
                 time.sleep(delay)

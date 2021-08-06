@@ -16,8 +16,9 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 import traceback
+from typing import Callable
 
-from ..common import compute_backoff
+from ..helpers import compute_backoff
 from ..logging import get_logger
 from .middleware import Middleware
 
@@ -25,8 +26,7 @@ from .middleware import Middleware
 DEFAULT_MIN_BACKOFF = 15000
 
 #: The default maximum amount of backoff to apply to retried tasks.
-#: Must be less than the max amount of time tasks can be delayed by.
-DEFAULT_MAX_BACKOFF = 86400000 * 7
+DEFAULT_MAX_BACKOFF = 1000 * 60 * 60
 
 
 class Retries(Middleware):
@@ -45,21 +45,27 @@ class Retries(Middleware):
         precedence over `max_retries` when set.
     """
 
-    def __init__(self, *, max_retries=0, min_backoff=None, max_backoff=None, retry_when=None):
+    def __init__(
+        self,
+        *,
+        max_retries: int = 0,
+        min_backoff: int = None,
+        max_backoff: int = None,
+        retry_when: Callable[[int, Exception], bool] = None,
+        backoff_strategy: str = "exponential",
+        jitter: bool = True,
+    ):
         self.logger = get_logger(__name__, type(self))
         self.max_retries = max_retries
         self.min_backoff = min_backoff or DEFAULT_MIN_BACKOFF
         self.max_backoff = max_backoff or DEFAULT_MAX_BACKOFF
         self.retry_when = retry_when
+        self.backoff_strategy = backoff_strategy
+        self.jitter = jitter
 
     @property
     def actor_options(self):
-        return {
-            "max_retries",
-            "min_backoff",
-            "max_backoff",
-            "retry_when",
-        }
+        return {"max_retries", "min_backoff", "max_backoff", "retry_when", "backoff_strategy", "jitter"}
 
     def after_process_message(self, broker, message, *, result=None, exception=None):
         if exception is None:
@@ -84,7 +90,16 @@ class Retries(Middleware):
         message.options["traceback"] = traceback.format_exc(limit=30)
         min_backoff = self.get_option("min_backoff", broker=broker, message=message)
         max_backoff = self.get_option("max_backoff", broker=broker, message=message)
-        max_backoff = min(max_backoff, DEFAULT_MAX_BACKOFF)
-        _, backoff = compute_backoff(retries, factor=min_backoff, max_backoff=max_backoff)
+        backoff_strategy = self.get_option("backoff_strategy", broker=broker, message=message)
+        jitter = self.get_option("jitter", broker=broker, message=message)
+        max_retries = self.get_option("max_retries", broker=broker, message=message)
+        _, backoff = compute_backoff(
+            retries,
+            min_backoff=min_backoff,
+            max_backoff=max_backoff,
+            jitter=jitter,
+            max_retries=max_retries,
+            backoff_strategy=backoff_strategy,
+        )
         self.logger.info("Retrying message %r in %d milliseconds.", message.message_id, backoff)
         broker.enqueue(message, delay=backoff)
