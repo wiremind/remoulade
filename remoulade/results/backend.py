@@ -20,8 +20,8 @@ from collections import namedtuple
 from contextlib import contextmanager
 from typing import Any, Dict, Iterable, List, Type, Union
 
-from ..common import compute_backoff
 from ..encoder import Encoder
+from ..helpers import compute_backoff
 from .errors import ErrorStored, MessageIdsMissing, ResultMissing, ResultTimeout
 
 #: The default timeout for blocking get operations in milliseconds.
@@ -102,7 +102,7 @@ class ResultBackend:
         while True:
             result = self._get(message_key, forget)
             if result is Missing and block:
-                attempts, delay = compute_backoff(attempts, factor=BACKOFF_FACTOR)
+                attempts, delay = compute_backoff(attempts, min_backoff=BACKOFF_FACTOR)
                 delay /= 1000
                 if time.monotonic() + delay > end_time:
                     raise ResultTimeout(message_id)
@@ -229,7 +229,7 @@ class ResultBackend:
             message.options["retries_result_backend"] = retries + 1
             if retries < 3:
                 logger.error(f"Could not store result of {message}: retrying it", exc_info=True)
-                _, backoff = compute_backoff(retries, factor=500)  # retry after 500ms, 1s, 2s
+                _, backoff = compute_backoff(retries, min_backoff=500)  # retry after 500ms, 1s, 2s
                 broker.enqueue(message, delay=backoff)
             else:
                 logger.critical(f"Could not store result of {message}: retries exceeded", exc_info=True)

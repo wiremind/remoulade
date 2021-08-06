@@ -5,6 +5,12 @@ Changelog
 
 All notable changes to this project will be documented in this file.
 
+`0.32.0`_ -- 2021-08-13
+-----------------------
+Changed
+^^^^^^^
+* retries: adds the possibility of choosing between multiple backoff strategies
+
 `0.31.4`_ -- 2021-08-09
 -----------------------
 Changed
@@ -624,6 +630,7 @@ Fixed
 .. _#84: https://github.com/wiremind/remoulade/issues/84
 .. _#77: https://github.com/wiremind/remoulade/issues/77
 
+.. _0.32.0: https://github.com/wiremind/remoulade/releases/tag/v0.32.0
 .. _0.31.4: https://github.com/wiremind/remoulade/releases/tag/v0.31.4
 .. _0.31.3: https://github.com/wiremind/remoulade/releases/tag/v0.31.3
 .. _0.31.2: https://github.com/wiremind/remoulade/releases/tag/v0.31.2

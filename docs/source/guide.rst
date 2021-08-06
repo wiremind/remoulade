@@ -99,7 +99,7 @@ command in a new terminal window::
 
   $ remoulade count_words
 
-This will spin up a processe on your machine with 8 worker threads per process.
+This will spin up a process on your machine with 8 worker threads per process.
 Run ``remoulade -h`` if you want to see a list of the available command line flags.
 
 As soon as you run that command you'll see log output along these
@@ -150,56 +150,11 @@ actor an invalid URL.  Let's try it::
   >>> count_words.send("foo")
 
 
-Error Handling
---------------
-
-Remoulade assumes all actors are idempotent so when an exception occurs
-during message processing, it automatically enqueues a retry for that
-message with exponential backoff.
-
-That last message we sent will cause something along these lines to be
-printed in your worker process::
-
-  [2017-06-27 13:11:22,059] [PID 13053] [Thread-8] [remoulade.worker.WorkerThread] [WARNING] Failed to process message count_words('foo') with unhandled exception.
-  Traceback (most recent call last):
-    ...
-  requests.exceptions.MissingSchema: Invalid URL 'foo': No schema supplied. Perhaps you meant http://foo?
-  [2017-06-27 13:11:22,062] [PID 13053] [Thread-8] [remoulade.middleware.retries.Retries] [INFO] Retrying message 'a53a5a7d-74e1-48ae-a5a8-0b72af2a8708' in 8104 milliseconds.
-
-Remoulade will keep retrying the message with longer and longer delays
-in between runs until we fix our code or for up to about 30 days from
-when it was first enqueued.
-
-Change ``count_words`` to catch the missing schema error::
-
-   @remoulade.actor
-   def count_words(url):
-     try:
-       response = requests.get(url)
-       count = len(response.text.split(" "))
-       print(f"There are {count} words at {url!r}.")
-     except requests.exceptions.MissingSchema:
-       print(f"Message dropped due to invalid url: {url!r}")
-
-Then send ``SIGHUP`` to the main worker process to make the workers
-pick up the source code changes::
-
-  $ kill -s HUP 13047
-
-Substitute the process ID of your own main process for ``13047``.  You
-can find the PID by looking at the log lines from the worker starting
-up.  Look for lines containing the string ``[remoulade.MainProcess]``.
-
-The next time your message is retried you should see::
-
-  Message dropped due to invalid url: 'foo'
-
-
 Message Retries
 ---------------
 
-As mentioned in the error handling section, Remoulade automatically
-retries failures with exponential backoff.
+If an error occurs during message processing, it will be terminated with a failure message.
+Alternatively, you can add the |Retries| Middleware to the broker and set the max_retries or retry_when option to automatically retry your message on failure.
 
 You can specify how failures should be retried on a per-actor basis.
 For example, if you want to limit the maximum number of retries for
@@ -220,17 +175,49 @@ predicate function via the ``retry_when`` parameter::
   def count_words(url):
     ...
 
+If you want to use a different strategy than the default exponential backoff to define how long to wait between retries, you can pass the `backoff_strategy` keyword argument to |actor|. For instance to retry every minute::
+
+   @remoulade.actor(min_backoff=60000, backoff_strategy='constant')
+   def count_words(URL):
+     ...
+
 The following retry options are configurable on a per-actor basis:
 
-===============  ============  =====================================================================================================================
-Option           Default       Description
-===============  ============  =====================================================================================================================
-``max_retries``  ``0``         The maximum number of times a message should be retried.  ``None`` means the message should be retried indefinitely.
-``min_backoff``  15 seconds    The minimum number of milliseconds of backoff to apply between retries.  Must be greater than 100 milliseconds.
-``max_backoff``  7 days        The maximum number of milliseconds of backoff to apply between retries.  Higher values are less reliable.
-``retry_when``   ``None``      A callable that determines whether or not a message should be retried.  When this is set, ``max_retries`` is ignored.
-===============  ============  =====================================================================================================================
+max_retries
+^^^^^^^^^^^
 
+The maximum number of times a message should be retried. Default to ``0``.
+
+min_backoff
+^^^^^^^^^^^
+
+The minimum number of milliseconds of backoff to apply between retries.  Must be greater than 100 milliseconds. Defaults to 15 seconds.
+
+max_backoff
+^^^^^^^^^^^
+
+The maximum number of milliseconds of backoff to apply between retries. Higher values are less reliable. Defaults to 1 hour.
+
+retry_when
+^^^^^^^^^^
+
+A callable that takes the number of retries so far and the exception as an input, and expects a boolean that determines whether or not the message will be retried as an output.  When this is set, ``max_retries`` is ignored. Defaults to ``None``.
+
+backoff_strategy
+^^^^^^^^^^^^^^^^
+
+The strategy used to compute the backoff. Defaults to ``exponential``. The available strategies are :
+
+* ``constant``: constant backoff, equal to min_backoff.
+* ``linear``: linear backoff, starting from min_backoff.
+* ``spread_linear``: linear backoff, linearly spread between min_backoff and max_backoff.
+* ``exponential``: exponential backoff, starting from min_backoff.
+* ``spread_exponential``: exponential backoff, exponentially spread between min_backoff and max_backoff.
+
+jitter
+^^^^^^
+
+When True, a small random value will be added to the backoff to avoid mass simultaneous retries. Defaults to ``True``.
 
 Message Age Limits
 ------------------
