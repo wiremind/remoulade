@@ -22,6 +22,7 @@ from remoulade.results import backends as res_backends
 from remoulade.scheduler import Scheduler
 from remoulade.state import MessageState
 from remoulade.state import backends as st_backends
+from remoulade.state.backends.postgres import DB_VERSION, StateVersion
 
 logfmt = "[%(asctime)s] [%(threadName)s] [%(name)s] [%(levelname)s] %(message)s"
 logging.basicConfig(level=logging.INFO, format=logfmt)
@@ -44,6 +45,23 @@ def check_redis(client):
     except redis.ConnectionError as e:
         raise e from e if CI else pytest.skip("No connection to Redis server.")
     client.flushall()
+
+
+def check_postgres(client):
+    with client.begin() as session:
+        engine = session.get_bind()
+        version_exists = engine.has_table("version")
+        states_exists = engine.has_table("states")
+        if version_exists:
+            versions = session.query(StateVersion).all()
+        return version_exists and states_exists and len(versions) == 1 and versions[0].version == DB_VERSION
+
+
+@pytest.fixture
+def check_postgres_begin():
+    client = remoulade.get_broker().get_state_backend().client
+    if not check_postgres(client):
+        pytest.skip("Postgres Database is not in the proper state. Database initialisation is probably incorrect.")
 
 
 @pytest.fixture()
@@ -175,11 +193,19 @@ def stub_state_backend():
 
 
 @pytest.fixture
-def state_backends(redis_state_backend, stub_state_backend):
-    return {"redis": redis_state_backend, "stub": stub_state_backend}
+def postgres_state_backend():
+    db_string = os.getenv("REMOULADE_TEST_DB_URL") or "postgresql://remoulade@localhost:5544/test"
+    backend = st_backends.PostgresBackend(url=db_string)
+    backend.clean()
+    return backend
 
 
-@pytest.fixture(params=["redis", "stub"])
+@pytest.fixture
+def state_backends(redis_state_backend, stub_state_backend, postgres_state_backend):
+    return {"redis": redis_state_backend, "stub": stub_state_backend, "postgres": postgres_state_backend}
+
+
+@pytest.fixture(params=["redis", "stub", "postgres"])
 def state_backend(request, state_backends):
     return state_backends[request.param]
 
@@ -188,6 +214,14 @@ def state_backend(request, state_backends):
 def state_middleware(state_backend):
     broker = remoulade.get_broker()
     middleware = MessageState(backend=state_backend)
+    broker.add_middleware(middleware)
+    return middleware
+
+
+@pytest.fixture
+def postgres_state_middleware(postgres_state_backend):
+    broker = remoulade.get_broker()
+    middleware = MessageState(backend=postgres_state_backend)
     broker.add_middleware(middleware)
     return middleware
 

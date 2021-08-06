@@ -8,9 +8,10 @@ from unittest.mock import MagicMock
 
 import pytest
 import pytz
+from dateutil.parser import parse
 
 import remoulade
-from remoulade.api.main import app, dict_has
+from remoulade.api.main import app
 from remoulade.cancel import Cancel
 from remoulade.message import Message
 from remoulade.scheduler import ScheduledJob
@@ -27,7 +28,7 @@ class TestMessageStateAPI:
     """Class Responsible to do the test of the API"""
 
     def test_no_messages(self, stub_broker, state_middleware, api_client):
-        res = api_client.get("/messages/states")
+        res = api_client.post("/messages/states")
         assert res.status_code == 200
         assert len(res.json["data"]) == 0
 
@@ -36,15 +37,15 @@ class TestMessageStateAPI:
         assert res.status_code == 404
 
     def test_invalid_state_message(self, stub_broker, api_client):
-        res = api_client.get("/messages/states?status=invalid_state")
+        res = api_client.post("/messages/states", data={"status": "invalid_state"}, content_type="application/json")
         assert res.status_code == 400
 
     @pytest.mark.parametrize("status", [StateStatusesEnum.Skipped, StateStatusesEnum.Success])
     def test_get_state_by_name(self, status, stub_broker, state_middleware, api_client):
         state = State("1", status)
         state_middleware.backend.set_state(state, ttl=1000)
-        args = {"search_value": status.value}
-        res = api_client.get("/messages/states", data=args)
+        args = {"selected_statuses": [status.value]}
+        res = api_client.post("/messages/states", data=json.dumps(args), content_type="application/json")
         assert res.json == {"count": 1, "data": [state.as_dict()]}
 
     def test_get_by_message_id(self, stub_broker, state_middleware, api_client):
@@ -59,12 +60,12 @@ class TestMessageStateAPI:
         # generate random test
         random_states = []
         for i in range(n):
-            random_state = State("id{}".format(i), choice(list(StateStatusesEnum)))  # random state
+            random_state = State(f"id{i}", choice(list(StateStatusesEnum)))  # random state
             random_states.append(random_state.as_dict())
             state_middleware.backend.set_state(random_state, ttl=1000)
 
         # check storage
-        res = api_client.get("/messages/states?size=100")
+        res = api_client.post("/messages/states", data=json.dumps({"size": 100}), content_type="application/json")
         states = res.json["data"]
         assert len(states) == n
         # check integrity
@@ -183,15 +184,17 @@ class TestMessageStateAPI:
     def test_filter_messages(self, stub_broker, api_client, state_middleware):
         state = State("some_message_id")
         state_middleware.backend.set_state(state, ttl=1000)
-        data = {"sort_column": "message_id", "search_value": "some_mes"}
-        res = api_client.get("/messages/states", query_string=data)
+        data = {"sort_column": "message_id", "selected_ids": ["some_message_id"]}
+        res = api_client.post("/messages/states", data=json.dumps(data), content_type="application/json")
         assert res.json == {"count": 1, "data": [state.as_dict()]}
 
     @pytest.mark.parametrize("offset", [0, 1, 5, 100])
     def test_get_states_offset(self, offset, stub_broker, api_client, state_middleware):
         for i in range(0, 10):
-            state_middleware.backend.set_state(State("id{}".format(i)), ttl=1000)
-        res = api_client.get("/messages/states", query_string={"offset": offset})
+            state_middleware.backend.set_state(State(f"id{i}"), ttl=1000)
+        res = api_client.post(
+            "/messages/states", data=json.dumps({"offset": offset, "size": 50}), content_type="application/json"
+        )
         if offset >= 10:
             assert res.json["data"] == []
         else:
@@ -201,7 +204,7 @@ class TestMessageStateAPI:
     def test_get_states_page_size(self, size, stub_broker, api_client, state_middleware):
         for i in range(0, 10):
             state_middleware.backend.set_state(State("id{}".format(i)), ttl=1000)
-        res = api_client.get("/messages/states", query_string={"size": size})
+        res = api_client.post("/messages/states", data=json.dumps({"size": size}), content_type="application/json")
         if size >= 10:
             assert res.json["count"] == 10
         else:
@@ -210,44 +213,40 @@ class TestMessageStateAPI:
     def test_not_raise_error_with_pickle_and_non_serializable(
         self, pickle_encoder, stub_broker, api_client, state_middleware
     ):
-        state = State("id1", args={"name": "some_name", "date": date(2020, 12, 12)})
+        state = State("id1", args={"status": "some_status", "date": date(2020, 12, 12)})
         state_middleware.backend.set_state(state, ttl=1000)
-        res = api_client.get("messages/states")
+        res = api_client.post("messages/states")
         assert res.json == {
             "count": 1,
-            "data": [{"args": {"date": "Sat, 12 Dec 2020 00:00:00 GMT", "name": "some_name"}, "message_id": "id1"}],
+            "data": [{"args": {"date": "Sat, 12 Dec 2020 00:00:00 GMT", "status": "some_status"}, "message_id": "id1"}],
         }
 
     def test_get_group_id(self, stub_broker, api_client, state_middleware):
         for i in range(2):
-            state_middleware.backend.set_state(State("id{}".format(i), group_id=1), ttl=1000)
-        state_middleware.backend.set_state(State("id2", group_id=2), ttl=1000)
-        res = api_client.get("/groups").json["data"]
+            state_middleware.backend.set_state(State(f"id{i}", group_id="1"), ttl=1000)
+        state_middleware.backend.set_state(State("id2", group_id="2"), ttl=1000)
+        res = api_client.post("/groups").json["data"]
 
         res.sort(key=lambda i: i["group_id"])
         for item in res:
             item["messages"].sort(key=lambda i: i["message_id"])
 
         assert res == [
-            {"group_id": 1, "messages": [{"group_id": 1, "message_id": "id0"}, {"group_id": 1, "message_id": "id1"}]},
-            {"group_id": 2, "messages": [{"group_id": 2, "message_id": "id2"}]},
+            {
+                "group_id": "1",
+                "messages": [{"group_id": "1", "message_id": "id0"}, {"group_id": "1", "message_id": "id1"}],
+            },
+            {"group_id": "2", "messages": [{"group_id": "2", "message_id": "id2"}]},
         ]
 
     @pytest.mark.parametrize("offset, expected_len", [(0, 1), (1, 0), (2, 0)])
     def test_offset_in_group(self, offset, expected_len, stub_broker, api_client, state_middleware):
         for i in range(2):
-            state_middleware.backend.set_state(State("id{}".format(i), group_id=1), ttl=1000)
-        res = api_client.get("/groups", query_string={"offset": offset})
+            state_middleware.backend.set_state(State(f"id{i}", group_id=1), ttl=1000)
+        res = api_client.post(
+            "/groups", data=json.dumps({"offset": offset, "size": 50}), content_type="application/json"
+        )
         assert len(res.json["data"]) == expected_len
-
-    @pytest.mark.parametrize("search_value", ["1", "2"])
-    def test_filter_groups(self, search_value, stub_broker, api_client, state_middleware):
-        for i in range(2):
-            state_middleware.backend.set_state(State("id{}".format(i), group_id=1), ttl=1000)
-        res = api_client.get("/groups", query_string={"search_value": search_value})
-        for group in res.json["data"]:
-            for message in group["messages"]:
-                assert dict_has(message, message.keys(), search_value)
 
     def test_requeue_message(self, stub_broker, do_work, api_client, state_middleware):
         stub_broker.enqueue = MagicMock()
@@ -284,12 +283,12 @@ class TestMessageStateAPI:
         message = do_work.send()
         stub_broker.join(do_work.queue_name)
         stub_worker.join()
-        res = api_client.get("/messages/result/{}".format(message.message_id))
+        res = api_client.get(f"/messages/result/{message.message_id}")
         assert res.json["result"] == "42"
 
     def test_no_result_backend(self, stub_broker, stub_worker, api_client, do_work):
         message = do_work.send()
-        res = api_client.get("/messages/result/{}".format(message.message_id))
+        res = api_client.get(f"/messages/result/{message.message_id}")
         assert res.json["result"] == "no result backend"
 
     def test_result_not_serializable(
@@ -303,5 +302,79 @@ class TestMessageStateAPI:
         message = do_work.send()
         stub_broker.join(do_work.queue_name)
         stub_worker.join()
-        res = api_client.get("/messages/result/{}".format(message.message_id))
+        res = api_client.get(f"/messages/result/{message.message_id}")
         assert res.json["result"] == "non serializable result"
+
+    def test_select_actors(self, stub_broker, postgres_state_middleware):
+        backend = postgres_state_middleware.backend
+        for i in range(2):
+            backend.set_state(State(f"id{i}", actor_name=f"actor{i}"))
+        res = backend.get_states(selected_actors=["actor1"])
+        assert len(res) == 1
+        assert res[0].actor_name == "actor1"
+
+    def test_select_statuses(self, stub_broker, postgres_state_middleware):
+        backend = postgres_state_middleware.backend
+        for i in range(2):
+            backend.set_state(State(f"id{i}", StateStatusesEnum.Success if i else StateStatusesEnum.Skipped))
+        res = backend.get_states(selected_statuses=["Success"])
+        assert len(res) == 1
+        assert res[0].status == StateStatusesEnum.Success
+
+    def test_select_ids(self, stub_broker, postgres_state_middleware):
+        backend = postgres_state_middleware.backend
+        for i in range(2):
+            backend.set_state(State(f"id{i}"))
+        res = backend.get_states(selected_ids=["id1"])
+        assert len(res) == 1
+        assert res[0].message_id == "id1"
+
+    def test_select_datetimes(self, stub_broker, postgres_state_middleware):
+        backend = postgres_state_middleware.backend
+        for i in range(2):
+            backend.set_state(State(f"id{i}", enqueued_datetime=parse(f"2020-08-08 1{i}:00:00")))
+
+        res = backend.get_states(start_datetime=parse("2020-08-08 10:30:00"))
+        assert len(res) == 1
+        assert res[0].message_id == "id1"
+
+        res = backend.get_states(end_datetime=parse("2020-08-08 10:30:00"))
+        assert len(res) == 1
+        assert res[0].message_id == "id0"
+
+    def test_clean(self, stub_broker, postgres_state_middleware):
+        backend = postgres_state_middleware.backend
+        backend.set_state(State("id0"))
+
+        assert len(backend.get_states()) == 1
+        backend.clean()
+        assert len(backend.get_states()) == 0
+
+    def test_clean_max_age(self, stub_broker, postgres_state_middleware):
+        backend = postgres_state_middleware.backend
+        backend.set_state(State("id0", end_datetime=datetime.datetime.now(pytz.utc)))
+        backend.set_state(State("id1", end_datetime=datetime.datetime.now(pytz.utc) - datetime.timedelta(minutes=50)))
+
+        assert len(backend.get_states()) == 2
+        backend.clean(max_age=25)
+        assert len(backend.get_states()) == 1
+        assert backend.get_states()[0].message_id == "id0"
+
+    def test_clean_not_started(self, stub_broker, postgres_state_middleware):
+        backend = postgres_state_middleware.backend
+        backend.set_state(State("id0", started_datetime=datetime.datetime.now(pytz.utc)))
+        backend.set_state(State("id1"))
+
+        assert len(backend.get_states()) == 2
+        backend.clean(not_started=True)
+        assert len(backend.get_states()) == 1
+        assert backend.get_states()[0].message_id == "id0"
+
+    def test_clean_route(self, stub_broker, postgres_state_middleware):
+        client = app.test_client()
+        backend = postgres_state_middleware.backend
+        backend.set_state(State("id0"))
+
+        assert len(backend.get_states()) == 1
+        client.delete("/messages/states")
+        assert len(backend.get_states()) == 0

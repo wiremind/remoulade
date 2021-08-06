@@ -1,7 +1,8 @@
+import datetime
 import sys
 from collections import namedtuple
 from enum import Enum
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 from dateutil.parser import parse
 
@@ -10,7 +11,7 @@ from .errors import InvalidStateError
 
 
 class StateStatusesEnum(Enum):
-    """Contains the possible states that can have a message"""
+    """Contains the possible statuses that a message can have"""
 
     Started = "Started"  # a `Message` that has not been processed
     Pending = "Pending"  # a `Message` that has been enqueued
@@ -108,7 +109,7 @@ class State(
             input_dict["status"] = StateStatusesEnum(input_dict["status"])
         datetime_keys = ["enqueued_datetime", "started_datetime", "end_datetime"]
         for key in datetime_keys:
-            if key in input_dict:
+            if key in input_dict and type(input_dict[key]) == str:
                 input_dict[key] = parse(input_dict[key])
         return cls(**input_dict)
 
@@ -165,7 +166,20 @@ class StateBackend:
         """
         raise NotImplementedError(f"{type(self).__name__} does not implement set_state")
 
-    def get_states(self) -> List[State]:
+    def get_states(
+        self,
+        *,
+        size: Optional[int] = None,
+        offset: int = 0,
+        selected_actors: Optional[List[str]] = None,
+        selected_statuses: Optional[List[str]] = None,
+        selected_ids: Optional[List[str]] = None,
+        start_datetime: Optional[datetime.datetime] = None,
+        end_datetime: Optional[datetime.datetime] = None,
+        sort_column: Optional[str] = None,
+        sort_direction: Optional[str] = None,
+        get_groups: bool = False,
+    ) -> List[State]:
         """Return all the states in the backend"""
         raise NotImplementedError(f"{type(self).__name__} does not implement get_all_messages")
 
@@ -184,3 +198,11 @@ class StateBackend:
         for (key, value) in data.items():
             decoded_data[self.encoder.decode(key)] = self.encoder.decode(value)
         return decoded_data
+
+    def clean(self, max_age: int = None, not_started: bool = False):
+        """Deletes states.
+
+        Parameters:
+            max_age(int): When set, only delete states that have finished more than max_age minutes ago.
+            not_started(bool): When set to True, only delete states from messages that have not yet started."""
+        raise NotImplementedError(f"{type(self).__name__} does not implement clean")

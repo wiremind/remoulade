@@ -8,6 +8,7 @@ from remoulade import group
 from remoulade.cancel import Cancel
 from remoulade.middleware import Middleware, SkipMessage
 from remoulade.state.backend import State, StateStatusesEnum
+from remoulade.state.backends import PostgresBackend
 from remoulade.state.middleware import MessageState, State
 
 
@@ -41,20 +42,20 @@ class TestMessageState:
         assert state.started_datetime.isoformat() == "2020-02-03T00:00:15+00:00"
         assert state.end_datetime.isoformat() == "2020-02-03T00:00:30+00:00"
 
-    def test_started_state_message(self, stub_broker, state_middleware, stub_worker, frozen_datetime):
+    def test_started_state_message(self, stub_broker, stub_worker, state_middleware, frozen_datetime):
         @remoulade.actor
         def wait():
             time.sleep(0.3)
 
         stub_broker.declare_actor(wait)
         msg = wait.send()
-        # We wait the message be emited
+        # We wait the message be emitted
         time.sleep(0.1)
         state = state_middleware.backend.get_state(msg.message_id)
         assert state.status == StateStatusesEnum.Started
         assert state.started_datetime.isoformat() == "2020-02-03T00:00:00+00:00"
 
-    def test_failure_state_message(self, stub_broker, stub_worker, state_middleware, frozen_datetime):
+    def test_failure_state_message(self, stub_broker, state_middleware, stub_worker, frozen_datetime):
         @remoulade.actor
         def error():
             raise Exception()
@@ -99,6 +100,10 @@ class TestMessageState:
 
     @pytest.mark.parametrize("ttl, result_type", [pytest.param(1000, State), pytest.param(1, type(None))])
     def test_expiration_data_backend(self, ttl, result_type, stub_broker, state_backend):
+
+        if type(state_backend) == PostgresBackend:
+            pytest.skip("Skipping this test as there is no expiration on PostgresBackend")
+
         @remoulade.actor
         def wait():
             pass
