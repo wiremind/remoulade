@@ -19,6 +19,14 @@ jobs:
         image: rabbitmq
         ports:
           - 5784:5672
+      postgres:
+        image: postgres
+        ports:
+          - 5544:5432
+        env:
+          POSTGRES_USER: remoulade
+          POSTGRES_HOST_AUTH_METHOD: trust
+          POSTGRES_DB: test
 
     steps:
     - uses: actions/checkout@v2

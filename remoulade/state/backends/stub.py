@@ -1,5 +1,6 @@
+import datetime
 import time
-from typing import Dict
+from typing import Dict, List, Optional
 
 from ..backend import State, StateBackend
 
@@ -45,12 +46,30 @@ class StubBackend(StateBackend):
     def _delete(self, message_key):
         del self.states[message_key]
 
-    def get_states(self):
+    def get_states(
+        self,
+        *,
+        size: Optional[int] = None,
+        offset: int = 0,
+        selected_actors: Optional[List[str]] = None,
+        selected_statuses: Optional[List[str]] = None,
+        selected_ids: Optional[List[str]] = None,
+        start_datetime: Optional[datetime.datetime] = None,
+        end_datetime: Optional[datetime.datetime] = None,
+        sort_column: Optional[str] = None,
+        sort_direction: Optional[str] = None,
+        get_groups: bool = False,
+    ):
         time_now = time.monotonic()
+        states = []
         for message_key in list(self.states.keys()):
             data = self.states[message_key]
             if time_now > float(data["expiration"]):
                 self._delete(message_key)
                 continue
             state = State.from_dict(self._decode_dict(data["state"]))
-            yield state
+            if not get_groups or state.group_id:
+                states.append(state)
+        if size is None:
+            return states[offset:]
+        return states[offset : size + offset]

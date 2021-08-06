@@ -1,3 +1,6 @@
+import datetime
+from typing import List, Optional
+
 import redis
 
 from remoulade.common import chunk
@@ -43,16 +46,36 @@ class RedisBackend(StateBackend):
             pipe.expire(message_key, ttl)
             pipe.execute()
 
-    def get_states(self):
-        size = 1000
-        for keys in chunk(self.client.scan_iter(match="{}*".format(StateBackend.namespace), count=size), size):
+    def get_states(
+        self,
+        *,
+        size: Optional[int] = None,
+        offset: int = 0,
+        selected_actors: Optional[List[str]] = None,
+        selected_statuses: Optional[List[str]] = None,
+        selected_ids: Optional[List[str]] = None,
+        start_datetime: Optional[datetime.datetime] = None,
+        end_datetime: Optional[datetime.datetime] = None,
+        sort_column: Optional[str] = None,
+        sort_direction: Optional[str] = None,
+        get_groups: bool = False,
+    ):
+        states = []
+        for keys in chunk(self.client.scan_iter(match=f"{StateBackend.namespace}*", count=size), size):
             with self.client.pipeline() as pipe:
                 for key in keys:
                     pipe.hgetall(key)
                 data = pipe.execute()
-                for state in data:
-                    if state:
-                        yield self._parse_state(state)
+                for state_dict in data:
+                    if state_dict:
+                        state = self._parse_state(state_dict)
+                        if not get_groups or state.group_id:
+                            states.append(state)
+
+        if size is None:
+            return states[offset:]
+
+        return states[offset : size + offset]
 
     def _parse_state(self, data):
         decoded_state = self._decode_dict(data)

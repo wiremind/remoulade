@@ -2,7 +2,6 @@
 import datetime
 import sys
 from collections import defaultdict
-from operator import itemgetter
 from typing import Dict, Iterable, List
 
 from flask import Flask, request
@@ -10,23 +9,15 @@ from marshmallow import ValidationError
 from typing_extensions import DefaultDict, TypedDict
 from werkzeug.exceptions import HTTPException, NotFound
 
-import remoulade
 from remoulade import get_broker, get_scheduler
 from remoulade.errors import NoResultBackend, NoScheduler, RemouladeError
 from remoulade.result import Result
 from remoulade.results import ResultMissing
 
-from .schema import MessageSchema, PageSchema
+from ..state.backends import PostgresBackend
+from .schema import DeleteSchema, MessageSchema, PageSchema
 
 app = Flask(__name__)
-
-
-def sort_dicts(data, column, reverse=False):
-    """Sort an array of dicts by a given column"""
-    data_none = [item for item in data if item.get(column) is None]
-    data = sorted((item for item in data if item.get(column) is not None), key=itemgetter(column), reverse=reverse)
-    data.extend(data_none)
-    return data
 
 
 def dict_has(item, keys, value):
@@ -39,27 +30,27 @@ class GroupMessagesT(TypedDict):
     messages: List[dict]
 
 
-@app.route("/messages/states")
+@app.route("/messages/states", methods=["POST"])
 def get_states():
-    args = PageSchema().load(request.args.to_dict())
-    backend = remoulade.get_broker().get_state_backend()
-    data = [s.as_dict() for s in backend.get_states()]
-    if args.get("search_value"):
-        keys = ["message_id", "name", "actor_name", "args", "kwargs", "options"]
-        value = args["search_value"].lower()
-        data = [item for item in data if dict_has(item, keys, value)]
+    states_kwargs = PageSchema().load(request.json or {})
+    backend = get_broker().get_state_backend()
+    data = [state.as_dict() for state in backend.get_states(**states_kwargs)]
+    return {"data": data, "count": len(data)}
 
-    if args.get("sort_column"):
-        reverse = args.get("sort_direction") == "desc"
-        sort_column = args["sort_column"]
-        data = sort_dicts(data, sort_column, reverse)
 
-    return {"data": data[args["offset"] : args["size"] + args["offset"]], "count": len(data)}
+@app.route("/messages/states", methods=["DELETE"])
+def clean_states():
+    backend = get_broker().get_state_backend()
+    if not isinstance(backend, PostgresBackend):
+        return {"error": "deleting states is only supported by the PostgresBackend"}, 400
+    states_kwargs = DeleteSchema().load(request.json or {})
+    get_broker().get_state_backend().clean(**states_kwargs)
+    return {"result": "ok"}
 
 
 @app.route("/messages/state/<message_id>")
 def get_state(message_id):
-    backend = remoulade.get_broker().get_state_backend()
+    backend = get_broker().get_state_backend()
     data = backend.get_state(message_id)
     if data is None:
         raise NotFound("message_id = {} does not exist".format(message_id))
@@ -68,14 +59,14 @@ def get_state(message_id):
 
 @app.route("/messages/cancel/<message_id>", methods=["POST"])
 def cancel_message(message_id):
-    backend = remoulade.get_broker().get_cancel_backend()
+    backend = get_broker().get_cancel_backend()
     backend.cancel([message_id])
     return {"result": "ok"}
 
 
 @app.route("/messages/requeue/<message_id>")
 def requeue_message(message_id):
-    broker = remoulade.get_broker()
+    broker = get_broker()
     backend = broker.get_state_backend()
     state = backend.get_state(message_id)
     actor = broker.get_actor(state.actor_name)
@@ -132,17 +123,11 @@ def get_actors():
     return {"result": [actor.as_dict() for actor in get_broker().actors.values()]}
 
 
-@app.route("/groups")
+@app.route("/groups", methods=["POST"])
 def get_groups():
-    args = PageSchema().load(request.args.to_dict())
-    backend = remoulade.get_broker().get_state_backend()
+    backend = get_broker().get_state_backend()
     groups_by_id: DefaultDict[str, List[Dict]] = defaultdict(list)
-    states = (state for state in backend.get_states() if state.group_id)
-
-    if args.get("search_value"):
-        keys = ["message_id", "name", "actor_name", "group_id"]
-        value = args["search_value"].lower()
-        states = [state for state in states if dict_has(state.as_dict(), keys, value)]  # type: ignore
+    states = (state for state in backend.get_states(get_groups=True))
 
     for state in states:
         groups_by_id[state.group_id].append(state.as_dict(exclude_keys=("args", "kwargs", "options")))
@@ -153,12 +138,19 @@ def get_groups():
     sorted_groups: List[GroupMessagesT] = sorted(
         groups, key=lambda x: x["messages"][0].get("enqueued_datetime") or datetime.datetime.min, reverse=True
     )
-    return {"data": sorted_groups[args["offset"] : args["size"] + args["offset"]], "count": len(sorted_groups)}
+    if request.json is None:
+        return {"data": sorted_groups, "count": len(sorted_groups)}
+
+    states_kwargs = PageSchema().load(request.json)
+    return {
+        "data": sorted_groups[states_kwargs["offset"] : states_kwargs["size"] + states_kwargs["offset"]],
+        "count": len(sorted_groups),
+    }
 
 
 @app.route("/options")
 def get_options():
-    broker = remoulade.get_broker()
+    broker = get_broker()
     return {"options": list(broker.actor_options)}
 
 
