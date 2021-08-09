@@ -226,33 +226,6 @@ class TestMessageStateAPI:
             "data": [{"args": {"date": "Sat, 12 Dec 2020 00:00:00 GMT", "status": "some_status"}, "message_id": "id1"}],
         }
 
-    def test_get_group_id(self, stub_broker, api_client, state_middleware):
-        for i in range(2):
-            state_middleware.backend.set_state(State(f"id{i}", group_id="1"), ttl=1000)
-        state_middleware.backend.set_state(State("id2", group_id="2"), ttl=1000)
-        res = api_client.post("/groups").json["data"]
-
-        res.sort(key=lambda i: i["group_id"])
-        for item in res:
-            item["messages"].sort(key=lambda i: i["message_id"])
-
-        assert res == [
-            {
-                "group_id": "1",
-                "messages": [{"group_id": "1", "message_id": "id0"}, {"group_id": "1", "message_id": "id1"}],
-            },
-            {"group_id": "2", "messages": [{"group_id": "2", "message_id": "id2"}]},
-        ]
-
-    @pytest.mark.parametrize("offset, expected_len", [(0, 1), (1, 0), (2, 0)])
-    def test_offset_in_group(self, offset, expected_len, stub_broker, api_client, state_middleware):
-        for i in range(2):
-            state_middleware.backend.set_state(State(f"id{i}", group_id=1), ttl=1000)
-        res = api_client.post(
-            "/groups", data=json.dumps({"offset": offset, "size": 50}), content_type="application/json"
-        )
-        assert len(res.json["data"]) == expected_len
-
     def test_requeue_message(self, stub_broker, do_work, api_client, state_middleware):
         stub_broker.enqueue = MagicMock()
         state = State("id1", StateStatusesEnum.Success, actor_name="do_work", options={"time_limit": 1000})
@@ -362,8 +335,9 @@ class TestMessageStateAPI:
 
         assert len(backend.get_states()) == 2
         backend.clean(max_age=25)
-        assert len(backend.get_states()) == 1
-        assert backend.get_states()[0].message_id == "id0"
+        res = backend.get_states()
+        assert len(res) == 1
+        assert res[0].message_id == "id0"
 
     def test_clean_not_started(self, stub_broker, postgres_state_middleware):
         backend = postgres_state_middleware.backend
@@ -372,8 +346,9 @@ class TestMessageStateAPI:
 
         assert len(backend.get_states()) == 2
         backend.clean(not_started=True)
-        assert len(backend.get_states()) == 1
-        assert backend.get_states()[0].message_id == "id0"
+        res = backend.get_states()
+        assert len(res) == 1
+        assert res[0].message_id == "id0"
 
     def test_clean_route(self, stub_broker, postgres_state_middleware):
         client = app.test_client()

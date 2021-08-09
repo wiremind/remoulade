@@ -21,3 +21,19 @@ class TestStateBackend:
         assert state.status == StateStatusesEnum.Success
         assert state.args == [1, 2]
         assert state.kwargs == {"status": "work"}
+
+    def test_count_messages(self, stub_broker, state_middleware):
+        backend = state_middleware.backend
+        for i in range(3):
+            backend.set_state(State(f"id{i}"))
+
+        assert backend.get_states_count() == 3
+
+    def test_count_compositions(self, stub_broker, state_middleware):
+        backend = state_middleware.backend
+
+        for i in range(3):
+            for j in range(2):
+                backend.set_state(State(f"id{i*j}", composition_id=f"id{j}"))
+
+        assert backend.get_states_count() == 2

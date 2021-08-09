@@ -4,9 +4,22 @@ import threading
 from typing import List, Optional, Type, TypeVar
 
 from pytz import utc
-from sqlalchemy import Column, DateTime, Float, LargeBinary, SmallInteger, String, create_engine, inspect, text
+from sqlalchemy import (
+    Column,
+    DateTime,
+    Float,
+    LargeBinary,
+    SmallInteger,
+    String,
+    create_engine,
+    distinct,
+    inspect,
+    or_,
+    text,
+)
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm.session import sessionmaker
+from sqlalchemy.sql.functions import coalesce, count, max
 
 from remoulade import Encoder
 from remoulade.state import State, StateBackend
@@ -14,7 +27,7 @@ from remoulade.state import State, StateBackend
 Base = declarative_base()
 
 DEFAULT_POSTGRES_URI = "postgresql://remoulade@localhost:5432/remoulade"
-DB_VERSION = 2
+DB_VERSION = 3
 T = TypeVar("T", bound="StoredState")
 
 
@@ -33,8 +46,8 @@ class StoredState(Base):
     enqueued_datetime = Column(DateTime(timezone=True), index=True)
     started_datetime = Column(DateTime(timezone=True), index=True)
     end_datetime = Column(DateTime(timezone=True), index=True)
-    group_id = Column(String(length=36))
     queue_name = Column(String(length=60))
+    composition_id = Column(String)
 
     def as_state(self, encoder: Encoder) -> State:
         state_dict = {}
@@ -63,6 +76,21 @@ class StateVersion(Base):
     __tablename__ = "version"
 
     version = Column(SmallInteger, primary_key=True)
+
+
+def filter_query(*, query, selected_actors, selected_statuses, selected_ids, start_datetime, end_datetime):
+    if selected_actors is not None:
+        query = query.filter(StoredState.actor_name.in_(selected_actors))
+    if selected_statuses is not None:
+        query = query.filter(StoredState.status.in_(selected_statuses))
+    if selected_ids is not None:
+        query = query.filter(StoredState.message_id.in_(selected_ids))
+    if start_datetime is not None:
+        query = query.filter(StoredState.enqueued_datetime >= start_datetime)
+    if end_datetime is not None:
+        query = query.filter(StoredState.enqueued_datetime <= end_datetime)
+
+    return query
 
 
 class PostgresBackend(StateBackend):
@@ -126,28 +154,65 @@ class PostgresBackend(StateBackend):
         end_datetime: Optional[datetime.datetime] = None,
         sort_column: Optional[str] = None,
         sort_direction: Optional[str] = None,
-        get_groups: bool = False,
     ):
+        sort_column = sort_column or "enqueued_datetime"
+        sort_direction = sort_direction or "desc"
+
         with self.client.begin() as session:
             query = session.query(StoredState)
-            if selected_actors is not None:
-                query = query.filter(StoredState.actor_name.in_(selected_actors))
-            if selected_statuses is not None:
-                query = query.filter(StoredState.status.in_(selected_statuses))
-            if selected_ids is not None:
-                query = query.filter(StoredState.message_id.in_(selected_ids))
-            if start_datetime is not None:
-                query = query.filter(StoredState.enqueued_datetime >= start_datetime)
-            if end_datetime is not None:
-                query = query.filter(StoredState.enqueued_datetime <= end_datetime)
-            if get_groups:
-                query = query.filter(StoredState.group_id.is_not(None))
-            if sort_column in State._fields and sort_direction is not None:
-                query = query.order_by(text(f"{sort_column} {sort_direction}"))
+            query = filter_query(
+                query=query,
+                selected_actors=selected_actors,
+                selected_statuses=selected_statuses,
+                selected_ids=selected_ids,
+                start_datetime=start_datetime,
+                end_datetime=end_datetime,
+            )
+            query = query.order_by(text(f"{sort_column} {sort_direction}"))
             if size is not None:
-                query = query.offset(offset).limit(size)
+                query = query.subquery()
+                query_group = session.query(
+                    max(query.c.composition_id).label("composition_id"),
+                    max(query.c.message_id).label("message_id"),
+                ).group_by(coalesce(query.c.composition_id, query.c.message_id))
+                query_group = query_group.offset(offset).limit(size).subquery()
+                query = (
+                    session.query(StoredState)
+                    .select_from(StoredState)
+                    .join(
+                        query_group,
+                        or_(
+                            StoredState.message_id == query_group.c.message_id,
+                            StoredState.composition_id == query_group.c.composition_id,
+                        ),
+                    )
+                    .order_by(text(f"{sort_column} {sort_direction}"))
+                )
 
             return [state_model.as_state(self.encoder) for state_model in query]
+
+    def get_states_count(
+        self,
+        *,
+        selected_actors: Optional[List[str]] = None,
+        selected_statuses: Optional[List[str]] = None,
+        selected_ids: Optional[List[str]] = None,
+        start_datetime: Optional[datetime.datetime] = None,
+        end_datetime: Optional[datetime.datetime] = None,
+        **kwargs,
+    ):
+        with self.client.begin() as session:
+            query = session.query(count(distinct(coalesce(StoredState.composition_id, StoredState.message_id))))
+
+            query = filter_query(
+                query=query,
+                selected_actors=selected_actors,
+                selected_statuses=selected_statuses,
+                selected_ids=selected_ids,
+                start_datetime=start_datetime,
+                end_datetime=end_datetime,
+            )
+            return query.first()[0]
 
     def clean(self, max_age: Optional[int] = None, not_started: bool = False):
         with self.client.begin() as session:

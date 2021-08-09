@@ -139,12 +139,12 @@ class TestMessageState:
         else:
             assert args is None
 
-    def test_save_group_id_in_message(self, stub_broker, state_middleware, do_work):
+    def test_save_composition_id_in_message(self, stub_broker, state_middleware, do_work):
         msg = do_work.message()
-        group_id = group([msg]).run().group_id
+        composition_id = group([msg]).run().group_id
         state = state_middleware.backend.get_state(msg.message_id)
         assert state.message_id == msg.message_id
-        assert state.group_id == group_id
+        assert state.composition_id == composition_id
 
     @pytest.mark.parametrize("state_ttl", [0, -1, None])
     def test_backend_not_called_if_no_state_ttl(self, stub_broker, do_work, state_ttl):

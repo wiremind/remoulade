@@ -1,12 +1,10 @@
 """ This file describe the API to get the state of messages """
-import datetime
 import sys
-from collections import defaultdict
-from typing import Dict, Iterable, List
+from typing import List
 
 from flask import Flask, request
 from marshmallow import Schema, ValidationError, fields, validate
-from typing_extensions import DefaultDict, TypedDict
+from typing_extensions import TypedDict
 from werkzeug.exceptions import HTTPException
 
 from remoulade import get_broker
@@ -15,7 +13,7 @@ from remoulade.result import Result
 from remoulade.results import ResultMissing
 
 from .scheduler import scheduler_bp
-from .state import StatesSchema, messages_bp
+from .state import messages_bp
 
 app = Flask(__name__)
 app.register_blueprint(scheduler_bp)
@@ -88,31 +86,6 @@ def enqueue_message():
 class GroupMessagesT(TypedDict):
     group_id: str
     messages: List[dict]
-
-
-@app.route("/groups", methods=["POST"])
-def get_groups():
-    backend = get_broker().get_state_backend()
-    groups_by_id: DefaultDict[str, List[Dict]] = defaultdict(list)
-    states = (state for state in backend.get_states(get_groups=True))
-
-    for state in states:
-        groups_by_id[state.group_id].append(state.as_dict(exclude_keys=("args", "kwargs", "options")))
-
-    groups: Iterable[GroupMessagesT] = (
-        {"group_id": group_id, "messages": messages} for group_id, messages in groups_by_id.items()
-    )
-    sorted_groups: List[GroupMessagesT] = sorted(
-        groups, key=lambda x: x["messages"][0].get("enqueued_datetime") or datetime.datetime.min, reverse=True
-    )
-    if request.json is None:
-        return {"data": sorted_groups, "count": len(sorted_groups)}
-
-    states_kwargs = StatesSchema().load(request.json)
-    return {
-        "data": sorted_groups[states_kwargs["offset"] : states_kwargs["size"] + states_kwargs["offset"]],
-        "count": len(sorted_groups),
-    }
 
 
 @app.route("/actors")
