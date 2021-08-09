@@ -46,13 +46,13 @@ class MessageState(Middleware):
 
     def before_enqueue(self, broker, message, delay):
         priority = broker.get_actor(message.actor_name).priority
-        group_id = self.get_option("group_info", broker=broker, message=message, default={}).get("group_id")
+        composition_id = self.get_option("composition_id", broker=broker, message=message)
         self.save(
             message,
             status=StateStatusesEnum.Pending,
             enqueued_datetime=self._get_current_time(),
             priority=priority,
-            group_id=group_id,
+            composition_id=composition_id,
         )
 
     def after_enqueue(self, broker, message, delay, exception=None):

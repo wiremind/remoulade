@@ -77,7 +77,7 @@ class pipeline:
             else:
                 self.children.append(child.copy())
 
-    def build(self, *, last_options=None):
+    def build(self, *, last_options=None, composition_id: str = None):
         """Build the pipeline, return the first message to be enqueued or integrated in another pipeline
 
         Build the pipeline by starting at the end. We build a message with all it's options in one step and
@@ -87,17 +87,21 @@ class pipeline:
         edit the pipeline after it has been built.
 
         Parameters:
+            composition_id(str): The composition id to pass to messages
             last_options(dict): options to be assigned to the last actor of the pipeline (ex: pipe_target)
 
         Returns:
             the first message of the pipeline
         """
+        composition_id = composition_id or generate_unique_id()
         next_child = None
         for child in reversed(self.children):
             if next_child:
                 options = {"pipe_target": [m.asdict() for m in next_child]}
             else:
                 options = last_options or {}
+
+            options["composition_id"] = composition_id
 
             if isinstance(child, group):
                 next_child = child.build(options)
@@ -216,11 +220,12 @@ class group:
         else:
             self.broker.emit_before("build_group_pipeline", group_id=self.group_id, message_ids=list(self.message_ids))
 
-        options = {"group_info": self.info.asdict(), **options}
+        composition_id = options.get("composition_id") or self.group_id
+        options = {"group_info": self.info.asdict(), "composition_id": composition_id, **options}
         messages: "List[Message]" = []
         for group_child in self.children:
             if isinstance(group_child, pipeline):
-                messages += group_child.build(last_options=options)
+                messages += group_child.build(last_options=options, composition_id=composition_id)
             else:
                 messages += [group_child.build(options)]
         return messages

@@ -5,6 +5,17 @@ Changelog
 
 All notable changes to this project will be documented in this file.
 
+`0.41.0`_ -- 2021-10-22
+-----------------------
+Added
+^^^^^
+* compositions: add a composition id to messages to identify which pipeline or group they belong to.
+* state : the state middleware and api will no longer return incomplete compositions
+
+Removed
+^^^^^^^
+* state: removed stub and redis backends
+
 `0.40.2`_ -- 2021-09-29
 -----------------------
 Fixed
@@ -392,7 +403,7 @@ Added
 Changed
 ^^^^^^^
 * ``hmset`` to ``hset`` in class |RedisResBackend| as the former is deprecated, this requires at least Redis 4.0.0 and at least redis-py 3.5.0
-* Method ``api`` ``get_states`` now 
+* Method ``api`` ``get_states`` now
     - can receive arguments defined in schema |PageSchema|
        * ``search_value``
        * ``sort_column`` a column defined in |State|, this column must be sortable
@@ -773,6 +784,7 @@ Fixed
 .. _#84: https://github.com/wiremind/remoulade/issues/84
 .. _#77: https://github.com/wiremind/remoulade/issues/77
 
+.. _0.41.0: https://github.com/wiremind/remoulade/releases/tag/v0.41.0
 .. _0.40.2: https://github.com/wiremind/remoulade/releases/tag/v0.40.2
 .. _0.40.1: https://github.com/wiremind/remoulade/releases/tag/v0.40.1
 .. _0.40.0: https://github.com/wiremind/remoulade/releases/tag/v0.40.0

@@ -643,3 +643,11 @@ def test_retry_if_increment_group_completion_fail(stub_broker, stub_worker):
 
         # The actor has been tried 8 times (4 time each do_work and never the last one)
         assert len(attempts) == 8
+
+
+def test_composition_id_override(stub_broker, do_work):
+    group_messages = group([pipeline([do_work.message(), do_work.message()])]).build(options={"composition_id": "id"})
+    assert group_messages[0].options["composition_id"] == "id"
+    assert group_messages[0].options["pipe_target"][0]["options"]["composition_id"] == "id"
+    pipeline_messages = pipeline([group([do_work.message(), do_work.message()])]).build(composition_id="id")
+    assert all(message.options["composition_id"] == "id" for message in pipeline_messages)

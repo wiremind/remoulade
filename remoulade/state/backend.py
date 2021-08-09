@@ -37,8 +37,8 @@ class State(
             "enqueued_datetime",
             "started_datetime",
             "end_datetime",
-            "group_id",
             "queue_name",
+            "composition_id",
         ),
     )
 ):
@@ -62,8 +62,8 @@ class State(
         enqueued_datetime=None,
         started_datetime=None,
         end_datetime=None,
-        group_id=None,
         queue_name=None,
+        composition_id=None,
     ):
 
         if status and status not in list(StateStatusesEnum):
@@ -81,8 +81,8 @@ class State(
             enqueued_datetime,
             started_datetime,
             end_datetime,
-            group_id,
             queue_name,
+            composition_id,
         )
 
     def as_dict(self, exclude_keys=(), encode_args=False):
@@ -181,10 +181,21 @@ class StateBackend:
         end_datetime: Optional[datetime.datetime] = None,
         sort_column: Optional[str] = None,
         sort_direction: Optional[str] = None,
-        get_groups: bool = False,
     ) -> List[State]:
         """Return all the states in the backend"""
         raise NotImplementedError(f"{type(self).__name__} does not implement get_all_messages")
+
+    def get_states_count(
+        self,
+        *,
+        selected_actors: Optional[List[str]] = None,
+        selected_statuses: Optional[List[str]] = None,
+        selected_ids: Optional[List[str]] = None,
+        start_datetime: Optional[datetime.datetime] = None,
+        end_datetime: Optional[datetime.datetime] = None,
+        **kwargs,
+    ) -> int:
+        raise NotImplementedError(f"{type(self).__name__} does not implement get_states_count")
 
     def _encode_dict(self, data):
         """Return the (keys, values) of a dictionary encoded"""

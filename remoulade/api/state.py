@@ -3,7 +3,7 @@ from marshmallow import Schema, ValidationError, fields, validate, validates_sch
 from werkzeug.exceptions import NotFound
 
 from remoulade import get_broker
-from remoulade.state import StateStatusesEnum
+from remoulade.state import State, StateStatusesEnum
 from remoulade.state.backends import PostgresBackend
 
 messages_bp = Blueprint("messages", __name__, url_prefix="/messages")
@@ -23,9 +23,9 @@ class StatesSchema(Schema):
     Class to validate the state search parameters
     """
 
-    sort_column = fields.Str(allow_none=True)
+    sort_column = fields.Str(allow_none=True, validate=validate.OneOf(State._fields))
     sort_direction = fields.Str(allow_none=True, validate=validate.OneOf(["asc", "desc"]))
-    size = fields.Int(missing=None, validate=validate.Range(min=1, max=1000))
+    size = fields.Int(allow_none=True, validate=validate.Range(min=1, max=1000))
     offset = fields.Int(missing=0)
     selected_actors = fields.List(fields.String, allow_none=True)
     selected_statuses = fields.List(
@@ -47,7 +47,7 @@ def get_states():
     states_kwargs = StatesSchema().load(request.json or {})
     backend = get_broker().get_state_backend()
     data = [state.as_dict() for state in backend.get_states(**states_kwargs)]
-    return {"data": data, "count": len(data)}
+    return {"data": data, "count": backend.get_states_count(**states_kwargs)}
 
 
 @messages_bp.route("/states", methods=["DELETE"])
