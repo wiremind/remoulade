@@ -16,3 +16,5 @@ services:
       POSTGRES_USER: wiremind_owner
       POSTGRES_HOST_AUTH_METHOD: trust
       POSTGRES_DB: wiremind
+    volumes:
+      - ./sql/create_tables.sql:/docker-entrypoint-initdb.d/create_tables.sql
