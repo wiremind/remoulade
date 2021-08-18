@@ -89,8 +89,9 @@ class Retries(Middleware):
             message.fail()
             return
 
-        message.options["retries"] += 1
-        message.options["traceback"] = traceback.format_exc(limit=30)
+        new_message = message.copy()
+        new_message.options["retries"] += 1
+        new_message.options["traceback"] = traceback.format_exc(limit=30)
         min_backoff = self.get_option("min_backoff", broker=broker, message=message)
         max_backoff = self.get_option("max_backoff", broker=broker, message=message)
         backoff_strategy = self.get_option("backoff_strategy", broker=broker, message=message)
