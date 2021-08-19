@@ -5,6 +5,12 @@ Changelog
 
 All notable changes to this project will be documented in this file.
 
+`0.33.1`_ -- 2021-08-19
+-----------------------
+Changed
+^^^^^^^
+* state: rename State attribute 'name' with more explicit name 'status'
+
 `0.33.0`_ -- 2021-08-16
 -----------------------
 Changed
@@ -313,7 +319,7 @@ Added
 * Method ``get_state_backend`` in ``broker.py``
 * Module ``api`` with methods to get the state of a message by HTTP request:
    - url ``/messages/states`` returns all states in the backend
-   - url ``/messages/states?name=NameState`` returns all states in the backend whose state is equal to NameState, this should be defined in |StateNamesEnum|
+   - url ``/messages/states?name=NameState`` returns all states in the backend whose state is equal to NameState, this should be defined in StateNamesEnum
    - url ``/messages/state/message_id`` return the state of a given ``message_id``
 * Class |TestMessageStateAPI| responsible to test the API of |StateBackend|
 * Add **Flask** as an extra dependency
@@ -331,7 +337,7 @@ BREAKING CHANGE
 
 Added
 ^^^^^
-* |StateNamesEnum| (type :**Enum**) contains the possible states that can have a message:
+* StateNamesEnum (type :**Enum**) contains the possible states that can have a message:
    - **Started** a |Message| that  has not been processed
    - **Pending** a |Message| that has been enqueued
    - **Skipped** a |Message| that has been skipped
@@ -636,6 +642,7 @@ Fixed
 .. _#84: https://github.com/wiremind/remoulade/issues/84
 .. _#77: https://github.com/wiremind/remoulade/issues/77
 
+.. _0.33.1: https://github.com/wiremind/remoulade/releases/tag/v0.33.1
 .. _0.33.0: https://github.com/wiremind/remoulade/releases/tag/v0.33.0
 .. _0.32.0: https://github.com/wiremind/remoulade/releases/tag/v0.32.0
 .. _0.31.4: https://github.com/wiremind/remoulade/releases/tag/v0.31.4

@@ -14,7 +14,7 @@ from remoulade.api.main import app, dict_has
 from remoulade.cancel import Cancel
 from remoulade.message import Message
 from remoulade.scheduler import ScheduledJob
-from remoulade.state import State, StateNamesEnum
+from remoulade.state import State, StateStatusesEnum
 
 
 @pytest.fixture
@@ -36,20 +36,20 @@ class TestMessageStateAPI:
         assert res.status_code == 404
 
     def test_invalid_state_message(self, stub_broker, api_client):
-        res = api_client.get("/messages/states?name=invalid_state")
+        res = api_client.get("/messages/states?status=invalid_state")
         assert res.status_code == 400
 
-    @pytest.mark.parametrize("name_state", [StateNamesEnum.Skipped, StateNamesEnum.Success])
-    def test_get_state_by_name(self, name_state, stub_broker, state_middleware, api_client):
-        state = State("1", name_state)
+    @pytest.mark.parametrize("status", [StateStatusesEnum.Skipped, StateStatusesEnum.Success])
+    def test_get_state_by_name(self, status, stub_broker, state_middleware, api_client):
+        state = State("1", status)
         state_middleware.backend.set_state(state, ttl=1000)
-        args = {"search_value": name_state.value}
+        args = {"search_value": status.value}
         res = api_client.get("/messages/states", data=args)
         assert res.json == {"count": 1, "data": [state.as_dict()]}
 
     def test_get_by_message_id(self, stub_broker, state_middleware, api_client):
         message_id = "1"
-        state = State(message_id, StateNamesEnum.Pending)
+        state = State(message_id, StateStatusesEnum.Pending)
         state_middleware.backend.set_state(state, ttl=1000)
         res = api_client.get("/messages/state/{}".format(message_id))
         assert res.json == state.as_dict()
@@ -59,7 +59,7 @@ class TestMessageStateAPI:
         # generate random test
         random_states = []
         for i in range(n):
-            random_state = State("id{}".format(i), choice(list(StateNamesEnum)))  # random state
+            random_state = State("id{}".format(i), choice(list(StateStatusesEnum)))  # random state
             random_states.append(random_state.as_dict())
             state_middleware.backend.set_state(random_state, ttl=1000)
 
@@ -251,7 +251,7 @@ class TestMessageStateAPI:
 
     def test_requeue_message(self, stub_broker, do_work, api_client, state_middleware):
         stub_broker.enqueue = MagicMock()
-        state = State("id1", StateNamesEnum.Success, actor_name="do_work", options={"time_limit": 1000})
+        state = State("id1", StateStatusesEnum.Success, actor_name="do_work", options={"time_limit": 1000})
         state_middleware.backend.set_state(state, ttl=1000)
         res = api_client.get("messages/requeue/id1")
         message = Message(
@@ -269,7 +269,7 @@ class TestMessageStateAPI:
 
     def test_requeue_message_with_pipeline(self, stub_broker, do_work, api_client, state_middleware):
         stub_broker.enqueue = MagicMock()
-        state = State("id1", StateNamesEnum.Success, actor_name="do_work", options={"pipe_target": "some_pipe"})
+        state = State("id1", StateStatusesEnum.Success, actor_name="do_work", options={"pipe_target": "some_pipe"})
         state_middleware.backend.set_state(state, ttl=1000)
         res = api_client.get("messages/requeue/id1")
         assert res.json == {"error": "requeue message in a pipeline not supported"}

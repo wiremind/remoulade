@@ -1,7 +1,7 @@
 from datetime import datetime, timezone
 
 from ..middleware import Middleware
-from .backend import State, StateNamesEnum
+from .backend import State, StateStatusesEnum
 
 
 class MessageState(Middleware):
@@ -17,7 +17,7 @@ class MessageState(Middleware):
         self.backend = backend
         self.state_ttl = state_ttl
 
-    def save(self, message, state_name, priority=None, **kwargs):
+    def save(self, message, status, priority=None, **kwargs):
         if self.state_ttl is None or self.state_ttl <= 0:
             return
         args = message.args
@@ -28,7 +28,7 @@ class MessageState(Middleware):
         self.backend.set_state(
             State(
                 message_id,
-                state_name,
+                status,
                 actor_name=actor_name,
                 args=args,
                 priority=priority,
@@ -47,24 +47,24 @@ class MessageState(Middleware):
         group_id = self.get_option("group_info", broker=broker, message=message, default={}).get("group_id")
         self.save(
             message,
-            state_name=StateNamesEnum.Pending,
+            status=StateStatusesEnum.Pending,
             enqueued_datetime=self._get_current_time(),
             priority=priority,
             group_id=group_id,
         )
 
     def after_skip_message(self, broker, message):
-        self.save(message, state_name=StateNamesEnum.Skipped)
+        self.save(message, status=StateStatusesEnum.Skipped)
 
     def after_message_canceled(self, broker, message):
-        self.save(message, state_name=StateNamesEnum.Canceled)
+        self.save(message, status=StateStatusesEnum.Canceled)
 
     def after_process_message(self, broker, message, *, result=None, exception=None):
         self.save(
             message,
-            state_name=StateNamesEnum.Success if exception is None else StateNamesEnum.Failure,
+            status=StateStatusesEnum.Success if exception is None else StateStatusesEnum.Failure,
             end_datetime=self._get_current_time(),
         )
 
     def before_process_message(self, broker, message):
-        self.save(message, state_name=StateNamesEnum.Started, started_datetime=self._get_current_time())
+        self.save(message, status=StateStatusesEnum.Started, started_datetime=self._get_current_time())

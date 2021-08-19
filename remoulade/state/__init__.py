@@ -1,5 +1,5 @@
-from .backend import State, StateBackend, StateNamesEnum
+from .backend import State, StateBackend, StateStatusesEnum
 from .errors import InvalidStateError
 from .middleware import MessageState
 
-__all__ = ["State", "StateBackend", "MessageState", "StateNamesEnum", "InvalidStateError"]
+__all__ = ["State", "StateBackend", "MessageState", "StateStatusesEnum", "InvalidStateError"]

@@ -7,7 +7,7 @@ import remoulade
 from remoulade import group
 from remoulade.cancel import Cancel
 from remoulade.middleware import Middleware, SkipMessage
-from remoulade.state.backend import State, StateNamesEnum
+from remoulade.state.backend import State, StateStatusesEnum
 from remoulade.state.middleware import MessageState, State
 
 
@@ -20,7 +20,7 @@ class TestMessageState:
         msg = do_work.send()
         state = state_middleware.backend.get_state(msg.message_id)
         assert state.message_id == msg.message_id
-        assert state.name == StateNamesEnum.Pending
+        assert state.status == StateStatusesEnum.Pending
         assert state.enqueued_datetime.isoformat() == "2020-02-03T00:00:00+00:00"
 
     def test_success_state_message(self, stub_broker, stub_worker, state_middleware, frozen_datetime):
@@ -36,7 +36,7 @@ class TestMessageState:
         stub_broker.join(do_work.queue_name)
         stub_worker.join()
         state = state_middleware.backend.get_state(msg.message_id)
-        assert state.name == StateNamesEnum.Success
+        assert state.status == StateStatusesEnum.Success
         assert state.enqueued_datetime.isoformat() == "2020-02-03T00:00:00+00:00"
         assert state.started_datetime.isoformat() == "2020-02-03T00:00:15+00:00"
         assert state.end_datetime.isoformat() == "2020-02-03T00:00:30+00:00"
@@ -51,7 +51,7 @@ class TestMessageState:
         # We wait the message be emited
         time.sleep(0.1)
         state = state_middleware.backend.get_state(msg.message_id)
-        assert state.name == StateNamesEnum.Started
+        assert state.status == StateStatusesEnum.Started
         assert state.started_datetime.isoformat() == "2020-02-03T00:00:00+00:00"
 
     def test_failure_state_message(self, stub_broker, stub_worker, state_middleware, frozen_datetime):
@@ -64,7 +64,7 @@ class TestMessageState:
         stub_broker.join(error.queue_name)
         stub_worker.join()
         state = state_middleware.backend.get_state(msg.message_id)
-        assert state.name == StateNamesEnum.Failure
+        assert state.status == StateStatusesEnum.Failure
         assert state.end_datetime.isoformat() == "2020-02-03T00:00:00+00:00"
 
     def test_cancel_state_message(self, stub_broker, stub_worker, cancel_backend, state_middleware, do_work):
@@ -78,7 +78,7 @@ class TestMessageState:
         stub_broker.join(do_work.queue_name)
         stub_worker.join()
         state = state_middleware.backend.get_state(msg.message_id)
-        assert state.name == StateNamesEnum.Canceled
+        assert state.status == StateStatusesEnum.Canceled
         # should not finish, since is cancelled
         assert state.end_datetime is None
 
@@ -92,7 +92,7 @@ class TestMessageState:
         stub_broker.join(do_work.queue_name)
         stub_worker.join()
         state = state_middleware.backend.get_state(msg.message_id)
-        assert state.name == StateNamesEnum.Skipped
+        assert state.status == StateStatusesEnum.Skipped
         # should not finish, since is skipped and does not
         # try again
         assert state.end_datetime is None
