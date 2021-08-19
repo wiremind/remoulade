@@ -19,7 +19,12 @@ open an issue and let someone else do that work.
 * If this is your first contribution, add yourself to the [CONTRIBUTORS] file.
 * If your branch is behind master, [rebase] on top of it.
 
-Run the test suite with `tox`.  The tests require running [RabbitMQ] and [Redis].
+Run the test suite with `tox`.  
+The tests require running [RabbitMQ] and [Redis], the easiest way is to use (docker compose)[https://docs.docker.com/compose/].
+```bash
+cd tests/
+docker-compose up
+```
 
 [CONTRIBUTORS]: https://github.com/wiremind/remoulade/blob/master/CONTRIBUTORS.md
 [RabbitMQ]: https://www.rabbitmq.com/
