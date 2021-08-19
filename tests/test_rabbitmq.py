@@ -83,8 +83,8 @@ def test_rabbitmq_actors_retry_with_backoff_on_failure(rabbitmq_broker, rabbitmq
     # Then wait for the actor to succeed
     succeeded.wait(timeout=30)
 
-    # I expect backoff time to have passed between sucess and failure
-    assert 500 <= success_time - failure_time <= 1500
+    # I expect backoff time to have passed between sucesss and failure
+    assert 800 <= success_time - failure_time <= 1200
 
 
 def test_rabbitmq_actors_can_retry_multiple_times(rabbitmq_broker, rabbitmq_worker):

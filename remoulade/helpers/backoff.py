@@ -34,7 +34,7 @@ def compute_backoff(
     elif backoff_strategy == "constant":
         backoff = min_backoff
     elif backoff_strategy == "linear":
-        backoff = min(attempts * min_backoff, max_backoff)
+        backoff = min((attempts + 1) * min_backoff, max_backoff)
     elif backoff_strategy == "spread_linear":
         backoff = compute_backoff_spread_linear(
             attempts, min_backoff=min_backoff, max_backoff=max_backoff, max_retries=max_retries
@@ -68,11 +68,11 @@ def compute_backoff_spread_linear(
     """
 
     if max_retries == 0:
-        return min(attempts * min_backoff, max_backoff)
+        return min((attempts + 1) * min_backoff, max_backoff)
     if max_retries == 1:
         return min_backoff
     else:
-        return min_backoff + (max_backoff - min_backoff) * min((attempts - 1) / (max_retries - 1), 1)
+        return min_backoff + (max_backoff - min_backoff) * min(attempts / (max_retries - 1), 1)
 
 
 def compute_backoff_exponential(attempts: int, *, min_backoff: int = 5, max_backoff: int = 2000, max_retries: int = 32):
@@ -87,7 +87,7 @@ def compute_backoff_exponential(attempts: int, *, min_backoff: int = 5, max_back
     Returns:
       int: The backoff in milliseconds.
     """
-    exponent = min(attempts - 1, max_retries - 1)
+    exponent = min(attempts, max_retries - 1)
     backoff = min(min_backoff * 2 ** exponent, max_backoff)
     return backoff
 
@@ -109,6 +109,6 @@ def compute_backoff_spread_exponential(
 
     if max_retries == 1:
         return min_backoff
-    exponent = min((attempts - 1) / (max_retries - 1), 1)
+    exponent = min(attempts / (max_retries - 1), 1)
     backoff = min_backoff * ((max_backoff / min_backoff) ** exponent)
     return backoff
