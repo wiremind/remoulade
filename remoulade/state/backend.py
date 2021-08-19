@@ -9,7 +9,7 @@ from ..encoder import Encoder
 from .errors import InvalidStateError
 
 
-class StateNamesEnum(Enum):
+class StateStatusesEnum(Enum):
     """Contains the possible states that can have a message"""
 
     Started = "Started"  # a `Message` that has not been processed
@@ -26,7 +26,7 @@ class State(
         "State",
         (
             "message_id",
-            "name",
+            "status",
             "actor_name",
             "args",
             "kwargs",
@@ -42,14 +42,14 @@ class State(
 ):
     """Catalog Class, it storages the state
     Parameters:
-        name: Name of the state
-        args: List of arguments in the state(name)
+        status: The current status of the message state
+        args: List of arguments in the state
     """
 
     def __new__(
         cls,
         message_id,
-        name=None,
+        status=None,
         *,
         actor_name=None,
         args=None,
@@ -63,12 +63,12 @@ class State(
         group_id=None,
     ):
 
-        if name and name not in list(StateNamesEnum):
-            raise InvalidStateError("The {} State is not defined".format(name))
+        if status and status not in list(StateStatusesEnum):
+            raise InvalidStateError(f"The {status} State is not defined")
         return super().__new__(
             cls,
             message_id,
-            name,
+            status,
             actor_name,
             args,
             kwargs,
@@ -90,8 +90,8 @@ class State(
         for key in datetime_keys:
             if key in as_dict:
                 as_dict[key] = as_dict[key].isoformat()
-        if self.name:
-            as_dict["name"] = self.name.value
+        if self.status:
+            as_dict["status"] = self.status.value
         if encode_args:
             from ..message import get_encoder
 
@@ -104,8 +104,8 @@ class State(
 
     @classmethod
     def from_dict(cls, input_dict: Dict) -> "State":
-        if "name" in input_dict:
-            input_dict["name"] = StateNamesEnum(input_dict["name"])
+        if "status" in input_dict:
+            input_dict["status"] = StateStatusesEnum(input_dict["status"])
         datetime_keys = ["enqueued_datetime", "started_datetime", "end_datetime"]
         for key in datetime_keys:
             if key in input_dict:
