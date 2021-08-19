@@ -58,7 +58,8 @@ def stub_broker():
 
 @pytest.fixture()
 def rabbitmq_broker():
-    broker = RabbitmqBroker(max_priority=10)
+    rmq_url = os.getenv("REMOULADE_TEST_RABBITMQ_URL") or "amqp://guest:guest@localhost:5784"
+    broker = RabbitmqBroker(max_priority=10, url=rmq_url)
     check_rabbitmq(broker)
     broker.emit_after("process_boot")
     remoulade.set_broker(broker)
@@ -139,7 +140,8 @@ def start_scheduler():
 
 @pytest.fixture
 def redis_rate_limiter_backend():
-    backend = rl_backends.RedisBackend()
+    redis_url = os.getenv("REMOULADE_TEST_REDIS_URL") or "redis://localhost:6481/0"
+    backend = rl_backends.RedisBackend(url=redis_url)
     check_redis(backend.client)
     return backend
 
@@ -161,14 +163,16 @@ def rate_limiter_backend(request, rate_limiter_backends):
 
 @pytest.fixture
 def redis_result_backend():
-    backend = res_backends.RedisBackend()
+    redis_url = os.getenv("REMOULADE_TEST_REDIS_URL") or "redis://localhost:6481/0"
+    backend = res_backends.RedisBackend(url=redis_url)
     check_redis(backend.client)
     return backend
 
 
 @pytest.fixture
 def redis_state_backend():
-    backend = st_backends.RedisBackend()
+    redis_url = os.getenv("REMOULADE_TEST_REDIS_URL") or "redis://localhost:6481/0"
+    backend = st_backends.RedisBackend(url=redis_url)
     check_redis(backend.client)
     return backend
 
@@ -238,7 +242,8 @@ def result_backend(request, result_backends):
 
 @pytest.fixture
 def redis_cancel_backend():
-    backend = cl_backends.RedisBackend()
+    redis_url = os.getenv("REMOULADE_TEST_REDIS_URL") or "redis://localhost:6481/0"
+    backend = cl_backends.RedisBackend(url=redis_url)
     check_redis(backend.client)
     return backend
 
@@ -276,7 +281,8 @@ def frozen_datetime():
 
 @pytest.fixture
 def scheduler(stub_broker):
-    scheduler = Scheduler(stub_broker, [], period=0.1)
+    redis_url = os.getenv("REMOULADE_TEST_REDIS_URL") or "redis://localhost:6481/0"
+    scheduler = Scheduler(stub_broker, [], period=0.1, url=redis_url)
     check_redis(scheduler.client)
     remoulade.set_scheduler(scheduler)
     return scheduler

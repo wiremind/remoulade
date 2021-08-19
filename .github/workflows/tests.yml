@@ -14,11 +14,11 @@ jobs:
       redis:
         image: redis
         ports:
-          - 6379:6379
+          - 6481:6379
       rabbitmq:
         image: rabbitmq
         ports:
-          - 5672:5672
+          - 5784:5672
 
     steps:
     - uses: actions/checkout@v2
