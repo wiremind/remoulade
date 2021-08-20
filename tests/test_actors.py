@@ -550,7 +550,7 @@ def test_actors_can_conditionally_retry(stub_broker, stub_worker):
     # And an actor that raises different types of errors
     attempts = []
 
-    @remoulade.actor(retry_when=should_retry, max_retries=0, min_backoff=100, max_backoff=100)
+    @remoulade.actor(retry_when=should_retry, min_backoff=100, max_backoff=100)
     def raises_errors(raise_runtime_error):
         attempts.append(1)
         if raise_runtime_error:
@@ -580,6 +580,46 @@ def test_actors_can_conditionally_retry(stub_broker, stub_worker):
 
     # Then I expect the actor to retry 3 times
     assert sum(attempts) == 4
+
+
+def test_should_retry_with_max_retries(stub_broker, stub_worker):
+    # Given that I have a retry predicate
+    def should_retry(retry_count, exception):
+        return isinstance(exception, RuntimeError)
+
+    # And an actor that raises different types of errors
+    attempts = []
+
+    @remoulade.actor(retry_when=should_retry, max_retries=2, min_backoff=100, max_backoff=100)
+    def raises_errors(raise_runtime_error):
+        attempts.append(1)
+        if raise_runtime_error:
+            raise RuntimeError("Runtime error")
+        raise ValueError("Value error")
+
+    # And this actor is declared
+    stub_broker.declare_actor(raises_errors)
+
+    # When I send that actor a message that makes it raise a value error
+    raises_errors.send(False)
+
+    # And wait for it
+    stub_broker.join(raises_errors.queue_name)
+    stub_worker.join()
+
+    # Then I expect the actor not to retry
+    assert sum(attempts) == 1
+
+    # When I send that actor a message that makes it raise a runtime error
+    attempts[:] = []
+    raises_errors.send(True)
+
+    # And wait for it
+    stub_broker.join(raises_errors.queue_name)
+    stub_worker.join()
+
+    # Then I expect the actor to retry twice
+    assert sum(attempts) == 3
 
 
 def test_can_call_str_on_actors():
