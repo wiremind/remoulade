@@ -16,9 +16,10 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 import traceback
-from typing import Callable
+from typing import Callable, Optional
 
 from ..helpers import compute_backoff
+from ..helpers.backoff import BackoffStrategy
 from ..logging import get_logger
 from .middleware import Middleware
 
@@ -48,11 +49,11 @@ class Retries(Middleware):
     def __init__(
         self,
         *,
-        max_retries: int = 0,
-        min_backoff: int = None,
-        max_backoff: int = None,
-        retry_when: Callable[[int, Exception], bool] = None,
-        backoff_strategy: str = "exponential",
+        max_retries: Optional[int] = None,
+        min_backoff: Optional[int] = None,
+        max_backoff: Optional[int] = None,
+        retry_when: Optional[Callable[[int, Exception], bool]] = None,
+        backoff_strategy: BackoffStrategy = "exponential",
         jitter: bool = True,
     ):
         self.logger = get_logger(__name__, type(self))
@@ -74,15 +75,17 @@ class Retries(Middleware):
         retries = message.options.setdefault("retries", 0)
         max_retries = self.get_option("max_retries", broker=broker, message=message)
         retry_when = self.get_option("retry_when", broker=broker, message=message)
+        if retry_when is None and not max_retries:
+            message.fail()
+            return
+
         if (
             retry_when is not None
             and not retry_when(retries, exception)
-            or retry_when is None
-            and max_retries is not None
+            or max_retries is not None
             and retries >= max_retries
         ):
-            if max_retries > 0:
-                self.logger.warning("Retries exceeded for message %r.", message.message_id)
+            self.logger.warning(f"Retries exceeded for message {message.message_id}.")
             message.fail()
             return
 
@@ -92,13 +95,12 @@ class Retries(Middleware):
         max_backoff = self.get_option("max_backoff", broker=broker, message=message)
         backoff_strategy = self.get_option("backoff_strategy", broker=broker, message=message)
         jitter = self.get_option("jitter", broker=broker, message=message)
-        max_retries = self.get_option("max_retries", broker=broker, message=message)
         _, backoff = compute_backoff(
             retries,
             min_backoff=min_backoff,
             max_backoff=max_backoff,
             jitter=jitter,
-            max_retries=max_retries,
+            max_retries=max_retries or 10,
             backoff_strategy=backoff_strategy,
         )
         self.logger.info("Retrying message %r in %d milliseconds.", message.message_id, backoff)

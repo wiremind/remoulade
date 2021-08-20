@@ -5,6 +5,12 @@ Changelog
 
 All notable changes to this project will be documented in this file.
 
+`0.34.0`_ -- 2021-08-20
+-----------------------
+Changed
+^^^^^^^
+* retries: `max_retries` parameter is now also taken into account when using `retry_when` parameter
+
 `0.33.2`_ -- 2021-08-19
 -----------------------
 Fixed

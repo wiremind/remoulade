@@ -26,7 +26,6 @@ def compute_backoff(
       max_backoff(int): The max number of milliseconds to backoff by.
       max_retries(int): The maximum number of retries.
     """
-
     if backoff_strategy == "spread_exponential":
         backoff = compute_backoff_spread_exponential(
             attempts, min_backoff=min_backoff, max_backoff=max_backoff, max_retries=max_retries
@@ -52,9 +51,7 @@ def compute_backoff(
     return attempts + 1, backoff
 
 
-def compute_backoff_spread_linear(
-    attempts: int, *, min_backoff: int = 5, max_backoff: int = 2000, max_retries: int = 32
-):
+def compute_backoff_spread_linear(attempts: int, *, min_backoff: int, max_backoff: int, max_retries: int):
     """Compute an linear backoff value linearly spread between min_backoff and max_backoff.
 
     Parameters:
@@ -66,16 +63,12 @@ def compute_backoff_spread_linear(
     Returns:
       int: The backoff in milliseconds.
     """
-
-    if max_retries == 0:
-        return min((attempts + 1) * min_backoff, max_backoff)
     if max_retries == 1:
         return min_backoff
-    else:
-        return min_backoff + (max_backoff - min_backoff) * min(attempts / (max_retries - 1), 1)
+    return min_backoff + (max_backoff - min_backoff) * min(attempts / (max_retries - 1), 1)
 
 
-def compute_backoff_exponential(attempts: int, *, min_backoff: int = 5, max_backoff: int = 2000, max_retries: int = 32):
+def compute_backoff_exponential(attempts: int, *, min_backoff: int, max_backoff: int, max_retries: int):
     """Compute an exponential backoff value based on some number of attempts.
 
     Parameters:
@@ -92,9 +85,7 @@ def compute_backoff_exponential(attempts: int, *, min_backoff: int = 5, max_back
     return backoff
 
 
-def compute_backoff_spread_exponential(
-    attempts: int, *, min_backoff: int = 5, max_backoff: int = 2000, max_retries: int = 32
-):
+def compute_backoff_spread_exponential(attempts: int, *, min_backoff: int, max_backoff: int, max_retries: int):
     """Compute an exponential backoff value exponentially spread between min_backoff and max_backoff.
 
     Parameters:
