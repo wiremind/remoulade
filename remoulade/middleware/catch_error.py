@@ -9,7 +9,7 @@ class CatchError(Middleware):
       cleanup_actor(str): The name of an actor to enqueue on failure.
     """
 
-    default_after = Retries
+    default_before = Retries
 
     @property
     def actor_options(self):
