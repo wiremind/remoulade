@@ -18,15 +18,7 @@ from typing import List
 
 import redis
 
-from ..backend import (
-    DEFAULT_TIMEOUT,
-    BackendResult,
-    ForgottenResult,
-    Missing,
-    ResultBackend,
-    ResultMissing,
-    ResultTimeout,
-)
+from ..backend import BackendResult, ForgottenResult, Missing, ResultBackend, ResultMissing, ResultTimeout
 
 
 class RedisBackend(ResultBackend):
@@ -47,8 +39,10 @@ class RedisBackend(ResultBackend):
     .. _redis: https://redis.io
     """
 
-    def __init__(self, *, namespace="remoulade-results", encoder=None, client=None, url=None, **parameters):
-        super().__init__(namespace=namespace, encoder=encoder)
+    def __init__(
+        self, *, namespace="remoulade-results", encoder=None, client=None, url=None, default_timeout=None, **parameters
+    ):
+        super().__init__(namespace=namespace, encoder=encoder, default_timeout=default_timeout)
 
         if url:
             parameters["connection_pool"] = redis.ConnectionPool.from_url(url)
@@ -78,7 +72,7 @@ class RedisBackend(ResultBackend):
           object: The result.
         """
         if timeout is None:
-            timeout = DEFAULT_TIMEOUT
+            timeout = self.default_timeout
 
         message_key = self.build_message_key(message_id)
         timeout = int(timeout / 1000)
