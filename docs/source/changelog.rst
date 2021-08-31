@@ -5,6 +5,12 @@ Changelog
 
 All notable changes to this project will be documented in this file.
 
+`0.34.1`_ -- 2021-08-31
+-----------------------
+Changed
+^^^^^^^
+* results: added default_timeout argument to Result Backend to allow setting the default result timeout
+
 `0.34.0`_ -- 2021-08-20
 -----------------------
 Changed
@@ -654,6 +660,7 @@ Fixed
 .. _#84: https://github.com/wiremind/remoulade/issues/84
 .. _#77: https://github.com/wiremind/remoulade/issues/77
 
+.. _0.34.1: https://github.com/wiremind/remoulade/releases/tag/v0.34.1
 .. _0.34.0: https://github.com/wiremind/remoulade/releases/tag/v0.34.0
 .. _0.33.2: https://github.com/wiremind/remoulade/releases/tag/v0.33.2
 .. _0.33.1: https://github.com/wiremind/remoulade/releases/tag/v0.33.1

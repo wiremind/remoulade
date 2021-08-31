@@ -58,11 +58,12 @@ class ResultBackend:
         result data.  Defaults to :class:`.JSONEncoder`.
     """
 
-    def __init__(self, *, namespace: str = "remoulade-results", encoder: Encoder = None):
+    def __init__(self, *, namespace: str = "remoulade-results", encoder: Encoder = None, default_timeout: int = None):
         from ..message import get_encoder
 
         self.namespace = namespace
         self.encoder = encoder or get_encoder()
+        self.default_timeout = default_timeout or DEFAULT_TIMEOUT
 
     def get_result(
         self,
@@ -93,7 +94,7 @@ class ResultBackend:
           object: The result.
         """
         if timeout is None:
-            timeout = DEFAULT_TIMEOUT
+            timeout = self.default_timeout
 
         end_time = time.monotonic() + timeout / 1000
         message_key = self.build_message_key(message_id)

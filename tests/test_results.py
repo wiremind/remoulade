@@ -89,7 +89,7 @@ def test_retrieving_a_result_can_time_out(stub_broker, stub_worker, result_backe
     # And an actor that sleeps for a long time before it stores a result
     @remoulade.actor(store_results=True)
     def do_work():
-        time.sleep(0.2)
+        time.sleep(0.5)
         return 42
 
     # And this actor is declared
@@ -101,7 +101,32 @@ def test_retrieving_a_result_can_time_out(stub_broker, stub_worker, result_backe
     # And wait for a result
     # Then a ResultTimeout error should be raised
     with pytest.raises(ResultTimeout):
-        result_backend.get_result(message, block=True, timeout=1000, forget=forget)
+        result_backend.get_result(message.message_id, block=True, timeout=200, forget=forget)
+
+
+@pytest.mark.parametrize("forget", [True, False])
+def test_default_result_timeout_can_be_set(stub_broker, stub_worker, result_backend, forget):
+    # Given a result backend
+    # And a broker with the results middleware with a result backend with a short_default_timeout set
+    stub_broker.add_middleware(Results(backend=result_backend))
+    result_backend.default_timeout = 200
+
+    # And an actor that sleeps for a long time before it stores a result
+    @remoulade.actor(store_results=True)
+    def do_work():
+        time.sleep(0.5)
+        return 42
+
+    # And this actor is declared
+    stub_broker.declare_actor(do_work)
+
+    # When I send that actor a message
+    message = do_work.send()
+
+    # And wait for a result
+    # Then a ResultTimeout error should be raised
+    with pytest.raises(ResultTimeout):
+        result_backend.get_result(message.message_id, block=True, forget=forget)
 
 
 @pytest.mark.parametrize("forget", [True, False])

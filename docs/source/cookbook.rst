@@ -83,6 +83,8 @@ Or you can iterate over the results::
 
 Results are returned in the same order that the messages were added to
 the group.
+If you don't pass the ``timeout`` argument in ``get``, the timeout will have a default value of 10 seconds.
+To set a custom default timeout, pass a ``default_timeout`` argument when instantiating your result backend.
 
 Pipelines
 ^^^^^^^^^
