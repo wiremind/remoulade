@@ -105,4 +105,4 @@ class Retries(Middleware):
             backoff_strategy=backoff_strategy,
         )
         self.logger.info("Retrying message %r in %d milliseconds.", message.message_id, backoff)
-        broker.enqueue(message, delay=backoff)
+        broker.enqueue(new_message, delay=backoff)

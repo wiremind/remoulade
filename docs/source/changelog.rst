@@ -5,6 +5,12 @@ Changelog
 
 All notable changes to this project will be documented in this file.
 
+`0.35.0`_ -- 2021-09-02
+-----------------------
+Added
+^^^^^
+* catch_error: added new middleware CatchError that enables enqueuing an actor when a message fails and won't be retried
+
 `0.34.2`_ -- 2021-09-02
 -----------------------
 Fixed
@@ -670,6 +676,7 @@ Fixed
 .. _#84: https://github.com/wiremind/remoulade/issues/84
 .. _#77: https://github.com/wiremind/remoulade/issues/77
 
+.. _0.35.0: https://github.com/wiremind/remoulade/releases/tag/v0.35.0
 .. _0.34.2: https://github.com/wiremind/remoulade/releases/tag/v0.34.2
 .. _0.34.1: https://github.com/wiremind/remoulade/releases/tag/v0.34.1
 .. _0.34.0: https://github.com/wiremind/remoulade/releases/tag/v0.34.0

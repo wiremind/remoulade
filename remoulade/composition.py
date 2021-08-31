@@ -15,7 +15,7 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 from collections import namedtuple
-from typing import TYPE_CHECKING, Iterable, List, Optional, TypeVar, Union, cast
+from typing import TYPE_CHECKING, Iterable, List, Optional, Union, cast
 
 from typing_extensions import TypedDict
 
@@ -26,8 +26,6 @@ from .common import flatten, generate_unique_id
 if TYPE_CHECKING:
     from .message import Message  # noqa
     from .result import Result
-
-Actor = TypeVar("Actor")
 
 
 class GroupInfoDict(TypedDict):
@@ -67,11 +65,8 @@ class pipeline:
         children(List[Message|group]) The sequence of messages or groups to execute as a pipeline
     """
 
-    def __init__(
-        self, children: "Iterable[Union[Message, pipeline, group]]", cleanup_actor: Optional[Union[str, Actor]] = None
-    ):
+    def __init__(self, children: "Iterable[Union[Message, pipeline, group]]"):
         self.broker = get_broker()
-        self.cleanup_actor = cleanup_actor
 
         self.children: List[Union[Message, group]] = []
         for child in children:
@@ -103,9 +98,6 @@ class pipeline:
                 options = {"pipe_target": [m.asdict() for m in next_child]}
             else:
                 options = last_options or {}
-
-            if self.cleanup_actor:
-                options["cleanup_actor"] = self.cleanup_actor
 
             if isinstance(child, group):
                 next_child = child.build(options)
