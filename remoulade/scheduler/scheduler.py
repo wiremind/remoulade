@@ -142,6 +142,7 @@ class Scheduler:
 
         self.client = client or redis.Redis(**redis_parameters)
         self.logger = get_logger(__name__, type(self))
+        self.stopped = True
 
     def flush(self, job: ScheduledJob) -> None:
         self.client.hset(self.namespace, job.get_hash().encode("utf-8"), job.encode())
@@ -177,7 +178,11 @@ class Scheduler:
                 self.logger.info("Adding new job %s to schedule", job_hash)
                 self.flush(job)
 
+    def stop(self):
+        self.stopped = True
+
     def start(self):
+        self.stopped = False
         self.logger.debug("Syncing config")
         self.sync_config()
 
@@ -225,4 +230,6 @@ class Scheduler:
                     job.last_queued = datetime.datetime.utcnow()
                     self.flush(job)
 
+            if self.stopped:
+                return
             time.sleep(self.period)

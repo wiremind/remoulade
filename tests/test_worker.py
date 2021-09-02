@@ -1,7 +1,7 @@
 import remoulade
 from remoulade.worker import build_extra
 
-from .common import worker, get_logs
+from .common import get_logs, worker
 
 
 def test_workers_dont_register_queues_that_arent_whitelisted(stub_broker):
@@ -93,4 +93,4 @@ def test_logging_metadata_logs(stub_broker, stub_worker, caplog):
     records = get_logs(caplog, "Started Actor")
     assert len(records) == 1
     assert records[0].levelname == "INFO"
-    assert records[0].__dict__['id'] == "1"
+    assert records[0].__dict__["id"] == "1"
