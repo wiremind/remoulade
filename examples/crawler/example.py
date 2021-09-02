@@ -1,7 +1,5 @@
 import argparse
-import hashlib
 import logging
-import os
 import re
 import sys
 from contextlib import closing
@@ -9,20 +7,17 @@ from threading import local
 
 import requests
 
-import pylibmc
 import remoulade
+from remoulade.brokers.rabbitmq import RabbitmqBroker
 
 logger = logging.getLogger("example")
-memcache_client = pylibmc.Client(["localhost"], binary=True)
-memcache_pool = pylibmc.ThreadMappedPool(memcache_client)
 anchor_re = re.compile(rb'<a href="([^"]+)">')
 state = local()
 
-if os.getenv("REDIS") == "1":
-    from remoulade.brokers.redis import RedisBroker
+broker = RabbitmqBroker()
+remoulade.set_broker(broker)
 
-    broker = RedisBroker()
-    remoulade.set_broker(broker)
+urls = []
 
 
 def get_session():
@@ -34,13 +29,11 @@ def get_session():
 
 @remoulade.actor(max_retries=3, time_limit=10000)
 def crawl(url):
-    url_hash = hashlib.md5(url.encode("utf-8")).hexdigest()
-    with memcache_pool.reserve() as client:
-        added = client.add(url_hash, b"", time=3600)
-        if not added:
-            logger.warning("URL %r has already been visited. Skipping...", url)
-            return
+    if url in urls:
+        logger.warning("URL %r has already been visited. Skipping...", url)
+        return
 
+    urls.append(url)
     logger.info("Crawling %r...", url)
     matches = 0
     session = get_session()
@@ -58,7 +51,10 @@ def crawl(url):
         logger.info("Done crawling %r. Found %d anchors.", url, matches)
 
 
-def main(args):
+broker.declare_actor(crawl)
+
+
+def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("url", type=str, help="a URL to crawl")
     args = parser.parse_args()
@@ -67,4 +63,4 @@ def main(args):
 
 
 if __name__ == "__main__":
-    sys.exit(main(sys.argv))
+    sys.exit(main())

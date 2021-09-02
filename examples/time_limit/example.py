@@ -1,18 +1,15 @@
 import logging
-import os
 import sys
 import time
 
 import remoulade
+from remoulade.brokers.rabbitmq import RabbitmqBroker
 
-if os.getenv("REDIS") == "1":
-    from remoulade.brokers.redis import RedisBroker
-
-    broker = RedisBroker()
-    remoulade.set_broker(broker)
+broker = RabbitmqBroker()
+remoulade.set_broker(broker)
 
 
-@remoulade.actor(time_limit=5000, max_retries=3)
+@remoulade.actor(time_limit=5000)
 def long_running():
     logger = logging.getLogger("long_running")
 
@@ -21,7 +18,7 @@ def long_running():
         time.sleep(1)
 
 
-@remoulade.actor(time_limit=5000, max_retries=0)
+@remoulade.actor(time_limit=5000)
 def long_running_with_catch():
     logger = logging.getLogger("long_running_with_catch")
 
@@ -33,10 +30,13 @@ def long_running_with_catch():
         logger.warning("Time limit exceeded. Aborting...")
 
 
-def main(args):
+remoulade.declare_actors([long_running, long_running_with_catch])
+
+
+def main():
     long_running.send()
     long_running_with_catch.send()
 
 
 if __name__ == "__main__":
-    sys.exit(main(sys.argv))
+    sys.exit(main())

@@ -5,13 +5,11 @@ import sys
 import time
 
 import remoulade
+from remoulade.brokers.rabbitmq import RabbitmqBroker
 from remoulade.middleware import Shutdown
 
-if os.getenv("REDIS") == "1":
-    from remoulade.brokers.redis import RedisBroker
-
-    broker = RedisBroker()
-    remoulade.set_broker(broker)
+broker = RabbitmqBroker()
+remoulade.set_broker(broker)
 
 
 def path_to(*xs):
@@ -70,7 +68,10 @@ def fib(n):
         dump_state(n, state)
 
 
-def main(args):
+broker.declare_actor(fib)
+
+
+def main():
     parser = argparse.ArgumentParser(description="Calculates fib(n)")
     parser.add_argument("n", type=int, help="must be a positive number")
     args = parser.parse_args()
@@ -79,4 +80,4 @@ def main(args):
 
 
 if __name__ == "__main__":
-    sys.exit(main(sys.argv))
+    sys.exit(main())
