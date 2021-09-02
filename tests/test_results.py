@@ -6,7 +6,7 @@ import pytest
 import remoulade
 from remoulade import Result
 from remoulade.middleware import Retries
-from remoulade.results import ErrorStored, ResultMissing, Results, ResultTimeout, ResultBackend
+from remoulade.results import ErrorStored, ResultBackend, ResultMissing, Results, ResultTimeout
 from remoulade.results.backends import StubBackend
 
 

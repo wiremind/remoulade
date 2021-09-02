@@ -5,6 +5,16 @@ Changelog
 
 All notable changes to this project will be documented in this file.
 
+`0.34.2`_ -- 2021-09-02
+-----------------------
+Fixed
+^^^^^
+* scheduler: Make tests use conftest fixtures
+
+Added
+^^^^^
+* scheduler: added stop function that will stop the scheduler at the end of its cycle
+
 `0.34.1`_ -- 2021-08-31
 -----------------------
 Changed
@@ -660,6 +670,7 @@ Fixed
 .. _#84: https://github.com/wiremind/remoulade/issues/84
 .. _#77: https://github.com/wiremind/remoulade/issues/77
 
+.. _0.34.2: https://github.com/wiremind/remoulade/releases/tag/v0.34.2
 .. _0.34.1: https://github.com/wiremind/remoulade/releases/tag/v0.34.1
 .. _0.34.0: https://github.com/wiremind/remoulade/releases/tag/v0.34.0
 .. _0.33.2: https://github.com/wiremind/remoulade/releases/tag/v0.33.2
