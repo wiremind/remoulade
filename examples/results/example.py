@@ -21,7 +21,10 @@ def sleep_then_add(t, x, y):
     return x + y
 
 
-def main(args):
+broker.declare_actor(sleep_then_add)
+
+
+def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("count", type=int, help="the number of messages to enqueue")
     args = parser.parse_args()
@@ -35,4 +38,4 @@ def main(args):
 
 
 if __name__ == "__main__":
-    sys.exit(main(sys.argv))
+    sys.exit(main())
