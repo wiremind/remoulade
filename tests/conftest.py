@@ -3,6 +3,7 @@ import os
 import random
 import subprocess
 import sys
+import threading
 from unittest.mock import Mock
 
 import pytest
@@ -122,20 +123,11 @@ def start_cli():
 
 
 @pytest.fixture
-def start_scheduler():
-    proc = None
-
-    def run(broker_module):
-        nonlocal proc
-        args = ["remoulade-scheduler", broker_module]
-        proc = subprocess.Popen(args)
-        return proc
-
-    yield run
-
-    if proc is not None:
-        proc.terminate()
-        proc.wait()
+def scheduler_thread():
+    scheduler = remoulade.get_scheduler()
+    thread = threading.Thread(target=scheduler.start)
+    yield thread
+    scheduler.stop()
 
 
 @pytest.fixture
@@ -221,6 +213,30 @@ def do_work():
 
 
 @pytest.fixture
+def add():
+    broker = remoulade.get_broker()
+
+    @remoulade.actor()
+    def add(x, y):
+        return x + y
+
+    broker.declare_actor(add)
+    return add
+
+
+@pytest.fixture
+def mul():
+    broker = remoulade.get_broker()
+
+    @remoulade.actor()
+    def mul(x, y):
+        return x * y
+
+    broker.declare_actor(mul)
+    return mul
+
+
+@pytest.fixture
 def stub_result_backend():
     return res_backends.StubBackend()
 
@@ -279,12 +295,17 @@ def frozen_datetime():
         yield frozen_datetime
 
 
-@pytest.fixture
-def scheduler(stub_broker):
+def new_scheduler(stub_broker):
     redis_url = os.getenv("REMOULADE_TEST_REDIS_URL") or "redis://localhost:6481/0"
     scheduler = Scheduler(stub_broker, [], period=0.1, url=redis_url)
-    check_redis(scheduler.client)
     remoulade.set_scheduler(scheduler)
+    return scheduler
+
+
+@pytest.fixture
+def scheduler(stub_broker):
+    scheduler = new_scheduler(stub_broker)
+    check_redis(scheduler.client)
     return scheduler
 
 
