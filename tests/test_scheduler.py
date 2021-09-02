@@ -40,7 +40,7 @@ def test_simple_interval_scheduler(stub_broker, stub_worker, scheduler, schedule
 
     end = time.time()
     # should have written ~1 line per second
-    assert end - start <= result <= end - start + 1
+    assert end - start - 1 <= result <= end - start + 1
 
     # get the last_queued date for this slow task, this should not change when reloading schedule with new config
     tasks = scheduler.get_redis_schedule().values()
