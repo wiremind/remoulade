@@ -22,6 +22,7 @@ from .callbacks import Callbacks
 from .current_message import CurrentMessage
 from .logging_metadata import LoggingMetadata
 from .max_memory import MaxMemory
+from .max_tasks import MaxTasks
 from .middleware import Middleware, MiddlewareError, SkipMessage
 from .pipelines import Pipelines
 from .retries import Retries
@@ -55,6 +56,7 @@ __all__ = [
     "TimeLimit",
     "TimeLimitExceeded",
     "MaxMemory",
+    "MaxTasks",
 ]
 
 if CURRENT_OS != "Windows":
