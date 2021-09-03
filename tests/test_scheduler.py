@@ -137,7 +137,7 @@ def test_scheduler_daily_time(stub_broker, stub_worker, scheduler, scheduler_thr
     assert result == 0
 
     # should run now
-    time.sleep(1)
+    time.sleep(1.2)
 
     assert result == 1
 
