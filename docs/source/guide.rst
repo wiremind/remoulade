@@ -96,7 +96,7 @@ You can also choose to enqueue a message in another queue when sending it.
 First, you have to specify in the actor decorator the queues this message is allowed
 to be enqueued into::
 
-   @remoulade.actor(queue_name="first_queue, alternative_queues=["second_queue", "third_queue"])
+   @remoulade.actor(queue_name="first_queue", alternative_queues=["second_queue", "third_queue"])
    def count_words(url):
       ...
 
