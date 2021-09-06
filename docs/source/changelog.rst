@@ -5,6 +5,12 @@ Changelog
 
 All notable changes to this project will be documented in this file.
 
+`0.38.0`_ -- 2021-09-14
+-----------------------
+Added
+^^^^^
+* actor: add the possibility of passing several additional queues to the actor, and then of choosing which one of those queue to enqueue to when sending a message.
+
 `0.37.2`_ -- 2021-09-14
 -----------------------
 Fixed
@@ -711,6 +717,7 @@ Fixed
 .. _#84: https://github.com/wiremind/remoulade/issues/84
 .. _#77: https://github.com/wiremind/remoulade/issues/77
 
+.. _0.38.0: https://github.com/wiremind/remoulade/releases/tag/v0.38.0
 .. _0.37.2: https://github.com/wiremind/remoulade/releases/tag/v0.37.2
 .. _0.37.1: https://github.com/wiremind/remoulade/releases/tag/v0.37.1
 .. _0.37.0: https://github.com/wiremind/remoulade/releases/tag/v0.37.0

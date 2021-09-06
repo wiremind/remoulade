@@ -85,6 +85,25 @@ worker.
    Because all messages have to be sent over the network, any
    arguments you send to an actor must be JSON-encodable.
 
+If you want messages from an actor to be enqueued in a specific queue (and not 'default', the default queue),
+you can specify the queue in the actor decorator::
+
+   @remoulade.actor(queue_name="my_queue")
+   def count_words(url):
+      ...
+
+You can also choose to enqueue a message in another queue when sending it.
+First, you have to specify in the actor decorator the queues this message is allowed
+to be enqueued into::
+
+   @remoulade.actor(queue_name="first_queue, alternative_queues=["second_queue", "third_queue"])
+   def count_words(url):
+      ...
+
+By default, messages from this actor will be enqueued into the ``first_queue`` queue. But they can
+also be enqueued into the ``second_queue`` and ``third_queue`` by adding the queue_name options::
+
+   count_words.send_with_options(queue_name="second_queue")
 
 Workers
 -------

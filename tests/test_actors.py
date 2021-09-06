@@ -64,6 +64,9 @@ def test_actors_can_be_assigned_custom_queues(stub_broker):
     def foo():
         pass
 
+    # I expect it to be able to be declared without error
+    stub_broker.declare_actor(foo)
+
     # I expect the returned function to use that queue
     assert foo.queue_name == "foo"
 
@@ -282,7 +285,7 @@ def test_actors_can_be_assigned_time_limits(stub_broker, stub_worker):
     attempts, successes = [], []
 
     # And an actor with a time limit
-    @remoulade.actor(max_retries=0, time_limit=200)
+    @remoulade.actor(max_retries=0, time_limit=500)
     def do_work():
         attempts.append(1)
         time.sleep(1)
@@ -678,6 +681,7 @@ def test_as_dict_actor(stub_broker):
         "args": [{"name": "arg"}],
         "name": "do_work",
         "priority": 0,
+        "alternative_queues": None,
         "queue_name": "default",
     }
 
@@ -693,6 +697,7 @@ def test_as_dict_default(stub_broker):
         "name": "do_work",
         "priority": 0,
         "queue_name": "default",
+        "alternative_queues": None,
     }
 
 
@@ -711,6 +716,7 @@ def test_as_dict_typing(stub_broker):
         "name": "do_work",
         "priority": 0,
         "queue_name": "default",
+        "alternative_queues": None,
     }
 
 
@@ -725,6 +731,7 @@ def test_as_dict_args(stub_broker):
         "name": "do_work",
         "priority": 0,
         "queue_name": "default",
+        "alternative_queues": None,
     }
 
 
@@ -739,4 +746,28 @@ def test_as_dict_kwargs(stub_broker):
         "name": "do_work",
         "priority": 0,
         "queue_name": "default",
+        "alternative_queues": None,
     }
+
+
+def test_choose_queue(stub_broker):
+    @remoulade.actor(queue_name="first_queue", alternative_queues=["second_queue"])
+    def do_work():
+        return 1
+
+    stub_broker.declare_actor(do_work)
+
+    msg = do_work.message_with_options(queue_name="second_queue")
+
+    assert msg.queue_name == "second_queue"
+
+
+def test_error_when_invalid_queue(stub_broker):
+    @remoulade.actor
+    def do_work():
+        return 1
+
+    stub_broker.declare_actor(do_work)
+
+    with pytest.raises(ValueError):
+        do_work.message_with_options(queue_name="invalid_queue")

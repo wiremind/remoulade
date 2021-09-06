@@ -281,7 +281,8 @@ class Broker:
         """
         actor.set_broker(self)
         self.emit_before("declare_actor", actor)
-        self.declare_queue(actor.queue_name)
+        for queue_name in actor.queue_names:
+            self.declare_queue(queue_name)
         self.actors[actor.actor_name] = actor
         self.emit_after("declare_actor", actor)
 
