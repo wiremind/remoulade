@@ -16,7 +16,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 import re
-from typing import TYPE_CHECKING, Any, Callable, Generic, Optional, TypeVar, overload
+from typing import TYPE_CHECKING, Any, Callable, Generic, List, Optional, TypeVar, overload
 
 from typing_extensions import Literal, TypedDict
 
@@ -37,6 +37,7 @@ F = TypeVar("F", bound=Callable[..., Any])
 class ActorDict(TypedDict):
     name: str
     queue_name: str
+    alternative_queues: Optional[List[str]]
     priority: int
     args: list
 
@@ -47,6 +48,7 @@ def actor(
     *,
     actor_name: Optional[str] = None,
     queue_name: str = "default",
+    alternative_queues: Optional[List[str]] = None,
     priority: int = 0,
     **options: Any,
 ) -> "Callable[[F], Actor[F]]":
@@ -55,7 +57,13 @@ def actor(
 
 @overload
 def actor(
-    fn: F, *, actor_name: Optional[str] = None, queue_name: str = "default", priority: int = 0, **options: Any
+    fn: F,
+    *,
+    actor_name: Optional[str] = None,
+    queue_name: str = "default",
+    alternative_queues: Optional[List[str]] = None,
+    priority: int = 0,
+    **options: Any,
 ) -> "Actor[F]":
     ...
 
@@ -65,6 +73,7 @@ def actor(
     *,
     actor_name: Optional[str] = None,
     queue_name: str = "default",
+    alternative_queues: Optional[List[str]] = None,
     priority: int = 0,
     **options: Any,
 ):
@@ -99,7 +108,8 @@ def actor(
     Parameters:
       fn(callable): The function to wrap.
       actor_name(str): The name of the actor.
-      queue_name(str): The name of the queue to use.
+      queue_name(str): The name of the default queue to use.
+      alternative_queues(List[str]): The names of other queues this actor may be enqueued into.
       priority(int): The actor's global priority.  If two tasks have
         been pulled on a worker concurrently and one has a higher
         priority than the other then it will be processed first.
@@ -114,13 +124,23 @@ def actor(
     def decorator(fn: F) -> Actor[F]:
         nonlocal actor_name
         actor_name = actor_name or fn.__name__
-        if not _queue_name_re.fullmatch(queue_name):
+        queues_names = [queue_name]
+        if alternative_queues is not None:
+            queues_names += alternative_queues
+        if any(not _queue_name_re.fullmatch(name) for name in queues_names):
             raise ValueError(
                 "Queue names must start with a letter or an underscore followed "
                 "by any number of letters, digits, dashes or underscores."
             )
 
-        return Actor(fn, actor_name=actor_name, queue_name=queue_name, priority=priority, options=options)
+        return Actor(
+            fn,
+            actor_name=actor_name,
+            queue_name=queue_name,
+            alternative_queues=alternative_queues,
+            priority=priority,
+            options=options,
+        )
 
     if fn is None:
         return decorator
@@ -136,18 +156,29 @@ class Actor(Generic[F]):
       fn(callable): The underlying callable.
       broker(Broker): The broker this actor is bound to.
       actor_name(str): The actor's name.
-      queue_name(str): The actor's queue.
+      queue_name(str): The actor's default queue.
+      alternative_queues(List[str]): The names of other queues this actor may be enqueued into.
       priority(int): The actor's priority.
       options(dict): Arbitrary options that are passed to the broker
         and middleware.
     """
 
-    def __init__(self, fn: F, *, actor_name: str, queue_name: str, priority: int, options: Any) -> None:
+    def __init__(
+        self,
+        fn: F,
+        *,
+        actor_name: str,
+        queue_name: str,
+        alternative_queues: Optional[List[str]],
+        priority: int,
+        options: Any,
+    ) -> None:
         self.logger = get_logger(fn.__module__, actor_name)
         self.fn = fn
         self.broker: "Optional[Broker]" = None
         self.actor_name = actor_name
         self.queue_name = queue_name
+        self.alternative_queues = alternative_queues
         self.priority = priority
         self.options = options
 
@@ -159,6 +190,10 @@ class Actor(Generic[F]):
             message += "Did you forget to add a middleware to your Broker?"
             raise ValueError(message)
         self.broker = broker
+
+    @property
+    def queue_names(self):
+        return [self.queue_name] + (self.alternative_queues or [])
 
     def message(self, *args, **kwargs) -> Message:
         """Build a message.  This method is useful if you want to
@@ -178,7 +213,7 @@ class Actor(Generic[F]):
         """
         return self.message_with_options(args=args, kwargs=kwargs)
 
-    def message_with_options(self, *, args=None, kwargs=None, **options) -> Message:
+    def message_with_options(self, *, args=None, kwargs=None, queue_name: Optional[str] = None, **options) -> Message:
         """Build a message with an arbitrary set of processing options.
         This method is useful if you want to compose actors.  See the
         actor composition documentation for details.
@@ -186,6 +221,7 @@ class Actor(Generic[F]):
         Parameters:
           args(tuple): Positional arguments that are passed to the actor.
           kwargs(dict): Keyword arguments that are passed to the actor.
+          queue_name(str): Name of the queue to put this message into when enqueued.
           **options(dict): Arbitrary options that are passed to the
             broker and any registered middleware.
 
@@ -195,8 +231,14 @@ class Actor(Generic[F]):
         for middleware in self.broker.middleware:
             options = middleware.update_options_before_create_message(options, self.broker, self.actor_name)
 
+        if queue_name is not None:
+            if queue_name not in self.queue_names:
+                raise ValueError(f"{queue_name} is not a valid queue name for actor {self.actor_name}.")
+        else:
+            queue_name = self.queue_name
+
         return Message(
-            queue_name=self.queue_name,
+            queue_name=queue_name,
             actor_name=self.actor_name,
             args=args or (),
             kwargs=kwargs or {},
@@ -215,7 +257,9 @@ class Actor(Generic[F]):
         """
         return self.send_with_options(args=args, kwargs=kwargs)
 
-    def send_with_options(self, *, args=None, kwargs=None, delay=None, **options) -> Message:
+    def send_with_options(
+        self, *, args=None, kwargs=None, queue_name: Optional[str] = None, delay=None, **options
+    ) -> Message:
         """Asynchronously send a message to this actor, along with an
         arbitrary set of processing options for the broker and
         middleware.
@@ -223,6 +267,7 @@ class Actor(Generic[F]):
         Parameters:
           args(tuple): Positional arguments that are passed to the actor.
           kwargs(dict): Keyword arguments that are passed to the actor.
+          queue_name(str): Name of the queue to enqueue this message into.
           delay(int): The minimum amount of time, in milliseconds, the
             message should be delayed by.
           **options(dict): Arbitrary options that are passed to the
@@ -233,13 +278,14 @@ class Actor(Generic[F]):
         """
         if not self.broker:
             raise ValueError("No broker is set, did you forget to call set_broker ?")
-        message = self.message_with_options(args=args, kwargs=kwargs, **options)
+        message = self.message_with_options(args=args, kwargs=kwargs, queue_name=queue_name, **options)
         return self.broker.enqueue(message, delay=delay)
 
     def as_dict(self) -> ActorDict:
         return {
             "name": self.actor_name,
             "queue_name": self.queue_name,
+            "alternative_queues": self.alternative_queues,
             "priority": self.priority,
             "args": get_actor_arguments(self),
         }
