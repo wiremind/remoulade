@@ -2,8 +2,8 @@
 
 .. |Brokers| replace:: :class:`Brokers<remoulade.Broker>`
 .. |Broker| replace:: :class:`Broker<remoulade.Broker>`
-.. |Callbacks| replace:: :class:`Callbacks<remoulade.middleware.Callbacks>`
 .. |Cancel| replace:: :class:`Cancel<remoulade.cancel.Cancel>`
+.. |CatchError| replace:: :class:`CatchError<remoulade.middleware.CatchError>`
 .. |CollectionResults|  replace:: :class:`CollectionResults<remoulade.collection_results>`
 .. |CollectionResult| replace:: :class:`CollectionResult<remoulade.CollectionResult>`
 .. |CurrentMessage| replace:: :class:`CurrentMessage<remoulade.middleware.CurrentMessage>`
