@@ -78,7 +78,7 @@ The following middleware are all enabled by default.
    :members:
    :member-order: bysource
 .. autoclass:: remoulade.middleware.AgeLimit
-.. autoclass:: remoulade.middleware.Callbacks
+.. autoclass:: remoulade.middleware.CatchError
 .. autoclass:: remoulade.middleware.Pipelines
 .. autoclass:: remoulade.middleware.Prometheus
 .. autoclass:: remoulade.middleware.Retries

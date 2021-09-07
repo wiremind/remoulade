@@ -5,6 +5,17 @@ Changelog
 
 All notable changes to this project will be documented in this file.
 
+`0.37.0`_ -- 2021-09-09
+-----------------------
+BREAKING CHANGE
+^^^^^^^^^^^^^^^
+* callbacks: remove the Callbacks Middleware
+* catch_error: rename option from cleanup_actor to on_failure
+
+Changed
+^^^^^^^
+* catch_error: add the CatchError middleware to the default middlewares
+
 `0.36.1`_ -- 2021-09-09
 -----------------------
 Changed
@@ -688,6 +699,7 @@ Fixed
 .. _#84: https://github.com/wiremind/remoulade/issues/84
 .. _#77: https://github.com/wiremind/remoulade/issues/77
 
+.. _0.37.0: https://github.com/wiremind/remoulade/releases/tag/v0.37.0
 .. _0.36.1: https://github.com/wiremind/remoulade/releases/tag/v0.36.1
 .. _0.36.0: https://github.com/wiremind/remoulade/releases/tag/v0.36.0
 .. _0.35.0: https://github.com/wiremind/remoulade/releases/tag/v0.35.0

@@ -11,12 +11,14 @@ open an `issue on GitHub`_.
 .. _issue on GitHub: https://github.com/wiremind/remoulade/issues
 
 
-Callbacks
----------
+Send Actor on Fail
+------------------
 
 Remoulade has built-in support for sending actors messages when other
-actors succeed or fail.  The ``on_failure`` callback is called every
-time an actor fails, even if the message is going to be retried.
+actors fail.  The ``on_failure`` actor is enqueued every time an actor fails
+or times out and is not going to be retried. This actor receives 4 arguments :
+the name of the actor that failed, the name of the exception, and the args and
+kwargs of the message that failed.
 
 .. code-block:: python
 
@@ -26,21 +28,18 @@ time an actor fails, even if the message is going to be retried.
    def identity(x):
      return x
 
-   @remoulade.actor
-   def print_result(message_data, result):
-     print(f"The result of message {message_data['message_id']} was {result}.")
 
    @remoulade.actor
-   def print_error(message_data, exception_data):
-     print(f"Message {message_data['message_id']} failed:")
-     print(f"  * type: {exception_data['type']}")
-     print(f"  * message: {exception_data['message']!r}")
+   def print_error(actor_name, exception_name, message_args, message_kwargs):
+     print(f"Actor {actor_name} failed:")
+     print(f"Exception type: {exception_name}")
+     print(f"Message args: {message_args}")
+     print(f"Message kwargs: {message_kwargs}")
 
    if __name__ == "__main__":
      identity.send_with_options(
        args=(42,)
        on_failure=print_error,
-       on_success=print_result,
      )
 
 

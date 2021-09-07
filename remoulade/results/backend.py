@@ -189,7 +189,7 @@ class ResultBackend:
         key = self.build_group_message_id_key(group_id)
         message_ids = self._get(key)
         if message_ids is Missing:
-            raise MessageIdsMissing(f"Could't find message_ids for group {group_id}")
+            raise MessageIdsMissing(f"Couldn't find message_ids for group {group_id}")
         return message_ids
 
     def delete_group_message_ids(self, group_id: str):

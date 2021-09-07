@@ -22,7 +22,6 @@ from .errors import ActorNotFound, NoCancelBackend, NoResultBackend, NoStateBack
 from .logging import get_logger
 from .middleware import (
     AgeLimit,
-    Callbacks,
     CatchError,
     CurrentMessage,
     LoggingMetadata,
@@ -52,7 +51,6 @@ middleware_order = [
     AgeLimit,
     TimeLimit,
     ShutdownNotifications,
-    Callbacks,
     Pipelines,
     Results,
     CatchError,
