@@ -6,7 +6,7 @@ import remoulade
 import remoulade.broker
 from remoulade.brokers.rabbitmq import RabbitmqBroker
 from remoulade.brokers.stub import StubBroker
-from remoulade.middleware import Middleware
+from remoulade.middleware import AgeLimit, Middleware, ShutdownNotifications, TimeLimit
 
 CURRENT_OS = platform.system()
 skip_on_windows = pytest.mark.skipif(CURRENT_OS == "Windows", reason="test skipped on Windows")
@@ -73,55 +73,35 @@ def test_declare_actors_no_broker():
         remoulade.declare_actors([])
 
 
-@skip_on_windows
-def test_broker_middleware_can_be_added_before_other_middleware(stub_broker):
-    from remoulade.middleware import AgeLimit
+def test_middleware_is_inserted_correctly():
+    broker = StubBroker(middleware=[])
 
-    # Given that I have a custom middleware
-    empty_middleware = EmptyMiddleware()
+    assert len(broker.middleware) == 0
 
-    # If I add it before the AgeLimit middleware
-    stub_broker.add_middleware(empty_middleware, before=AgeLimit)
+    broker.add_middleware(AgeLimit())
 
-    # I expect it to be the first middleware
-    assert stub_broker.middleware[0] == empty_middleware
+    assert len(broker.middleware) == 1
 
+    broker.add_middleware(ShutdownNotifications())
 
-@skip_on_windows
-def test_broker_middleware_can_be_added_after_other_middleware(stub_broker):
-    from remoulade.middleware import AgeLimit
+    assert len(broker.middleware) == 2
 
-    # Given that I have a custom middleware
-    empty_middleware = EmptyMiddleware()
+    broker.add_middleware(TimeLimit())
 
-    # If I add it after the AgeLimit middleware
-    stub_broker.add_middleware(empty_middleware, after=AgeLimit)
-
-    # I expect it to be the second middleware
-    assert stub_broker.middleware[1] == empty_middleware
+    assert len(broker.middleware) == 3
+    assert isinstance(broker.middleware[1], TimeLimit)
 
 
-def test_broker_middleware_can_fail_to_be_added_before_or_after_missing_middleware(stub_broker):
-    # Given that I have a custom middleware
-    empty_middleware = EmptyMiddleware()
+def test_custom_middleware_is_appended(stub_broker):
+    class TestMiddleware(Middleware):
+        pass
 
-    # If I add it after a middleware that isn't registered
-    # I expect a ValueError to be raised
-    with pytest.raises(ValueError):
-        stub_broker.add_middleware(empty_middleware, after=EmptyMiddleware)
+    middleware_count = len(stub_broker.middleware)
 
+    stub_broker.add_middleware(TestMiddleware())
 
-@skip_on_windows
-def test_broker_middleware_cannot_be_added_both_before_and_after(stub_broker):
-    from remoulade.middleware import AgeLimit
-
-    # Given that I have a custom middleware
-    empty_middleware = EmptyMiddleware()
-
-    # If I add it with both before and after parameters
-    # I expect an AssertionError to be raised
-    with pytest.raises(AssertionError):
-        stub_broker.add_middleware(empty_middleware, before=AgeLimit, after=AgeLimit)
+    assert len(stub_broker.middleware) == middleware_count + 1
+    assert isinstance(stub_broker.middleware[middleware_count], TestMiddleware)
 
 
 def test_can_instantiate_brokers_without_middleware():

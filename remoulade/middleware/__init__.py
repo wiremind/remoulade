@@ -19,6 +19,7 @@ import platform
 
 from .age_limit import AgeLimit
 from .callbacks import Callbacks
+from .catch_error import CatchError
 from .current_message import CurrentMessage
 from .logging_metadata import LoggingMetadata
 from .max_memory import MaxMemory
@@ -35,7 +36,6 @@ CURRENT_OS = platform.system()
 if CURRENT_OS != "Windows":
     from .prometheus import Prometheus  # noqa: F401
 
-
 __all__ = [
     # Basics
     "Middleware",
@@ -47,7 +47,9 @@ __all__ = [
     # Middlewares
     "AgeLimit",
     "Callbacks",
+    "CatchError",
     "CurrentMessage",
+    "default_middleware",
     "LoggingMetadata",
     "Pipelines",
     "Retries",
@@ -61,7 +63,6 @@ __all__ = [
 
 if CURRENT_OS != "Windows":
     __all__.append("Prometheus")
-
 
 #: The list of middleware that are enabled by default.
 default_middleware = [AgeLimit, TimeLimit, ShutdownNotifications, Callbacks, Pipelines, Retries, CurrentMessage]

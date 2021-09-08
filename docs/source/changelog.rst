@@ -5,6 +5,12 @@ Changelog
 
 All notable changes to this project will be documented in this file.
 
+`0.36.1`_ -- 2021-09-09
+-----------------------
+Changed
+^^^^^^^
+* broker: removed default_after and default_before and replaced them with a list that determines the middleware order
+
 `0.36.0`_ -- 2021-09-03
 -----------------------
 Added
@@ -682,6 +688,7 @@ Fixed
 .. _#84: https://github.com/wiremind/remoulade/issues/84
 .. _#77: https://github.com/wiremind/remoulade/issues/77
 
+.. _0.36.1: https://github.com/wiremind/remoulade/releases/tag/v0.36.1
 .. _0.36.0: https://github.com/wiremind/remoulade/releases/tag/v0.36.0
 .. _0.35.0: https://github.com/wiremind/remoulade/releases/tag/v0.35.0
 .. _0.34.2: https://github.com/wiremind/remoulade/releases/tag/v0.34.2

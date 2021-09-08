@@ -35,7 +35,7 @@ class LocalBroker(Broker):
     def add_middleware(self, middleware, *, before=None, after=None):
         if isinstance(middleware, Results) and not isinstance(middleware.backend, LocalBackend):
             raise RuntimeError("LocalBroker can only be used with LocalBackend.")
-        super().add_middleware(middleware, before=before, after=after)
+        super().add_middleware(middleware)
 
     def emit_before(self, signal, *args, **kwargs):
         # A local broker should not catch any exception because we are not in a worker but in the main thread

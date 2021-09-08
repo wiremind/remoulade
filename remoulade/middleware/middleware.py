@@ -14,7 +14,6 @@
 #
 # You should have received a copy of the GNU Lesser General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
-from typing import Type
 
 
 class MiddlewareError(Exception):
@@ -32,11 +31,6 @@ class Middleware:
     for all hooks are no-ops and subclasses may implement whatever
     subset of hooks they like.
     """
-
-    # Used to placed the middleware in the middleware list.
-    # Warning: should not be both set and should belong to default middleware
-    default_before = None  # type: Type[Middleware]
-    default_after = None  # type: Type[Middleware]
 
     def get_option(self, option_name, *, broker, message, default=None):
 

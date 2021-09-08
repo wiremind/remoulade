@@ -20,7 +20,21 @@ from typing import TYPE_CHECKING, Dict, Iterable, List, Optional, Set, Type, Typ
 from .cancel import Cancel, CancelBackend
 from .errors import ActorNotFound, NoCancelBackend, NoResultBackend, NoStateBackend
 from .logging import get_logger
-from .middleware import MiddlewareError, default_middleware
+from .middleware import (
+    AgeLimit,
+    Callbacks,
+    CatchError,
+    CurrentMessage,
+    LoggingMetadata,
+    MaxMemory,
+    MaxTasks,
+    MiddlewareError,
+    Pipelines,
+    Retries,
+    ShutdownNotifications,
+    TimeLimit,
+    default_middleware,
+)
 from .results import ResultBackend, Results
 from .state import MessageState, StateBackend
 
@@ -32,6 +46,24 @@ if TYPE_CHECKING:
     M = TypeVar("M", bound=Middleware)
 #: The global broker instance.
 global_broker: "Optional[Broker]" = None
+
+#: The order in which middlewares are sorted
+middleware_order = [
+    AgeLimit,
+    TimeLimit,
+    ShutdownNotifications,
+    Callbacks,
+    Pipelines,
+    Results,
+    CatchError,
+    Retries,
+    CurrentMessage,
+    LoggingMetadata,
+    MaxMemory,
+    MaxTasks,
+    MessageState,
+    Cancel,
+]
 
 
 def get_broker() -> "Broker":
@@ -184,41 +216,25 @@ class Broker:
         except KeyError:
             raise ValueError("invalid backend name")
 
-    def add_middleware(
-        self, middleware: "Middleware", *, before: "Type[Middleware]" = None, after: "Type[Middleware]" = None
-    ) -> None:
+    def add_middleware(self, middleware: "Middleware") -> None:
         """Add a middleware object to this broker.  The middleware is
-        appended to the end of the middleware list by default, or to
-        the default point of the middleware.
+         added to his default position.
 
-        You can specify another middleware (by class) as a reference
-        point for where the new middleware should be added.
 
         Parameters:
           middleware(Middleware): The middleware.
-          before(type): Add this middleware before a specific one.
-          after(type): Add this middleware after a specific one.
-
-        Raises:
-          ValueError: When either ``before`` or ``after`` refer to a
-            middleware that hasn't been registered yet.
         """
-        before = before or middleware.default_before
-        after = after or middleware.default_after
+        middleware_order_count = 0
+        added_middleware_count = 0
 
-        assert not (before and after), "provide either 'before' or 'after', but not both"
-
-        if before or after:
-            for i, m in enumerate(self.middleware):  # noqa
-                if isinstance(m, before or after):
-                    break
-            else:
-                raise ValueError("Middleware %r not found" % (before or after))
-
-            if before:
-                self.middleware.insert(i, middleware)
-            else:
-                self.middleware.insert(i + 1, middleware)
+        while added_middleware_count < len(self.middleware) and middleware_order_count < len(middleware_order):
+            current_middleware = middleware_order[middleware_order_count]
+            if isinstance(middleware, current_middleware):
+                self.middleware.insert(added_middleware_count, middleware)
+                break
+            if isinstance(self.middleware[added_middleware_count], current_middleware):
+                added_middleware_count += 1
+            middleware_order_count += 1
         else:
             self.middleware.append(middleware)
 
