@@ -17,7 +17,7 @@
 from typing import Set
 
 from ..logging import get_logger
-from ..middleware import Middleware, Retries
+from ..middleware import Middleware
 from .backend import BackendResult
 from .errors import ParentFailed
 
@@ -55,9 +55,6 @@ class Results(Middleware):
         allowed to exist in the backend.  Defaults to 10 minutes and
         can be set on a per-actor basis.
     """
-
-    # Warning: Results need to be before Retries to work
-    default_before = Retries
 
     def __init__(self, *, backend=None, store_results=False, result_ttl=None):
         self.logger = get_logger(__name__, type(self))

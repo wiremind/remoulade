@@ -1,5 +1,4 @@
-from remoulade import Middleware
-from remoulade.middleware import Retries
+from .middleware import Middleware
 
 
 class CatchError(Middleware):
@@ -8,8 +7,6 @@ class CatchError(Middleware):
     Parameters:
       cleanup_actor(str): The name of an actor to enqueue on failure.
     """
-
-    default_before = Retries
 
     @property
     def actor_options(self):
