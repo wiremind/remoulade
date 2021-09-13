@@ -316,3 +316,14 @@ def pickle_encoder():
     remoulade.set_encoder(new_encoder)
     yield new_encoder
     remoulade.set_encoder(old_encoder)
+
+
+def mock_func(func):
+    event = threading.Event()
+
+    def new_func(*args, **kwargs):
+        res = func(*args, *kwargs)
+        event.set()
+        return res
+
+    return new_func, event

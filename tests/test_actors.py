@@ -233,7 +233,7 @@ def test_actors_retry_a_max_number_of_times_on_failure(stub_broker, stub_worker)
     attempts = []
 
     # And an actor that fails every time
-    @remoulade.actor(max_retries=3, min_backoff=100, max_backoff=500)
+    @remoulade.actor(max_retries=3, min_backoff=1, backoff_strategy="constant")
     def do_work():
         attempts.append(1)
         raise RuntimeError("failure")
@@ -282,7 +282,7 @@ def test_actors_can_be_assigned_time_limits(stub_broker, stub_worker):
     attempts, successes = [], []
 
     # And an actor with a time limit
-    @remoulade.actor(max_retries=0, time_limit=500)
+    @remoulade.actor(max_retries=0, time_limit=200)
     def do_work():
         attempts.append(1)
         time.sleep(1)

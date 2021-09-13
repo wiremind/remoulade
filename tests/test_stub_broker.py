@@ -58,7 +58,7 @@ def test_stub_broker_can_join_with_timeout(stub_broker, stub_worker):
     # Given that I have an actor that takes a long time to run
     @remoulade.actor
     def do_work():
-        time.sleep(1)
+        time.sleep(0.5)
 
     # And this actor is declared
     stub_broker.declare_actor(do_work)
@@ -69,4 +69,4 @@ def test_stub_broker_can_join_with_timeout(stub_broker, stub_worker):
     # And join on its queue with a timeout
     # Then I expect a QueueJoinTimeout to be raised
     with pytest.raises(QueueJoinTimeout):
-        stub_broker.join(do_work.queue_name, timeout=500)
+        stub_broker.join(do_work.queue_name, timeout=200)
