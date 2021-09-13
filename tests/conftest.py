@@ -35,14 +35,14 @@ def check_rabbitmq(broker):
     try:
         broker.connection
     except Exception as e:
-        raise e if CI else pytest.skip("No connection to RabbmitMQ server.")
+        raise e from e if CI else pytest.skip("No connection to RabbmitMQ server.")
 
 
 def check_redis(client):
     try:
         client.ping()
     except redis.ConnectionError as e:
-        raise e if CI else pytest.skip("No connection to Redis server.")
+        raise e from e if CI else pytest.skip("No connection to Redis server.")
     client.flushall()
 
 

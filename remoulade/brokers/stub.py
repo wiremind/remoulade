@@ -54,8 +54,8 @@ class StubBroker(Broker):
         """
         try:
             return _StubConsumer(self.queues[queue_name], self.dead_letters, timeout)
-        except KeyError:
-            raise QueueNotFound(queue_name)
+        except KeyError as e:
+            raise QueueNotFound(queue_name) from e
 
     def declare_queue(self, queue_name):
         """Declare a queue.  Has no effect if a queue with the given
@@ -144,8 +144,8 @@ class StubBroker(Broker):
                         break
                 else:
                     return
-        except KeyError:
-            raise QueueNotFound(queue_name)
+        except KeyError as e:
+            raise QueueNotFound(queue_name) from e
 
 
 class _StubConsumer(Consumer):

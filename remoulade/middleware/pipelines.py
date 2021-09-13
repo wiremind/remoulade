@@ -100,8 +100,8 @@ class Pipelines(Middleware):
 
         try:
             result_backend = broker.get_result_backend()
-        except NoResultBackend:
-            raise NoResultBackend("Pipeline with groups are ony supported with a result backend")
+        except NoResultBackend as e:
+            raise NoResultBackend("Pipeline with groups are ony supported with a result backend") from e
 
         message_ids = result_backend.get_group_message_ids(group_id=group_info.group_id)
         results = CollectionResults.from_message_ids(message_ids)
@@ -119,8 +119,8 @@ class Pipelines(Middleware):
         """
         try:
             result_backend = broker.get_result_backend()
-        except NoResultBackend:
-            raise NoResultBackend("Pipeline with groups are ony supported with a result backend")
+        except NoResultBackend as e:
+            raise NoResultBackend("Pipeline with groups are ony supported with a result backend") from e
 
         with result_backend.retry(broker, message, self.logger):
             group_completion = result_backend.increment_group_completion(group_info.group_id, message.message_id)

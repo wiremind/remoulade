@@ -459,8 +459,8 @@ class ChannelPool:
     def get(self, *, timeout=None):
         try:
             return self._pool.get(timeout=timeout)
-        except Empty:
-            raise ChannelPoolTimeout("Could not get any channel from the pool")
+        except Empty as e:
+            raise ChannelPoolTimeout("Could not get any channel from the pool") from e
 
     def put(self, channel):
         try:
