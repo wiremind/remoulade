@@ -7,7 +7,7 @@ import pytz
 
 import remoulade
 from remoulade.scheduler import ScheduledJob
-from tests.conftest import check_redis, new_scheduler
+from tests.conftest import check_redis, mock_func, new_scheduler
 
 
 def test_simple_interval_scheduler(stub_broker, stub_worker, scheduler, scheduler_thread, mul, add):
@@ -20,6 +20,7 @@ def test_simple_interval_scheduler(stub_broker, stub_worker, scheduler, schedule
         result += 1
 
     stub_broker.declare_actor(write_loaded_at)
+    write_loaded_at.send, event = mock_func(write_loaded_at.send)
     start = time.time()
 
     # Run scheduler
@@ -32,7 +33,7 @@ def test_simple_interval_scheduler(stub_broker, stub_worker, scheduler, schedule
     ]
     scheduler_thread.start()
 
-    time.sleep(3)
+    event.wait(20)
 
     stub_broker.join(mul.queue_name)
     stub_broker.join(write_loaded_at.queue_name)
@@ -54,8 +55,6 @@ def test_simple_interval_scheduler(stub_broker, stub_worker, scheduler, schedule
     ]
     scheduler.sync_config()
 
-    time.sleep(1)
-
     tasks = scheduler.get_redis_schedule().values()
     # One item was deleted
     assert {j.actor_name for j in tasks} == {"add", "mul"}
@@ -73,23 +72,30 @@ def test_multiple_schedulers(stub_broker, stub_worker):
         result += 1
 
     stub_broker.declare_actor(write_loaded_at)
+    schedule = [
+        ScheduledJob(
+            actor_name="write_loaded_at",
+            interval=3600,
+        )
+    ]
 
     scheduler_list = []
+    event_list = []
 
     for _ in range(5):
         sch = new_scheduler(stub_broker)
+        sch.get_redis_schedule, event = mock_func(sch.get_redis_schedule)
+        event_list.append(event)
         if not scheduler_list:
             check_redis(sch.client)
-        sch.schedule = [
-            ScheduledJob(
-                actor_name="write_loaded_at",
-                interval=3600,
-            )
-        ]
+        sch.schedule = schedule
         scheduler_list.append(sch)
         threading.Thread(target=sch.start).start()
 
-    time.sleep(0.2)
+    for _ in range(2):
+        for event in event_list:
+            event.wait(2)
+            event.clear()
 
     stub_broker.join(write_loaded_at.queue_name)
     stub_worker.join()
@@ -111,13 +117,15 @@ def test_scheduler_daily_time(stub_broker, stub_worker, scheduler, scheduler_thr
         result += 1
 
     stub_broker.declare_actor(write_loaded_at)
+    scheduler.get_redis_schedule, event_sch = mock_func(scheduler.get_redis_schedule)
+    write_loaded_at.send, event_send = mock_func(write_loaded_at.send)
 
     if tz:
         scheduler.schedule = [
             ScheduledJob(
                 actor_name="write_loaded_at",
                 daily_time=(
-                    datetime.datetime.now(pytz.timezone("Europe/Paris")) + datetime.timedelta(seconds=2)
+                    datetime.datetime.now(pytz.timezone("Europe/Paris")) + datetime.timedelta(milliseconds=100)
                 ).time(),
                 tz="Europe/Paris",
             )
@@ -126,22 +134,25 @@ def test_scheduler_daily_time(stub_broker, stub_worker, scheduler, scheduler_thr
         scheduler.schedule = [
             ScheduledJob(
                 actor_name="write_loaded_at",
-                daily_time=(datetime.datetime.utcnow() + datetime.timedelta(seconds=2)).time(),
+                daily_time=(datetime.datetime.utcnow() + datetime.timedelta(milliseconds=100)).time(),
             )
         ]
     scheduler_thread.start()
-
-    time.sleep(1)
-
     # should not have run yet
     assert result == 0
 
-    # should run now
-    time.sleep(1.2)
+    time.sleep(0.1)
 
+    event_send.wait()
+    stub_broker.join(write_loaded_at.queue_name)
+    stub_worker.join()
     assert result == 1
 
-    time.sleep(0.5)
+    event_sch.wait(10)
+    event_sch.clear()
+    event_sch.wait(10)
+    stub_broker.join(write_loaded_at.queue_name)
+    stub_worker.join()
 
     # should not rerun
     assert result == 1
@@ -163,8 +174,11 @@ def test_scheduler_new_daily_time(stub_broker, stub_worker, scheduler, scheduler
             daily_time=(datetime.datetime.utcnow() - datetime.timedelta(seconds=1)).time(),
         )
     ]
+    scheduler.get_redis_schedule, event = mock_func(scheduler.get_redis_schedule)
     scheduler_thread.start()
-    time.sleep(1)
+    event.wait(3)
+    event.clear()
+    event.wait(2)
 
     stub_broker.join(write_loaded_at.queue_name)
     stub_worker.join()
@@ -189,9 +203,12 @@ def test_scheduler_wrong_weekday(stub_broker, stub_worker, scheduler, scheduler_
             iso_weekday=datetime.datetime.now().isoweekday() + 1,
         )
     ]
+    scheduler.get_redis_schedule, event = mock_func(scheduler.get_redis_schedule)
     scheduler_thread.start()
 
-    time.sleep(0.1)
+    event.wait(2)
+    event.clear()
+    event.wait(2)
 
     # do nothing
     assert result == 0
@@ -214,8 +231,11 @@ def test_scheduler_right_weekday(stub_broker, stub_worker, scheduler, scheduler_
             iso_weekday=datetime.datetime.now().isoweekday(),
         )
     ]
+    write_loaded_at.send, event = mock_func(write_loaded_at.send)
     scheduler_thread.start()
-    time.sleep(0.1)
+    event.wait(2)
+    stub_broker.join(write_loaded_at.queue_name)
+    stub_worker.join()
 
     # Should have ran
     assert result == 1
