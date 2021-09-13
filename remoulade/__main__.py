@@ -128,10 +128,10 @@ def setup_pidfile(filename):
     except FileNotFoundError:  # pragma: no cover
         pass
 
-    except ValueError:
+    except ValueError as e:
         # Abort here to avoid overwriting real files.  Eg. someone
         # accidentally specifies a config file as the pid file.
-        raise RuntimeError("PID file contains garbage. Aborting.")
+        raise RuntimeError("PID file contains garbage. Aborting.") from e
 
     try:
         with open(filename, "w") as pid_file:
@@ -141,7 +141,7 @@ def setup_pidfile(filename):
         os.chmod(filename, 0o644)
         return pid
     except (FileNotFoundError, PermissionError) as e:
-        raise RuntimeError("Failed to write PID file %r. %s." % (e.filename, e.strerror))
+        raise RuntimeError("Failed to write PID file %r. %s." % (e.filename, e.strerror)) from e
 
 
 def remove_pidfile(filename, logger):

@@ -211,8 +211,8 @@ class Broker:
                 return middleware.backend
             else:
                 raise exception
-        except KeyError:
-            raise ValueError("invalid backend name")
+        except KeyError as e:
+            raise ValueError("invalid backend name") from e
 
     def add_middleware(self, middleware: "Middleware") -> None:
         """Add a middleware object to this broker.  The middleware is
