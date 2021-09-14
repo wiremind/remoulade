@@ -155,28 +155,32 @@ class Scheduler:
         return r
 
     def sync_config(self) -> None:
-        redis_schedule = self.get_redis_schedule()
-        config_schedule = {job.get_hash(): job for job in self.schedule}
+        with self.client.lock(self.lock_key, timeout=10, blocking_timeout=20):
+            redis_schedule = self.get_redis_schedule()
+            config_schedule = {job.get_hash(): job for job in self.schedule}
 
-        # loop over redis schedule
-        for job_hash in redis_schedule.keys():
-            # if job is no longer in configured schedule, remove it
-            if job_hash not in config_schedule:
-                self.logger.info("Dropping %s because it's no longer in the config", job_hash)
-                self.client.hdel(self.namespace, job_hash.encode("utf-8"))
+            # loop over redis schedule
+            for job_hash in redis_schedule.keys():
+                # if job is no longer in configured schedule, remove it
+                if job_hash not in config_schedule:
+                    self.logger.info("Dropping %s because it's no longer in the config", job_hash)
+                    self.client.hdel(self.namespace, job_hash.encode("utf-8"))
 
-        # add newly configured jobs
-        for job_hash, job in config_schedule.items():
-            if job_hash not in redis_schedule:
-                # Do not queue task if daily time is already passed
-                if job.daily_time is not None and job.daily_time < datetime.datetime.now(pytz.timezone(job.tz)).time():
-                    self.logger.info(
-                        "Will not run %s today, because daily time has already passed. Wait for tomorrow", job_hash
-                    )
-                    job.last_queued = datetime.datetime.utcnow()
-                # Add to redis
-                self.logger.info("Adding new job %s to schedule", job_hash)
-                self.flush(job)
+            # add newly configured jobs
+            for job_hash, job in config_schedule.items():
+                if job_hash not in redis_schedule:
+                    # Do not queue task if daily time is already passed
+                    if (
+                        job.daily_time is not None
+                        and job.daily_time < datetime.datetime.now(pytz.timezone(job.tz)).time()
+                    ):
+                        self.logger.info(
+                            "Will not run %s today, because daily time has already passed. Wait for tomorrow", job_hash
+                        )
+                        job.last_queued = datetime.datetime.utcnow()
+                    # Add to redis
+                    self.logger.info("Adding new job %s to schedule", job_hash)
+                    self.flush(job)
 
     def stop(self):
         self.stopped = True
