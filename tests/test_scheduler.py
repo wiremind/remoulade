@@ -20,7 +20,8 @@ def test_simple_interval_scheduler(stub_broker, stub_worker, scheduler, schedule
         result += 1
 
     stub_broker.declare_actor(write_loaded_at)
-    write_loaded_at.send, event = mock_func(write_loaded_at.send)
+    write_loaded_at.send, event_write = mock_func(write_loaded_at.send)
+    mul.send, event_mul = mock_func(mul.send)
     start = time.time()
 
     # Run scheduler
@@ -33,7 +34,8 @@ def test_simple_interval_scheduler(stub_broker, stub_worker, scheduler, schedule
     ]
     scheduler_thread.start()
 
-    event.wait(20)
+    event_write.wait(10)
+    event_mul.wait(10)
 
     stub_broker.join(mul.queue_name)
     stub_broker.join(write_loaded_at.queue_name)
