@@ -5,6 +5,12 @@ Changelog
 
 All notable changes to this project will be documented in this file.
 
+`0.37.2`_ -- 2021-09-14
+-----------------------
+Fixed
+^^^^^
+* scheduler: add lock to scheduler sync_config function
+
 `0.37.1`_ -- 2021-09-13
 -----------------------
 Added
@@ -705,6 +711,7 @@ Fixed
 .. _#84: https://github.com/wiremind/remoulade/issues/84
 .. _#77: https://github.com/wiremind/remoulade/issues/77
 
+.. _0.37.2: https://github.com/wiremind/remoulade/releases/tag/v0.37.2
 .. _0.37.1: https://github.com/wiremind/remoulade/releases/tag/v0.37.1
 .. _0.37.0: https://github.com/wiremind/remoulade/releases/tag/v0.37.0
 .. _0.36.1: https://github.com/wiremind/remoulade/releases/tag/v0.36.1
