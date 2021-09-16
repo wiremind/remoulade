@@ -15,8 +15,9 @@ Send Actor on Fail
 ------------------
 
 Remoulade has built-in support for sending messages when other
-messages fail.  The ``on_failure`` message is enqueued every time an actor fails
-or times out and is not going to be retried. This message receives 4 arguments :
+messages fail.  The ``on_failure`` option can either be an Actor, or a Message
+if passed in the message options. The ``on_failure`` message or actor is enqueued every time an actor fails
+or times out and is not going to be retried. It receives 4 arguments :
 the name of the actor that failed, the name of the exception, and the args and
 kwargs of the message that failed.
 
@@ -39,7 +40,7 @@ kwargs of the message that failed.
    if __name__ == "__main__":
      identity.send_with_options(
        args=(42,)
-       on_failure=print_error.message(),
+       on_failure=print_error,
      )
 
 

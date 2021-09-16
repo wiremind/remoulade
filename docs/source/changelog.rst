@@ -9,7 +9,7 @@ All notable changes to this project will be documented in this file.
 -----------------------
 Changed
 ^^^^^^^
-* catch_error: change the on_failure option from an actor to a message. As a result, options can now be passed to it.
+* catch_error:  the CatchError on_failure option can now be a Message when passed to message options
 
 `0.38.0`_ -- 2021-09-14
 -----------------------
