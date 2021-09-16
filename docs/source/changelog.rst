@@ -5,6 +5,12 @@ Changelog
 
 All notable changes to this project will be documented in this file.
 
+`0.38.1`_ -- 2021-09-16
+-----------------------
+Changed
+^^^^^^^
+* catch_error:  the CatchError on_failure option can now be a Message when passed to message options
+
 `0.38.0`_ -- 2021-09-14
 -----------------------
 Added
@@ -717,6 +723,7 @@ Fixed
 .. _#84: https://github.com/wiremind/remoulade/issues/84
 .. _#77: https://github.com/wiremind/remoulade/issues/77
 
+.. _0.38.1: https://github.com/wiremind/remoulade/releases/tag/v0.38.1
 .. _0.38.0: https://github.com/wiremind/remoulade/releases/tag/v0.38.0
 .. _0.37.2: https://github.com/wiremind/remoulade/releases/tag/v0.37.2
 .. _0.37.1: https://github.com/wiremind/remoulade/releases/tag/v0.37.1

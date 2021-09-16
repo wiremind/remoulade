@@ -14,9 +14,10 @@ open an `issue on GitHub`_.
 Send Actor on Fail
 ------------------
 
-Remoulade has built-in support for sending actors messages when other
-actors fail.  The ``on_failure`` actor is enqueued every time an actor fails
-or times out and is not going to be retried. This actor receives 4 arguments :
+Remoulade has built-in support for sending messages when other
+messages fail.  The ``on_failure`` option can either be an Actor, or a Message
+if passed in the message options. The ``on_failure`` message or actor is enqueued every time an actor fails
+or times out and is not going to be retried. It receives 4 arguments :
 the name of the actor that failed, the name of the exception, and the args and
 kwargs of the message that failed.
 
