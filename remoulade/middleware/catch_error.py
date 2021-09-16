@@ -2,10 +2,10 @@ from .middleware import Middleware
 
 
 class CatchError(Middleware):
-    """Middleware that lets you enqueue an actor on message failure.
+    """Middleware that lets you enqueue another message on message failure.
 
     Parameters:
-      on_failure(str): The name of an actor to enqueue on failure.
+      on_failure(str): A Message to enqueue on failure.
     """
 
     @property
@@ -13,20 +13,25 @@ class CatchError(Middleware):
         return {"on_failure"}
 
     def after_process_message(self, broker, message, *, result=None, exception=None):
+        from .. import Message
+
         if message.failed:
             on_failure = self.get_option("on_failure", broker=broker, message=message)
             if on_failure:
-                actor = broker.get_actor(on_failure)
-                actor.send(message.actor_name, type(exception).__name__, message.args, message.kwargs)
+                on_failure_message = Message(**on_failure)
+                on_failure_message = on_failure_message.copy(
+                    args=[message.actor_name, type(exception).__name__, message.args, message.kwargs]
+                )
+                broker.enqueue(on_failure_message)
 
     def update_options_before_create_message(self, options, broker, actor_name):
-        from ..actor import Actor
+        from .. import Message
 
         on_failure = options.get("on_failure")
-        if isinstance(on_failure, Actor):
-            options["on_failure"] = on_failure.actor_name
+        if isinstance(on_failure, Message):
+            options["on_failure"] = on_failure.asdict()
 
-        elif on_failure is not None and not isinstance(on_failure, str):
-            raise TypeError(f"on_failure must be an Actor or a string, got {type(on_failure)} instead")
+        elif on_failure is not None:
+            raise TypeError(f"on_failure must be an Message, got {type(on_failure)} instead")
 
         return options
