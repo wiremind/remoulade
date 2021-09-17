@@ -9,6 +9,7 @@ from unittest.mock import Mock
 import pytest
 import redis
 from freezegun import freeze_time
+from sqlalchemy import inspect
 
 import remoulade
 from remoulade import Worker
@@ -49,9 +50,9 @@ def check_redis(client):
 
 def check_postgres(client):
     with client.begin() as session:
-        engine = session.get_bind()
-        version_exists = engine.has_table("version")
-        states_exists = engine.has_table("states")
+        insp = inspect(session.get_bind())
+        version_exists = insp.has_table("version")
+        states_exists = insp.has_table("states")
         if version_exists:
             versions = session.query(StateVersion).all()
         return version_exists and states_exists and len(versions) == 1 and versions[0].version == DB_VERSION
@@ -356,7 +357,7 @@ def mock_func(func):
     event = threading.Event()
 
     def new_func(*args, **kwargs):
-        res = func(*args, *kwargs)
+        res = func(*args, **kwargs)
         event.set()
         return res
 

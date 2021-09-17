@@ -10,6 +10,7 @@ from remoulade.middleware import Middleware, SkipMessage
 from remoulade.state.backend import State, StateStatusesEnum
 from remoulade.state.backends import PostgresBackend
 from remoulade.state.middleware import MessageState, State
+from tests.conftest import mock_func
 
 
 class TestMessageState:
@@ -43,14 +44,17 @@ class TestMessageState:
         assert state.end_datetime.isoformat() == "2020-02-03T00:00:30+00:00"
 
     def test_started_state_message(self, stub_broker, stub_worker, state_middleware, frozen_datetime):
+        state_middleware.before_process_message, event_started = mock_func(state_middleware.before_process_message)
+        state_middleware.backend.get_state, event_get_state = mock_func(state_middleware.backend.get_state)
+
         @remoulade.actor
         def wait():
-            time.sleep(0.3)
+            event_get_state.wait(10)
 
         stub_broker.declare_actor(wait)
         msg = wait.send()
-        # We wait the message be emitted
-        time.sleep(0.1)
+        # We wait the message be started
+        event_started.wait(10)
         state = state_middleware.backend.get_state(msg.message_id)
         assert state.status == StateStatusesEnum.Started
         assert state.started_datetime.isoformat() == "2020-02-03T00:00:00+00:00"
