@@ -95,7 +95,7 @@ class PostgresBackend(StateBackend):
 
             if not insp.has_table("states"):
                 Base.metadata.create_all(bind=bind, tables=[StoredState.__table__])
-            elif state_version != DB_VERSION:
+            elif state_version is None or state_version.version != DB_VERSION:
                 StoredState.__table__.drop(bind=bind)
                 Base.metadata.create_all(bind=bind, tables=[StoredState.__table__])
                 if state_version is not None:

@@ -5,6 +5,13 @@ Changelog
 
 All notable changes to this project will be documented in this file.
 
+`0.39.1`_ -- 2021-09-17
+-----------------------
+Fixed
+^^^^^
+* states: states data will no longer be deleted on Postgres State Backend initialisation
+when database is already in correct version
+
 `0.39.0`_ -- 2021-09-16
 -----------------------
 Added
@@ -738,6 +745,7 @@ Fixed
 .. _#84: https://github.com/wiremind/remoulade/issues/84
 .. _#77: https://github.com/wiremind/remoulade/issues/77
 
+.. _0.39.1: https://github.com/wiremind/remoulade/releases/tag/v0.39.1
 .. _0.39.0: https://github.com/wiremind/remoulade/releases/tag/v0.39.0
 .. _0.38.1: https://github.com/wiremind/remoulade/releases/tag/v0.38.1
 .. _0.38.0: https://github.com/wiremind/remoulade/releases/tag/v0.38.0

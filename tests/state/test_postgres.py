@@ -2,6 +2,18 @@ from remoulade.state.backends.postgres import DB_VERSION, StateVersion, StoredSt
 from tests.conftest import check_postgres
 
 
+def test_no_changes(stub_broker, postgres_state_middleware, check_postgres_begin):
+    backend = postgres_state_middleware.backend
+    client = backend.client
+    with client.begin() as session:
+        session.add(StoredState(message_id="id"))
+
+    backend.init_db()
+    assert check_postgres(client)
+    with client.begin() as session:
+        assert len(session.query(StoredState).all()) == 1
+
+
 def test_create_tables(stub_broker, postgres_state_middleware, check_postgres_begin):
     backend = postgres_state_middleware.backend
     client = backend.client
