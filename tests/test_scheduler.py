@@ -120,7 +120,7 @@ def test_scheduler_daily_time(stub_broker, stub_worker, scheduler, scheduler_thr
 
     stub_broker.declare_actor(write_loaded_at)
     scheduler.get_redis_schedule, event_sch = mock_func(scheduler.get_redis_schedule)
-    write_loaded_at.send, event_send = mock_func(write_loaded_at.send)
+    stub_broker.enqueue, event_enqueue = mock_func(stub_broker.enqueue)
 
     if tz:
         scheduler.schedule = [
@@ -145,7 +145,7 @@ def test_scheduler_daily_time(stub_broker, stub_worker, scheduler, scheduler_thr
 
     time.sleep(0.1)
 
-    event_send.wait()
+    event_enqueue.wait(10)
     stub_broker.join(write_loaded_at.queue_name)
     stub_worker.join()
     assert result == 1
