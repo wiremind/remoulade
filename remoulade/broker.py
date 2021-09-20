@@ -298,6 +298,12 @@ class Broker:
         """
         raise NotImplementedError
 
+    def _apply_delay(self, message: "Message", delay: Optional[int] = None) -> "Message":
+        raise NotImplementedError
+
+    def _enqueue(self, message: "Message", *, delay: Optional[int] = None) -> "Message":
+        raise NotImplementedError
+
     def enqueue(self, message: "Message", *, delay: Optional[int] = None) -> "Message":  # pragma: no cover
         """Enqueue a message on this broker.
 
@@ -308,7 +314,18 @@ class Broker:
         Returns:
           Message: Either the original message or a copy of it.
         """
-        raise NotImplementedError
+
+        message = self._apply_delay(message, delay)
+        self.emit_before("enqueue", message, delay)
+
+        try:
+            message = self._enqueue(message, delay=delay)
+            self.emit_after("enqueue", message, delay)
+            return message
+
+        except BaseException as e:
+            self.emit_after("enqueue", message, delay, exception=e)
+            raise e from e
 
     def get_actor(self, actor_name: str) -> "Actor":  # pragma: no cover
         """Look up an actor by its name.

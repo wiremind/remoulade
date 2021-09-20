@@ -87,7 +87,7 @@ class Middleware:
     def before_enqueue(self, broker, message, delay):
         """Called before a message is enqueued."""
 
-    def after_enqueue(self, broker, message, delay):
+    def after_enqueue(self, broker, message, delay, exception=None):
         """Called after a message has been enqueued."""
 
     def before_delay_message(self, broker, message):

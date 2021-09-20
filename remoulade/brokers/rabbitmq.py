@@ -212,7 +212,15 @@ class RabbitmqBroker(Broker):
             arguments["x-max-length"] = self.dead_queue_max_length
         return channel.queue.declare(queue=xq_name(queue_name), durable=True, arguments=arguments)
 
-    def enqueue(self, message: "Message", *, delay: Optional[int] = None) -> "Message":
+    def _apply_delay(self, message: "Message", delay: Optional[int] = None) -> "Message":
+        if delay is not None:
+            message_eta = current_millis() + delay
+            queue_name = message.queue_name if delay is None else dq_name(message.queue_name)
+            message = message.copy(queue_name=queue_name, options={"eta": message_eta})
+
+        return message
+
+    def _enqueue(self, message: "Message", *, delay: Optional[int] = None) -> "Message":
         """Enqueue a message.
 
         Parameters:
@@ -227,10 +235,6 @@ class RabbitmqBroker(Broker):
         queue_name = message.queue_name
         actor = self.get_actor(message.actor_name)
         properties = {"delivery_mode": 2, "priority": message.options.get("priority", actor.priority)}
-        if delay is not None:
-            queue_name = dq_name(queue_name)
-            message_eta = current_millis() + delay
-            message = message.copy(queue_name=queue_name, options={"eta": message_eta})
 
         attempts = 1
         while True:
@@ -242,12 +246,10 @@ class RabbitmqBroker(Broker):
                     self._declare_rabbitmq_queues()
                     self.queues_declared = True
                 self.logger.debug("Enqueueing message %r on queue %r.", message.message_id, queue_name)
-                self.emit_before("enqueue", message, delay)
                 with self.channel_pool.acquire() as channel:
                     channel.basic.publish(
                         exchange="", routing_key=queue_name, body=message.encode(), properties=properties
                     )
-                self.emit_after("enqueue", message, delay)
                 return message
 
             except (AMQPConnectionError, AMQPChannelError) as e:
