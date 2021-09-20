@@ -17,7 +17,7 @@
 import time
 from itertools import chain
 from queue import Empty, Queue
-from typing import List
+from typing import List, Optional
 
 from ..broker import Broker, Consumer, MessageProxy
 from ..common import current_millis, dq_name, iter_queue, join_queue
@@ -74,7 +74,15 @@ class StubBroker(Broker):
             self.delay_queues.add(delayed_name)
             self.emit_after("declare_delay_queue", delayed_name)
 
-    def enqueue(self, message, *, delay=None):
+    def _apply_delay(self, message: "Message", delay: Optional[int] = None) -> "Message":
+        if delay is not None:
+            message_eta = current_millis() + delay
+            queue_name = message.queue_name if delay is None else dq_name(message.queue_name)
+            message = message.copy(queue_name=queue_name, options={"eta": message_eta})
+
+        return message
+
+    def _enqueue(self, message, *, delay=None):
         """Enqueue a message.
 
         Parameters:
@@ -87,18 +95,11 @@ class StubBroker(Broker):
             doesn't exist.
         """
         queue_name = message.queue_name
-        if delay is not None:
-            queue_name = dq_name(queue_name)
-            message_eta = current_millis() + delay
-            message = message.copy(queue_name=queue_name, options={"eta": message_eta})
-
-        self.emit_before("enqueue", message, delay)
 
         if queue_name not in self.queues:
             raise QueueNotFound(queue_name)
 
         self.queues[queue_name].put(message.encode())
-        self.emit_after("enqueue", message, delay)
         return message
 
     def flush(self, queue_name):

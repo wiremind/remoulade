@@ -5,6 +5,12 @@ Changelog
 
 All notable changes to this project will be documented in this file.
 
+`0.39.3`_ -- 2021-09-21
+-----------------------
+Changed
+^^^^^
+* state: the 'Pending' state will now be saved before enqueueing instead of after. If the enqueue fails, the state will be marked as failed after the enqueueing.
+
 `0.39.2`_ -- 2021-09-20
 -----------------------
 Changed
@@ -749,6 +755,7 @@ Fixed
 .. _#84: https://github.com/wiremind/remoulade/issues/84
 .. _#77: https://github.com/wiremind/remoulade/issues/77
 
+.. _0.39.3: https://github.com/wiremind/remoulade/releases/tag/v0.39.3
 .. _0.39.2: https://github.com/wiremind/remoulade/releases/tag/v0.39.2
 .. _0.39.1: https://github.com/wiremind/remoulade/releases/tag/v0.39.1
 .. _0.39.0: https://github.com/wiremind/remoulade/releases/tag/v0.39.0

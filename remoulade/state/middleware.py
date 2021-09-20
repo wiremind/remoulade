@@ -42,7 +42,7 @@ class MessageState(Middleware):
     def _get_current_time(self):
         return datetime.now(timezone.utc)
 
-    def after_enqueue(self, broker, message, delay):
+    def before_enqueue(self, broker, message, delay):
         priority = broker.get_actor(message.actor_name).priority
         group_id = self.get_option("group_info", broker=broker, message=message, default={}).get("group_id")
         self.save(
@@ -52,6 +52,10 @@ class MessageState(Middleware):
             priority=priority,
             group_id=group_id,
         )
+
+    def after_enqueue(self, broker, message, delay, exception=None):
+        if exception is not None:
+            self.save(message, status=StateStatusesEnum.Failure, end_datetime=self._get_current_time())
 
     def after_skip_message(self, broker, message):
         self.save(message, status=StateStatusesEnum.Skipped)
