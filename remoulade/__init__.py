@@ -90,4 +90,4 @@ __all__ = [
     "set_scheduler",
 ]
 
-__version__ = "0.39.1"
+__version__ = "0.39.2"
