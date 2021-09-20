@@ -228,7 +228,10 @@ class Broker:
         while added_middleware_count < len(self.middleware) and middleware_order_count < len(middleware_order):
             current_middleware = middleware_order[middleware_order_count]
             if isinstance(middleware, current_middleware):
-                self.middleware.insert(added_middleware_count, middleware)
+                if isinstance(self.middleware[added_middleware_count], current_middleware):
+                    self.middleware[added_middleware_count] = middleware
+                else:
+                    self.middleware.insert(added_middleware_count, middleware)
                 break
             if isinstance(self.middleware[added_middleware_count], current_middleware):
                 added_middleware_count += 1
