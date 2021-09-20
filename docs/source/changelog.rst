@@ -5,12 +5,17 @@ Changelog
 
 All notable changes to this project will be documented in this file.
 
+`0.39.2`_ -- 2021-09-20
+-----------------------
+Changed
+^^^^^
+* middleware: when adding a middleware to a broker that already has a middleware of this type, it will now replace the middleware.
+
 `0.39.1`_ -- 2021-09-17
 -----------------------
 Fixed
 ^^^^^
-* states: states data will no longer be deleted on Postgres State Backend initialisation
-when database is already in correct version
+* states: states data will no longer be deleted on Postgres State Backend initialisation when database is already in correct version
 
 `0.39.0`_ -- 2021-09-16
 -----------------------
@@ -19,8 +24,7 @@ Added
 * state: add new Postgres State Backend
 * compose: add new docker-compose file to easily run all the services necessary to remoulade
 * api: add new /messages/states DELETE route to delete states from the Postgres State Backend
-* api: add new arguments to /messages/states and /groups route to filter results by actor,
-status, id, start_datetime and end_datetime with Postgres State Backend.
+* api: add new arguments to /messages/states and /groups route to filter results by actor, status, id, start_datetime and end_datetime with Postgres State Backend.
 
 Changed
 ^^^^^^^
@@ -745,6 +749,7 @@ Fixed
 .. _#84: https://github.com/wiremind/remoulade/issues/84
 .. _#77: https://github.com/wiremind/remoulade/issues/77
 
+.. _0.39.2: https://github.com/wiremind/remoulade/releases/tag/v0.39.2
 .. _0.39.1: https://github.com/wiremind/remoulade/releases/tag/v0.39.1
 .. _0.39.0: https://github.com/wiremind/remoulade/releases/tag/v0.39.0
 .. _0.38.1: https://github.com/wiremind/remoulade/releases/tag/v0.38.1

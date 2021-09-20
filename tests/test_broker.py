@@ -111,3 +111,15 @@ def test_can_instantiate_brokers_without_middleware():
 
     # Then I should get back a broker with not middleware
     assert not broker.middleware
+
+
+def test_duplicate_middleware(stub_broker):
+    # Given that I have a broker with the default middleware
+    middleware_count = len(stub_broker.middleware)
+
+    # When I add a middleware that is already added with options
+    stub_broker.add_middleware(AgeLimit(max_age=2))
+
+    # Then I should have the same amount of middleware, and the Age Limit middleware should be the new one
+    assert len(stub_broker.middleware) == middleware_count
+    assert stub_broker.get_middleware(AgeLimit).max_age == 2
