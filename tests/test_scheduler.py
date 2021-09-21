@@ -127,19 +127,21 @@ def test_scheduler_daily_time(stub_broker, stub_worker, scheduler, scheduler_thr
             actor_name="write_loaded_at",
             daily_time=(
                 datetime.datetime.now(pytz.timezone(tz) if tz else None)
-                + datetime.timedelta(milliseconds=500)
+                + datetime.timedelta(seconds=1)
             ).time(),
             tz=tz,
         )
     ]
     scheduler_thread.start()
-    # Wait for a complete scheduler iteration
-    for _ in range(2):
+    # Wait for sync_config + a complete scheduler iteration
+    for _ in range(3):
         event_sch.wait(10)
         event_sch.clear()
+    stub_broker.join(write_loaded_at.queue_name)
+    stub_worker.join()
     # should not have run yet
     assert result == 0
-    frozen_datetime.tick(1)
+    frozen_datetime.tick(2)
     # Wait for the ScheduledJob to be sent
     event_send.wait(10)
     stub_broker.join(write_loaded_at.queue_name)
