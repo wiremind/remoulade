@@ -92,7 +92,7 @@ def test_rabbitmq_actors_can_retry_multiple_times(rabbitmq_broker, rabbitmq_work
     attempts = []
 
     # And an actor that fails 3 times then succeeds
-    @remoulade.actor(max_retries=3, max_backoff=1000)
+    @remoulade.actor(max_retries=3, max_backoff=1)
     def do_work():
         attempts.append(1)
         if sum(attempts) < 4:

@@ -318,6 +318,10 @@ def mock_channel_factory():
     return factory
 
 
+def fast_backoff(attempts, **kwargs):
+    return attempts + 1, 1
+
+
 @pytest.fixture
 def frozen_datetime():
     with freeze_time("2020-02-03") as frozen_datetime:

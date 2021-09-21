@@ -1,5 +1,3 @@
-import time
-
 import pytest
 
 import remoulade
@@ -40,14 +38,14 @@ def test_actors_can_be_canceled(stub_broker, stub_worker, cancel_backend, cancel
     assert bool(has_been_called) != cancel
 
 
-def test_cancellations_not_stored_forever(cancel_backend):
+def test_cancellations_not_stored_forever(cancel_backend, frozen_datetime):
     # Given a cancel backend which store the cancellations 1 second
     cancel_backend.cancellation_ttl = 1
 
     # If we cancel some messages
     cancel_backend.cancel("a")
     # Then wait some time
-    time.sleep(1)
+    frozen_datetime.tick(delta=2)
     # And call again cancel
     cancel_backend.cancel("c")
 
