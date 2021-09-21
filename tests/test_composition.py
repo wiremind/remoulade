@@ -1,5 +1,7 @@
+import threading
 import time
 from threading import Condition
+from unittest import mock
 from unittest.mock import patch
 
 import pytest
@@ -8,6 +10,7 @@ import remoulade
 from remoulade import CollectionResults, group, pipeline
 from remoulade.results import ErrorStored, MessageIdsMissing, ResultMissing, Results, ResultTimeout
 from remoulade.results.backends import StubBackend
+from tests.conftest import fast_backoff, mock_func
 
 
 def test_messages_can_be_piped(stub_broker):
@@ -167,28 +170,27 @@ def test_pipelines_expose_completion_stats(stub_broker, stub_worker, result_back
     stub_broker.add_middleware(Results(backend=result_backend))
 
     # And an actor that waits some amount of time
-    condition = Condition()
+    result_backend.store_results, event_result = mock_func(result_backend.store_results)
+    event_count = [threading.Event() for _ in range(4)]
 
     @remoulade.actor(store_results=True)
     def wait(n):
-        time.sleep(n)
-        with condition:
-            condition.notify_all()
-            return n
+        event_count[n].wait(3)
+        return n + 1
 
     # And this actor is declared
     stub_broker.declare_actor(wait)
 
     # When I pipe some messages intended for that actor together and run the pipeline
-    pipe = wait.message(1) | wait.message()
+    pipe = wait.message(0) | wait.message() | wait.message() | wait.message()
     pipe.run()
 
     # Then every time a job in the pipeline completes, the completed_count should increase
-    for count in range(1, len(pipe) + 1):
-        with condition:
-            condition.wait(2)
-            time.sleep(0.1)  # give the worker time to set the result
-            assert pipe.results.completed_count == count
+    for count in range(0, len(pipe)):
+        event_count[count].set()
+        event_result.wait(2)
+        event_result.clear()
+        assert pipe.results.completed_count == count + 1
 
     # Finally, completed should be true
     assert pipe.results.completed
@@ -618,6 +620,7 @@ def test_pipeline_does_not_continue_to_next_actor_when_message_is_marked_as_fail
     assert not has_run
 
 
+@mock.patch("remoulade.results.backend.compute_backoff", fast_backoff)
 def test_retry_if_increment_group_completion_fail(stub_broker, stub_worker):
     with patch.object(StubBackend, "increment_group_completion") as mock_increment_group_completion:
         mock_increment_group_completion.side_effect = Exception("Cannot increment")

@@ -1,4 +1,6 @@
+import threading
 import time
+from unittest import mock
 from unittest.mock import patch
 
 import pytest
@@ -8,6 +10,7 @@ from remoulade import Result
 from remoulade.middleware import Retries
 from remoulade.results import ErrorStored, ResultBackend, ResultMissing, Results, ResultTimeout
 from remoulade.results.backends import StubBackend
+from tests.conftest import fast_backoff
 
 
 @pytest.mark.parametrize("forget", [True, False])
@@ -402,10 +405,12 @@ def test_result_get_forget_not_store_if_no_result(stub_broker, stub_worker, resu
     # And a broker with the results middleware
     stub_broker.add_middleware(Results(backend=result_backend))
 
+    event = threading.Event()
+
     # And an actor that stores results
     @remoulade.actor(store_results=True)
     def do_work():
-        time.sleep(1)
+        event.wait(2)
         return 42
 
     # And this actor is declared
@@ -419,6 +424,7 @@ def test_result_get_forget_not_store_if_no_result(stub_broker, stub_worker, resu
     with pytest.raises(ResultMissing):
         result.get(forget=True)
 
+    event.set()
     # It should not store a forgotten result if there is no key
     assert result.get(block=True) == 42
 
@@ -450,6 +456,7 @@ def test_error_cannot_be_serialized(stub_broker, stub_worker, result_middleware)
     assert e.value.message == "Exception could not be serialized"
 
 
+@mock.patch("remoulade.results.backend.compute_backoff", fast_backoff)
 def test_retry_if_saving_result_fail(stub_broker, stub_worker):
     with patch.object(ResultBackend, "store_results") as mock_store_results:
         mock_store_results.side_effect = Exception("Cannot save result")
