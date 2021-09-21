@@ -167,21 +167,21 @@ Changed
 * Middleware : It is now possible to send any option with either message, actor or broker when it makes sense
 
 
-`0.30.6`_ -- 2020-07-23
+`0.30.6`_ -- 2021-07-23
 -----------------------
 Fixed
 ^^^^^
 * Doc: fix doc requirements
 
 
-`0.30.5`_ -- 2020-07-21
+`0.30.5`_ -- 2021-07-21
 -----------------------
 
 Changed
 ^^^^^^^
 * Doc: add getting started
 
-`0.30.4`_ -- 2020-07-09
+`0.30.4`_ -- 2021-07-09
 -----------------------
 Fixed
 ^^^^^
@@ -191,13 +191,13 @@ Changed
 ^^^^^^^
 * add type hints
 
-`0.30.3`_ -- 2020-05-20
+`0.30.3`_ -- 2021-05-20
 -----------------------
 Fixed
 ^^^^^
 * Prometheus: initialise message_start_times in each thread
 
-`0.30.2`_ -- 2020-05-20
+`0.30.2`_ -- 2021-05-20
 -----------------------
 Broken do not use
 ^^^^^^^^^^^^^^^^^
@@ -205,7 +205,7 @@ Fixed
 ^^^^^
 * Prometheus: wrong usage of threading.local
 
-`0.30.1`_ -- 2020-05-20
+`0.30.1`_ -- 2021-05-20
 -----------------------
 Broken do not use
 ^^^^^^^^^^^^^^^^^
@@ -213,7 +213,7 @@ Fixed
 ^^^^^
 * Prometheus: initialize labels at worker boot and only if not None
 
-`0.30.0`_ -- 2020-05-18
+`0.30.0`_ -- 2021-05-18
 -----------------------
 Broken do not use
 ^^^^^^^^^^^^^^^^^
@@ -223,56 +223,56 @@ Changed
 * Prometheus: remove useless metrics
 * Prometheus: actor_name label can be overridden with prometheus_label argument of actor
 
-`0.29.1`_ -- 2020-05-14
+`0.29.1`_ -- 2021-05-14
 -----------------------
 
 Fixed
 ^^^^^
 * State: avoid call to state_backend if state_ttl <= 0
 
-`0.29.0`_ -- 2020-04-23
+`0.29.0`_ -- 2021-04-23
 -----------------------
 Added
 ^^^^^
 * Results: add possibility to set store_results at the message level
 
-`0.28.3`_ -- 2020-04-22
+`0.28.3`_ -- 2021-04-22
 -----------------------
 Fixed
 ^^^^^
 * TimeLimit: add lock when accessing shared variable
 
-`0.28.2`_ -- 2020-04-20
+`0.28.2`_ -- 2021-04-20
 -----------------------
 Fixed
 ^^^^^
 * Typing: fix typing for actor overload and add types for broker, result and scheduler
 
-`0.28.1`_ -- 2020-04-20
+`0.28.1`_ -- 2021-04-20
 -----------------------
 Fixed
 ^^^^^
 * Typing: fix typing for group init and actor overload
 
-`0.28.0`_ -- 2020-04-19
+`0.28.0`_ -- 2021-04-19
 -----------------------
 Added
 ^^^^^
 * ResultBackend: make it more resilient, retry if save fails
 
-`0.27.0`_ -- 2020-04-06
+`0.27.0`_ -- 2021-04-06
 -----------------------
 Added
 ^^^^^
 * Middleware: add MaxMemory which stop a worker if its amount of resident memory exceed max_memory
 
-`0.26.7`_ -- 2020-04-01
+`0.26.7`_ -- 2021-04-01
 -----------------------
 Added
 ^^^^^
 * Typing: add support for typing and several type hints
 
-`0.26.6`_ -- 2020-02-11
+`0.26.6`_ -- 2021-02-11
 -----------------------
 Fixed
 ^^^^^
