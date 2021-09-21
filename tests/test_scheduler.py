@@ -109,8 +109,8 @@ def test_multiple_schedulers(stub_broker, stub_worker):
         scheduler.stop()
 
 
-@pytest.mark.parametrize("tz", [True, False])
-def test_scheduler_daily_time(stub_broker, stub_worker, scheduler, scheduler_thread, tz):
+@pytest.mark.parametrize("tz", [None, "Europe/Paris"])
+def test_scheduler_daily_time(stub_broker, stub_worker, scheduler, scheduler_thread, tz, frozen_datetime):
     result = 0
 
     @remoulade.actor
@@ -120,39 +120,36 @@ def test_scheduler_daily_time(stub_broker, stub_worker, scheduler, scheduler_thr
 
     stub_broker.declare_actor(write_loaded_at)
     scheduler.get_redis_schedule, event_sch = mock_func(scheduler.get_redis_schedule)
-    stub_broker.enqueue, event_enqueue = mock_func(stub_broker.enqueue)
+    write_loaded_at.send, event_send = mock_func(write_loaded_at.send)
 
-    if tz:
-        scheduler.schedule = [
-            ScheduledJob(
-                actor_name="write_loaded_at",
-                daily_time=(
-                    datetime.datetime.now(pytz.timezone("Europe/Paris")) + datetime.timedelta(milliseconds=100)
-                ).time(),
-                tz="Europe/Paris",
-            )
-        ]
-    else:
-        scheduler.schedule = [
-            ScheduledJob(
-                actor_name="write_loaded_at",
-                daily_time=(datetime.datetime.utcnow() + datetime.timedelta(milliseconds=100)).time(),
-            )
-        ]
+    scheduler.schedule = [
+        ScheduledJob(
+            actor_name="write_loaded_at",
+            daily_time=(
+                datetime.datetime.now(pytz.timezone(tz) if tz else None)
+                + datetime.timedelta(milliseconds=500)
+            ).time(),
+            tz=tz,
+        )
+    ]
     scheduler_thread.start()
+    # Wait for a complete scheduler iteration
+    for _ in range(2):
+        event_sch.wait(10)
+        event_sch.clear()
     # should not have run yet
     assert result == 0
-
-    time.sleep(0.1)
-
-    event_enqueue.wait(10)
+    frozen_datetime.tick(1)
+    # Wait for the ScheduledJob to be sent
+    event_send.wait(10)
     stub_broker.join(write_loaded_at.queue_name)
     stub_worker.join()
     assert result == 1
 
-    event_sch.wait(10)
-    event_sch.clear()
-    event_sch.wait(10)
+    # Wait for a complete scheduler iteration
+    for _ in range(2):
+        event_sch.wait(10)
+        event_sch.clear()
     stub_broker.join(write_loaded_at.queue_name)
     stub_worker.join()
 
