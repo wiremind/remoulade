@@ -1,4 +1,5 @@
 import datetime
+import json
 import threading
 import time
 
@@ -6,12 +7,12 @@ import pytest
 import pytz
 
 import remoulade
+from remoulade.api import app
 from remoulade.scheduler import ScheduledJob
 from tests.conftest import check_redis, mock_func, new_scheduler
 
 
 def test_simple_interval_scheduler(stub_broker, stub_worker, scheduler, scheduler_thread, mul, add):
-
     result = 0
 
     @remoulade.actor()
@@ -83,6 +84,7 @@ def test_multiple_schedulers(stub_broker, stub_worker):
 
     scheduler_list = []
     event_list = []
+    thread_list = []
 
     for _ in range(5):
         sch = new_scheduler(stub_broker)
@@ -92,7 +94,9 @@ def test_multiple_schedulers(stub_broker, stub_worker):
             check_redis(sch.client)
         sch.schedule = schedule
         scheduler_list.append(sch)
-        threading.Thread(target=sch.start).start()
+        t = threading.Thread(target=sch.start)
+        thread_list.append(t)
+        t.start()
 
     for _ in range(2):
         for event in event_list:
@@ -107,6 +111,9 @@ def test_multiple_schedulers(stub_broker, stub_worker):
 
     for scheduler in scheduler_list:
         scheduler.stop()
+
+    for thread in thread_list:
+        thread.join(10)
 
 
 @pytest.mark.parametrize("tz", [None, "Europe/Paris"])
@@ -126,8 +133,7 @@ def test_scheduler_daily_time(stub_broker, stub_worker, scheduler, scheduler_thr
         ScheduledJob(
             actor_name="write_loaded_at",
             daily_time=(
-                datetime.datetime.now(pytz.timezone(tz) if tz else None)
-                + datetime.timedelta(seconds=1)
+                datetime.datetime.now(pytz.timezone(tz) if tz else None) + datetime.timedelta(seconds=1)
             ).time(),
             tz=tz,
         )
@@ -143,7 +149,7 @@ def test_scheduler_daily_time(stub_broker, stub_worker, scheduler, scheduler_thr
     assert result == 0
     frozen_datetime.tick(2)
     # Wait for the ScheduledJob to be sent
-    event_send.wait(10)
+    event_send.wait(1)
     stub_broker.join(write_loaded_at.queue_name)
     stub_worker.join()
     assert result == 1
@@ -216,7 +222,6 @@ def test_scheduler_wrong_weekday(stub_broker, stub_worker, scheduler, scheduler_
 
 
 def test_scheduler_right_weekday(stub_broker, stub_worker, scheduler, scheduler_thread):
-
     result = 0
 
     @remoulade.actor
@@ -240,3 +245,123 @@ def test_scheduler_right_weekday(stub_broker, stub_worker, scheduler, scheduler_
 
     # Should have ran
     assert result == 1
+
+
+def test_add_job(scheduler):
+    job = ScheduledJob(actor_name="do_work")
+    scheduler.add_job(job)
+    hashes = list(scheduler.get_redis_schedule().keys())
+    assert len(hashes) == 1
+    assert hashes[0] == job.get_hash()
+
+
+def test_delete_job(scheduler):
+    scheduler.schedule = [ScheduledJob(actor_name="do_work")]
+    scheduler.sync_config()
+    scheduler.delete_job(scheduler.schedule[0].get_hash())
+    assert scheduler.get_redis_schedule() == {}
+
+
+@pytest.fixture
+def api_client(scheduler):
+    with app.test_client() as client:
+        yield client
+
+
+def test_get_scheduled_jobs(scheduler, api_client):
+    scheduler.schedule = [ScheduledJob(actor_name="do_work")]
+    scheduler.sync_config()
+    res = api_client.get("/scheduled/jobs")
+    assert res.status_code == 200
+    assert res.json == {
+        "result": [
+            {
+                "hash": scheduler.schedule[0].get_hash(),
+                "actor_name": "do_work",
+                "args": [],
+                "daily_time": None,
+                "enabled": True,
+                "interval": 86400,
+                "iso_weekday": None,
+                "kwargs": {},
+                "last_queued": None,
+                "tz": "UTC",
+            }
+        ]
+    }
+
+
+def test_api_add_job(scheduler, api_client):
+    res = api_client.post(
+        "/scheduled/jobs", data=json.dumps({"actor_name": "actor_name"}), content_type="application/json"
+    )
+    assert res.status_code == 200
+    assert res.json == {
+        "result": [
+            {
+                "hash": res.json["result"][0]["hash"],
+                "actor_name": "actor_name",
+                "args": [],
+                "daily_time": None,
+                "enabled": True,
+                "interval": 86400,
+                "iso_weekday": None,
+                "kwargs": {},
+                "last_queued": None,
+                "tz": "UTC",
+            }
+        ]
+    }
+
+
+def test_api_delete_job(scheduler, api_client):
+    scheduler.schedule = [ScheduledJob(actor_name="do_work")]
+    scheduler.sync_config()
+    res = api_client.delete(f"/scheduled/jobs/{scheduler.schedule[0].get_hash()}")
+    assert res.status_code == 200
+    assert res.json == {"result": []}
+
+
+def test_update_job(scheduler, api_client):
+    scheduler.schedule = [ScheduledJob(actor_name="do_work")]
+    scheduler.sync_config()
+    res = api_client.put(
+        f"/scheduled/jobs/{scheduler.schedule[0].get_hash()}",
+        data=json.dumps({"actor_name": "do_work", "enabled": False}),
+        content_type="application/json",
+    )
+    assert res.status_code == 200
+    assert res.json == {
+        "result": [
+            {
+                "hash": res.json["result"][0]["hash"],
+                "actor_name": "do_work",
+                "args": [],
+                "daily_time": None,
+                "enabled": False,
+                "interval": 86400,
+                "iso_weekday": None,
+                "kwargs": {},
+                "last_queued": None,
+                "tz": "UTC",
+            }
+        ]
+    }
+
+
+def test_daily_time_wrong_interval(scheduler, api_client):
+    res = api_client.post(
+        "/scheduled/jobs",
+        data=json.dumps({"actor_name": "do_work", "daily_time": "00:00", "interval": 1000}),
+        content_type="application/json",
+    )
+    assert res.status_code == 400
+
+
+def test_invalid_timezone(scheduler, api_client):
+    res = api_client.post(
+        "/scheduled/jobs",
+        data=json.dumps({"actor_name": "do_work", "tz": "invalid_tz"}),
+        content_type="application/json",
+    )
+    assert res.status_code == 400

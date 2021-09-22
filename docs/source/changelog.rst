@@ -5,6 +5,12 @@ Changelog
 
 All notable changes to this project will be documented in this file.
 
+`0.40.0`_ -- 2021-09-29
+-----------------------
+Added
+^^^^^
+* api: Add new routes to create, update and delete scheduled jobs
+
 `0.39.3`_ -- 2021-09-21
 -----------------------
 Changed
@@ -755,6 +761,7 @@ Fixed
 .. _#84: https://github.com/wiremind/remoulade/issues/84
 .. _#77: https://github.com/wiremind/remoulade/issues/77
 
+.. _0.40.0: https://github.com/wiremind/remoulade/releases/tag/v0.40.0
 .. _0.39.3: https://github.com/wiremind/remoulade/releases/tag/v0.39.3
 .. _0.39.2: https://github.com/wiremind/remoulade/releases/tag/v0.39.2
 .. _0.39.1: https://github.com/wiremind/remoulade/releases/tag/v0.39.1
