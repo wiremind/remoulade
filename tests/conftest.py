@@ -341,7 +341,8 @@ def new_scheduler(stub_broker):
 def scheduler(stub_broker):
     scheduler = new_scheduler(stub_broker)
     check_redis(scheduler.client)
-    return scheduler
+    yield scheduler
+    scheduler.stop()
 
 
 @pytest.fixture

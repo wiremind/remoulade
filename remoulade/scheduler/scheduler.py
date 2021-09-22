@@ -1,4 +1,5 @@
 import datetime
+import hashlib
 import json
 import time
 from typing import Dict, List, Union
@@ -60,19 +61,21 @@ class ScheduledJob:
         self.kwargs = kwargs if kwargs is not None else {}
 
     def get_hash(self) -> str:
-        d = self.as_dict()
-        args = json.dumps(d["args"])
-        kwargs = json.dumps(sorted(list(d["kwargs"].items()), key=lambda x: x[0]))
+        args = json.dumps(self.args)
+        kwargs = json.dumps(sorted(list(self.kwargs.items()), key=lambda x: x[0]))
 
-        path = [str(d[k]) for k in ("actor_name", "interval", "daily_time", "iso_weekday", "enabled", "tz")] + [
+        path = [
+            str(getattr(self, k)) for k in ("actor_name", "interval", "daily_time", "iso_weekday", "enabled", "tz")
+        ] + [
             args,
             kwargs,
         ]
 
-        return " ".join(path)
+        return hashlib.sha1("".join(path).encode("utf-8")).hexdigest()
 
     def as_dict(self) -> Dict:
         return {
+            "hash": self.get_hash(),
             "actor_name": self.actor_name,
             "interval": self.interval,
             "daily_time": None if self.daily_time is None else self.daily_time.strftime("%H:%M:%S"),
@@ -153,6 +156,14 @@ class Scheduler:
             job = ScheduledJob.decode(json_schedule)
             r[job.get_hash()] = job
         return r
+
+    def delete_job(self, job_hash: str):
+        with self.client.lock(self.lock_key, timeout=10, blocking_timeout=20):
+            self.client.hdel(self.namespace, job_hash.encode("utf-8"))
+
+    def add_job(self, job: ScheduledJob):
+        with self.client.lock(self.lock_key, timeout=10, blocking_timeout=20):
+            self.flush(job)
 
     def sync_config(self) -> None:
         with self.client.lock(self.lock_key, timeout=10, blocking_timeout=20):

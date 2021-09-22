@@ -11,6 +11,7 @@ import pytz
 from dateutil.parser import parse
 
 import remoulade
+from remoulade import set_scheduler
 from remoulade.api.main import app
 from remoulade.cancel import Cancel
 from remoulade.message import Message
@@ -37,7 +38,9 @@ class TestMessageStateAPI:
         assert res.status_code == 404
 
     def test_invalid_state_message(self, stub_broker, api_client):
-        res = api_client.post("/messages/states", data={"status": "invalid_state"}, content_type="application/json")
+        res = api_client.post(
+            "/messages/states", data=json.dumps({"status": "invalid_state"}), content_type="application/json"
+        )
         assert res.status_code == 400
 
     @pytest.mark.parametrize("status", [StateStatusesEnum.Skipped, StateStatusesEnum.Success])
@@ -52,7 +55,7 @@ class TestMessageStateAPI:
         message_id = "1"
         state = State(message_id, StateStatusesEnum.Pending)
         state_middleware.backend.set_state(state, ttl=1000)
-        res = api_client.get("/messages/state/{}".format(message_id))
+        res = api_client.get("/messages/states/{}".format(message_id))
         assert res.json == state.as_dict()
 
     @pytest.mark.parametrize("n", [0, 10, 50, 100])
@@ -85,8 +88,9 @@ class TestMessageStateAPI:
         assert res.status_code == 500
 
     def test_no_scheduler(self, stub_broker, api_client):
+        set_scheduler(None)
         res = api_client.get("/scheduled/jobs")
-        assert res.json["result"] == []
+        assert res.status_code == 400
 
     def test_scheduled_jobs(self, scheduler, api_client, do_work, frozen_datetime):
         timezone = pytz.timezone("Europe/Paris")
@@ -101,6 +105,7 @@ class TestMessageStateAPI:
         jobs = res.json["result"]
         assert jobs == [
             {
+                "hash": jobs[0]["hash"],
                 "actor_name": "do_work",
                 "args": [],
                 "daily_time": "01:00:00",

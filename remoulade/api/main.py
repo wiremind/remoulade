@@ -5,56 +5,33 @@ from collections import defaultdict
 from typing import Dict, Iterable, List
 
 from flask import Flask, request
-from marshmallow import ValidationError
+from marshmallow import Schema, ValidationError, fields, validate
 from typing_extensions import DefaultDict, TypedDict
-from werkzeug.exceptions import HTTPException, NotFound
+from werkzeug.exceptions import HTTPException
 
-from remoulade import get_broker, get_scheduler
-from remoulade.errors import NoResultBackend, NoScheduler, RemouladeError
+from remoulade import get_broker
+from remoulade.errors import NoResultBackend, RemouladeError
 from remoulade.result import Result
 from remoulade.results import ResultMissing
 
-from ..state.backends import PostgresBackend
-from .schema import DeleteSchema, MessageSchema, PageSchema
+from .scheduler import scheduler_bp
+from .state import StatesSchema, messages_bp
 
 app = Flask(__name__)
+app.register_blueprint(scheduler_bp)
+app.register_blueprint(messages_bp)
 
 
-def dict_has(item, keys, value):
-    """Check if the value of some key in keys has a value"""
-    return chr(0).join([str(item[k]) for k in keys if item.get(k)]).lower().find(value) >= 0
+class MessageSchema(Schema):
+    """
+    Class to validate post data in /messages
+    """
 
-
-class GroupMessagesT(TypedDict):
-    group_id: str
-    messages: List[dict]
-
-
-@app.route("/messages/states", methods=["POST"])
-def get_states():
-    states_kwargs = PageSchema().load(request.json or {})
-    backend = get_broker().get_state_backend()
-    data = [state.as_dict() for state in backend.get_states(**states_kwargs)]
-    return {"data": data, "count": len(data)}
-
-
-@app.route("/messages/states", methods=["DELETE"])
-def clean_states():
-    backend = get_broker().get_state_backend()
-    if not isinstance(backend, PostgresBackend):
-        return {"error": "deleting states is only supported by the PostgresBackend"}, 400
-    states_kwargs = DeleteSchema().load(request.json or {})
-    get_broker().get_state_backend().clean(**states_kwargs)
-    return {"result": "ok"}
-
-
-@app.route("/messages/state/<message_id>")
-def get_state(message_id):
-    backend = get_broker().get_state_backend()
-    data = backend.get_state(message_id)
-    if data is None:
-        raise NotFound("message_id = {} does not exist".format(message_id))
-    return data.as_dict(encode_args=True)
+    actor_name = fields.Str(validate=validate.Length(min=1), required=True)
+    args = fields.List(fields.Raw(), allow_none=True)
+    kwargs = fields.Dict(allow_none=True)
+    options = fields.Dict(allow_none=True)
+    delay = fields.Number(validate=validate.Range(min=1), allow_none=True)
 
 
 @app.route("/messages/cancel/<message_id>", methods=["POST"])
@@ -99,16 +76,6 @@ def get_results(message_id):
         return {"result": "non serializable result"}
 
 
-@app.route("/scheduled/jobs")
-def get_scheduled_jobs():
-    try:
-        scheduler = get_scheduler()
-    except NoScheduler:
-        return {"result": []}
-    scheduled_jobs = scheduler.get_redis_schedule()
-    return {"result": [job.as_dict() for job in scheduled_jobs.values()]}
-
-
 @app.route("/messages", methods=["POST"])
 def enqueue_message():
     payload = MessageSchema().load(request.json)
@@ -118,9 +85,9 @@ def enqueue_message():
     return {"result": "ok"}
 
 
-@app.route("/actors")
-def get_actors():
-    return {"result": [actor.as_dict() for actor in get_broker().actors.values()]}
+class GroupMessagesT(TypedDict):
+    group_id: str
+    messages: List[dict]
 
 
 @app.route("/groups", methods=["POST"])
@@ -141,11 +108,16 @@ def get_groups():
     if request.json is None:
         return {"data": sorted_groups, "count": len(sorted_groups)}
 
-    states_kwargs = PageSchema().load(request.json)
+    states_kwargs = StatesSchema().load(request.json)
     return {
         "data": sorted_groups[states_kwargs["offset"] : states_kwargs["size"] + states_kwargs["offset"]],
         "count": len(sorted_groups),
     }
+
+
+@app.route("/actors")
+def get_actors():
+    return {"result": [actor.as_dict() for actor in get_broker().actors.values()]}
 
 
 @app.route("/options")
