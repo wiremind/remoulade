@@ -35,7 +35,7 @@ class PageSchema(Schema):
     offset = fields.Int(missing=0)
     selected_actors = fields.List(fields.String, allow_none=True)
     selected_statuses = fields.List(
-        fields.String(validate=validate.ContainsNoneOf([status.name for status in StateStatusesEnum])),
+        fields.String(validate=validate.OneOf([status.name for status in StateStatusesEnum])),
         allow_none=True,
     )
     selected_ids = fields.List(fields.String, allow_none=True)
