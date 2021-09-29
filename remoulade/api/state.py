@@ -66,4 +66,4 @@ def get_state(message_id):
     data = backend.get_state(message_id)
     if data is None:
         raise NotFound("message_id = {} does not exist".format(message_id))
-    return data.as_dict(encode_args=True)
+    return data.as_dict()

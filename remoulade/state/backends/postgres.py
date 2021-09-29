@@ -14,7 +14,7 @@ from remoulade.state import State, StateBackend
 Base = declarative_base()
 
 DEFAULT_POSTGRES_URI = "postgresql://remoulade@localhost:5432/remoulade"
-DB_VERSION = 1
+DB_VERSION = 2
 T = TypeVar("T", bound="StoredState")
 
 
@@ -34,6 +34,7 @@ class StoredState(Base):
     started_datetime = Column(DateTime(timezone=True), index=True)
     end_datetime = Column(DateTime(timezone=True), index=True)
     group_id = Column(String(length=36))
+    queue_name = Column(String(length=60))
 
     def as_state(self, encoder: Encoder) -> State:
         state_dict = {}
