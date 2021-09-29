@@ -5,6 +5,12 @@ Changelog
 
 All notable changes to this project will be documented in this file.
 
+`0.40.2`_ -- 2021-09-29
+-----------------------
+Fixed
+^^^^^
+* api: Fixed scheduler api schema
+
 `0.40.1`_ -- 2021-09-29
 -----------------------
 Added
@@ -767,6 +773,7 @@ Fixed
 .. _#84: https://github.com/wiremind/remoulade/issues/84
 .. _#77: https://github.com/wiremind/remoulade/issues/77
 
+.. _0.40.2: https://github.com/wiremind/remoulade/releases/tag/v0.40.2
 .. _0.40.1: https://github.com/wiremind/remoulade/releases/tag/v0.40.1
 .. _0.40.0: https://github.com/wiremind/remoulade/releases/tag/v0.40.0
 .. _0.39.3: https://github.com/wiremind/remoulade/releases/tag/v0.39.3
