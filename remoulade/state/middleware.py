@@ -25,6 +25,7 @@ class MessageState(Middleware):
         kwargs_state = message.kwargs
         message_id = message.message_id
         actor_name = message.actor_name
+        queue_name = message.queue_name
         self.backend.set_state(
             State(
                 message_id,
@@ -34,6 +35,7 @@ class MessageState(Middleware):
                 priority=priority,
                 kwargs=kwargs_state,
                 options=options,
+                queue_name=queue_name,
                 **kwargs,
             ),
             self.state_ttl,

@@ -38,6 +38,7 @@ class State(
             "started_datetime",
             "end_datetime",
             "group_id",
+            "queue_name",
         ),
     )
 ):
@@ -62,6 +63,7 @@ class State(
         started_datetime=None,
         end_datetime=None,
         group_id=None,
+        queue_name=None,
     ):
 
         if status and status not in list(StateStatusesEnum):
@@ -80,6 +82,7 @@ class State(
             started_datetime,
             end_datetime,
             group_id,
+            queue_name,
         )
 
     def as_dict(self, exclude_keys=(), encode_args=False):
