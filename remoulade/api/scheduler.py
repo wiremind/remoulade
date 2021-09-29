@@ -22,7 +22,7 @@ class ScheduledJobSchema(Schema):
     kwargs = fields.Dict(allow_none=True)
     interval = fields.Int(allow_none=True)
     daily_time = fields.Time(allow_none=True)
-    iso_weekday = fields.Str(allow_none=True)
+    iso_weekday = fields.Int(allow_none=True)
     enabled = fields.Bool(allow_none=True)
     last_queued = fields.DateTime(allow_none=True)
     tz = fields.Str(allow_none=True, validate=OneOf(pytz.all_timezones))
