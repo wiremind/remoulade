@@ -17,5 +17,6 @@
 
 from .actor_arguments import get_actor_arguments
 from .backoff import compute_backoff
+from .reduce import reduce
 
-__all__ = ["compute_backoff", "get_actor_arguments"]
+__all__ = ["compute_backoff", "get_actor_arguments", "reduce"]
