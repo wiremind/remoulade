@@ -33,6 +33,14 @@ class ScheduledJobSchema(Schema):
             raise ValidationError("daily_time can only be used with 24h interval")
 
 
+class ScheduledJobsSchema(Schema):
+    """
+    Class to validate multiple scheduled jobs at once
+    """
+
+    jobs = fields.Dict(keys=fields.Str(), values=fields.Nested(ScheduledJobSchema))
+
+
 def with_scheduler(func):
     def wrapper(*args, **kwargs):
         try:
@@ -72,3 +80,12 @@ def update_job(scheduler, job_hash):
     job_dict = ScheduledJobSchema().load(request.json)
     scheduler.delete_job(job_hash)
     scheduler.add_job(ScheduledJob(**job_dict))
+
+
+@scheduler_bp.route("/jobs", methods=["PUT"])
+@with_scheduler
+def update_jobs(scheduler):
+    jobs_dict = ScheduledJobsSchema().load(request.json)["jobs"]
+    for job_hash, job_dict in jobs_dict.items():
+        scheduler.delete_job(job_hash)
+        scheduler.add_job(ScheduledJob(**job_dict))

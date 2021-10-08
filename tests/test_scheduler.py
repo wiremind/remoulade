@@ -349,6 +349,27 @@ def test_update_job(scheduler, api_client):
     }
 
 
+def test_api_update_jobs(scheduler, api_client):
+    scheduler.schedule = [ScheduledJob(actor_name="do_work"), ScheduledJob(actor_name="do_other_work")]
+    scheduler.sync_config()
+    res = api_client.put(
+        "/scheduled/jobs",
+        data=json.dumps(
+            {
+                "jobs": {
+                    scheduler.schedule[0].get_hash(): {"actor_name": "do_work", "enabled": False},
+                    scheduler.schedule[1].get_hash(): {"actor_name": "do_other_work", "enabled": False},
+                }
+            }
+        ),
+        content_type="application/json",
+    )
+    assert res.status_code == 200
+    assert len(res.json["result"]) == 2
+    for i in range(2):
+        assert not res.json["result"][i]["enabled"]
+
+
 def test_daily_time_wrong_interval(scheduler, api_client):
     res = api_client.post(
         "/scheduled/jobs",
