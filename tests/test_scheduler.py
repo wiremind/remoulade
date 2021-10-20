@@ -7,7 +7,6 @@ import pytest
 import pytz
 
 import remoulade
-from remoulade.api import app
 from remoulade.scheduler import ScheduledJob
 from tests.conftest import check_redis, mock_func, new_scheduler
 
@@ -260,12 +259,6 @@ def test_delete_job(scheduler):
     scheduler.sync_config()
     scheduler.delete_job(scheduler.schedule[0].get_hash())
     assert scheduler.get_redis_schedule() == {}
-
-
-@pytest.fixture
-def api_client(scheduler):
-    with app.test_client() as client:
-        yield client
 
 
 def test_get_scheduled_jobs(scheduler, api_client):

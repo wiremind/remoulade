@@ -66,9 +66,9 @@ class Cancel(Middleware):
         self.backend = backend
 
     def before_process_message(self, broker, message):
-        group_id = self.get_option("group_info", broker=broker, message=message, default={}).get("group_id")
+        composition_id = message.options.get("composition_id")
 
-        if self.backend.is_canceled(message.message_id, group_id):
+        if self.backend.is_canceled(message.message_id, composition_id):
             raise MessageCanceled("Message %s has been canceled" % message.message_id)
 
     def after_process_message(self, broker, message, *, result=None, exception=None):
@@ -84,4 +84,4 @@ class Cancel(Middleware):
 
         group_info = GroupInfo(**group_info)
         if group_info.cancel_on_error:
-            self.backend.cancel([group_info.group_id])
+            self.backend.cancel([message.options["composition_id"]])
