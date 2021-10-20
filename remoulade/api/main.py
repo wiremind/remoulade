@@ -8,7 +8,7 @@ from typing_extensions import TypedDict
 from werkzeug.exceptions import HTTPException
 
 from remoulade import get_broker
-from remoulade.errors import NoResultBackend, RemouladeError
+from remoulade.errors import NoResultBackend, NoStateBackend, RemouladeError
 from remoulade.result import Result
 from remoulade.results import ResultMissing
 
@@ -34,8 +34,17 @@ class MessageSchema(Schema):
 
 @app.route("/messages/cancel/<message_id>", methods=["POST"])
 def cancel_message(message_id):
-    backend = get_broker().get_cancel_backend()
-    backend.cancel([message_id])
+    broker = get_broker()
+    cancel_backend = broker.get_cancel_backend()
+    try:
+        # If a single message in a composition is canceled, we cancel the whole composition
+        state_backend = broker.get_state_backend()
+        state = state_backend.get_state(message_id)
+        if state and state.composition_id:
+            message_id = state.composition_id
+    except NoStateBackend:
+        pass
+    cancel_backend.cancel([message_id])
     return {"result": "ok"}
 
 

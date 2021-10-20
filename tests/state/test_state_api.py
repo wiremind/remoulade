@@ -19,12 +19,6 @@ from remoulade.scheduler import ScheduledJob
 from remoulade.state import State, StateStatusesEnum
 
 
-@pytest.fixture
-def api_client(state_middleware):
-    with app.test_client() as client:
-        yield client
-
-
 class TestMessageStateAPI:
     """Class Responsible to do the test of the API"""
 

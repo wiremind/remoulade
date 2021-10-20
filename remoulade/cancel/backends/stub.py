@@ -32,10 +32,10 @@ class StubBackend(CancelBackend):
         super().__init__(cancellation_ttl=cancellation_ttl)
         self.cancellations: Dict[str, float] = {}
 
-    def is_canceled(self, message_id: str, group_id: str) -> bool:
+    def is_canceled(self, message_id: str, composition_id: str) -> bool:
         return any(
             self.cancellations.get(key, -float("inf")) > time.time() - self.cancellation_ttl
-            for key in [message_id, group_id]
+            for key in [message_id, composition_id]
             if key
         )
 
