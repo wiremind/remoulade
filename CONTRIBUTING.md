@@ -15,12 +15,12 @@ open an issue and let someone else do that work.
 ### Pull Requests
 
 * Make sure any code changes are covered by tests.
-* Run [isort] on any modified files.
+* Run [pre-commit] hooks.
 * If this is your first contribution, add yourself to the [CONTRIBUTORS] file.
 * If your branch is behind master, [rebase] on top of it.
 
 Run the test suite with `tox`.  
-The tests require running [RabbitMQ] and [Redis], the easiest way is to use (docker compose)[https://docs.docker.com/compose/].
+The tests require running [RabbitMQ] and [Redis], the easiest way is to use [docker compose].
 ```bash
 cd tests/
 docker-compose up
@@ -29,9 +29,9 @@ docker-compose up
 [CONTRIBUTORS]: https://github.com/wiremind/remoulade/blob/master/CONTRIBUTORS.md
 [RabbitMQ]: https://www.rabbitmq.com/
 [Redis]: https://redis.io
-[isort]: https://github.com/timothycrosley/isort
 [rebase]: https://github.com/edx/edx-platform/wiki/How-to-Rebase-a-Pull-Request
-
+[pre-commit]: (https://pre-commit.com)
+[docker compose]: (https://docs.docker.com/compose/)
 
 ## Issues
 

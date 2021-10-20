@@ -28,7 +28,7 @@ extra_dependencies = {
     "rabbitmq": ["amqpstorm>=2.6,<3"],
     "redis": ["redis>=3.5.0,<4.0"],
     "server": ["flask>=1.1,<2", "marshmallow>=3"],
-    "postgres": ["sqlalchemy>=1.4.22,<2", "psycopg2==2.9.1"]
+    "postgres": ["sqlalchemy>=1.4.22,<2", "psycopg2==2.9.1"],
 }
 
 extra_dependencies["all"] = list(set(sum(extra_dependencies.values(), [])))
@@ -50,6 +50,7 @@ extra_dependencies["dev"] = extra_dependencies["all"] + [
     "types-redis",
     "types-python-dateutil",
     # Misc
+    "pre-commit",
     "bumpversion",
     "hiredis",
     "twine",
