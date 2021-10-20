@@ -13,6 +13,7 @@ from sqlalchemy import inspect
 
 import remoulade
 from remoulade import Worker
+from remoulade.api import app
 from remoulade.brokers.local import LocalBroker
 from remoulade.brokers.rabbitmq import RabbitmqBroker
 from remoulade.brokers.stub import StubBroker
@@ -31,6 +32,12 @@ logging.basicConfig(level=logging.INFO, format=logfmt)
 random.seed(1337)
 
 CI = os.getenv("CI") == "true"
+
+
+@pytest.fixture
+def api_client(state_middleware):
+    with app.test_client() as client:
+        yield client
 
 
 def check_rabbitmq(broker):

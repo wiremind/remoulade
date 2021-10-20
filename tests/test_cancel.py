@@ -55,32 +55,62 @@ def test_cancellations_not_stored_forever(cancel_backend):
     assert not cancel_backend.is_canceled("a", None)
 
 
-def test_group_are_canceled_on_actor_failure(stub_broker, stub_worker, cancel_backend):
+def test_compositions_are_canceled_on_actor_failure(stub_broker, stub_worker, cancel_backend):
     # Given a cancel backend
     # And a broker with the cancel middleware
     stub_broker.add_middleware(Cancel(backend=cancel_backend))
 
-    has_been_called = []
+    # And an actor who doesn't fail
+    @remoulade.actor
+    def do_work(arg=None):
+        return 1
 
-    # And an actor
-    @remoulade.actor()
-    def do_work():
-        has_been_called.append(1)
-        raise ValueError()
+    # And an actor who fails
+    @remoulade.actor
+    def do_fail(arg):
+        raise Exception
 
-    # And this actor is declared
-    stub_broker.declare_actor(do_work)
+    # And those actors are declared
+    remoulade.declare_actors([do_work, do_fail])
 
-    g = group((do_work.message() for _ in range(4)), cancel_on_error=True)
+    g = group(
+        [do_work.message(), do_work.message() | group([do_fail.message(), do_work.message()])], cancel_on_error=True
+    )
 
     # When I group a few jobs together and run it
     g.run()
 
-    stub_broker.join(do_work.queue_name)
+    stub_broker.join(do_fail.queue_name)
     stub_worker.join()
 
     # All actors should have been canceled
-    assert all(cancel_backend.is_canceled(child.message_id, g.group_id) for child in g.children)
+    assert cancel_backend.is_canceled("", g.group_id)
+
+
+def test_compositions_are_canceled_on_message_cancel(stub_broker, cancel_backend, state_middleware, api_client):
+    # Given a cancel backend
+    # And a broker with the cancel middleware
+    stub_broker.add_middleware(Cancel(backend=cancel_backend))
+
+    # And an actor
+    @remoulade.actor
+    def do_work(arg=None):
+        return 1
+
+    # And those actors are declared
+    stub_broker.declare_actor(do_work)
+
+    message_to_cancel = do_work.message()
+
+    # And a group that I enqueue
+    g = group([message_to_cancel | do_work.message(), do_work.message()], cancel_on_error=True)
+    g.run()
+
+    # When I cancel a message of this group
+    api_client.post("messages/cancel/" + message_to_cancel.message_id)
+
+    # The whole composition should be canceled
+    assert cancel_backend.is_canceled("", g.group_id)
 
 
 def test_cannot_cancel_on_error_if_no_cancel(stub_broker):
@@ -127,3 +157,35 @@ def test_cancel_pipeline_or_groups(stub_broker, stub_worker, cancel_backend, wit
     # All actors should have been canceled
     assert all(cancel_backend.is_canceled(child.message_id, None) for child in g.children)
     assert len(has_been_called) == 0
+
+
+def test_composition_can_be_canceled(stub_broker, stub_worker, cancel_backend):
+    # Given a cancel backend
+    # And a broker with the cancel middleware
+    stub_broker.add_middleware(Cancel(backend=cancel_backend))
+
+    calls_count = 0
+
+    # And an actor
+    @remoulade.actor()
+    def do_work():
+        nonlocal calls_count
+        calls_count += 1
+        raise ValueError()
+
+    # And this actor is declared
+    stub_broker.declare_actor(do_work)
+
+    # And a composition
+    g = group([do_work.message() | do_work.message() for _ in range(2)])
+
+    # If the composition is canceled
+    cancel_backend.cancel([g.group_id])
+
+    g.run()
+
+    stub_broker.join(do_work.queue_name)
+    stub_worker.join()
+
+    # It messages should not have run
+    assert calls_count == 0

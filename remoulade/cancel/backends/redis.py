@@ -61,9 +61,9 @@ class RedisBackend(CancelBackend):
         self.key = key
         self.client = client or redis.Redis(**parameters)
 
-    def is_canceled(self, message_id: str, group_id: str) -> bool:
+    def is_canceled(self, message_id: str, composition_id: str) -> bool:
         with self.client.pipeline() as pipe:
-            [pipe.zscore(self.key, key) for key in [message_id, group_id] if key]
+            [pipe.zscore(self.key, key) for key in [message_id, composition_id] if key]
             results = pipe.execute()
         return any(result is not None for result in results)
 
