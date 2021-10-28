@@ -352,3 +352,17 @@ class TestMessageStateAPI:
         assert len(backend.get_states()) == 1
         client.delete("/messages/states")
         assert len(backend.get_states()) == 0
+
+    def test_cant_sort_by_args_kwargs_options(self, stub_broker, state_middleware, api_client):
+        res = api_client.post(
+            "/messages/states", data=json.dumps({"sort_column": "args"}), content_type="application/json"
+        )
+        assert res.status_code == 400
+        res = api_client.post(
+            "/messages/states", data=json.dumps({"sort_column": "kwargs"}), content_type="application/json"
+        )
+        assert res.status_code == 400
+        res = api_client.post(
+            "/messages/states", data=json.dumps({"sort_column": "options"}), content_type="application/json"
+        )
+        assert res.status_code == 400
