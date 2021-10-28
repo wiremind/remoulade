@@ -37,3 +37,17 @@ class TestStateBackend:
                 backend.set_state(State(f"id{i*j}", composition_id=f"id{j}"))
 
         assert backend.get_states_count() == 2
+
+    def test_sort_with_offset(self, stub_broker, state_middleware):
+        backend = state_middleware.backend
+        for i in range(8):
+            backend.set_state(State(f"id{i}", actor_name=f"{3 + 4 * (i//4) - i%4}"))
+
+        res = backend.get_states(size=3, sort_column="actor_name", sort_direction="desc")
+        assert res[0].actor_name == "7"
+        assert res[1].actor_name == "6"
+        assert res[2].actor_name == "5"
+        res = backend.get_states(size=3, sort_column="actor_name", sort_direction="asc")
+        assert res[0].actor_name == "0"
+        assert res[1].actor_name == "1"
+        assert res[2].actor_name == "2"

@@ -23,7 +23,10 @@ class StatesSchema(Schema):
     Class to validate the state search parameters
     """
 
-    sort_column = fields.Str(allow_none=True, validate=validate.OneOf(State._fields))
+    sort_column = fields.Str(
+        allow_none=True,
+        validate=validate.OneOf([field for field in State._fields if field not in ["args", "kwargs", "options"]]),
+    )
     sort_direction = fields.Str(allow_none=True, validate=validate.OneOf(["asc", "desc"]))
     size = fields.Int(allow_none=True, validate=validate.Range(min=1, max=1000))
     offset = fields.Int(missing=0)
