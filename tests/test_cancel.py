@@ -73,9 +73,7 @@ def test_compositions_are_canceled_on_actor_failure(stub_broker, stub_worker, ca
     # And those actors are declared
     remoulade.declare_actors([do_work, do_fail])
 
-    g = group(
-        [do_work.message(), do_work.message() | group([do_fail.message(), do_work.message()])], cancel_on_error=True
-    )
+    g = group([do_work.message(), do_fail.message() | do_work.message()], cancel_on_error=True)
 
     # When I group a few jobs together and run it
     g.run()
