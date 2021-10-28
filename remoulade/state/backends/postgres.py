@@ -19,7 +19,8 @@ from sqlalchemy import (
 )
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm.session import sessionmaker
-from sqlalchemy.sql.functions import coalesce, count, max
+from sqlalchemy.sql import func
+from sqlalchemy.sql.functions import coalesce, count, max, min
 
 from remoulade import Encoder
 from remoulade.state import State, StateBackend
@@ -168,13 +169,24 @@ class PostgresBackend(StateBackend):
                 start_datetime=start_datetime,
                 end_datetime=end_datetime,
             )
-            query = query.order_by(text(f"{sort_column} {sort_direction}"))
             if size is not None:
                 query = query.subquery()
-                query_group = session.query(
-                    max(query.c.composition_id).label("composition_id"),
-                    max(query.c.message_id).label("message_id"),
-                ).group_by(coalesce(query.c.composition_id, query.c.message_id))
+                query_group = (
+                    session.query(
+                        max(query.c.composition_id).label("grouped_composition_id"),
+                        max(query.c.message_id).label("grouped_message_id"),
+                        max(query.c.status).label("grouped_status"),
+                        max(query.c.actor_name).label("grouped_actor_name"),
+                        max(query.c.priority).label("grouped_priority"),
+                        func.avg(query.c.progress).label("grouped_progress"),
+                        min(query.c.enqueued_datetime).label("grouped_enqueued_datetime"),
+                        min(query.c.started_datetime).label("grouped_started_datetime"),
+                        max(query.c.end_datetime).label("grouped_end_datetime"),
+                        max(query.c.queue_name).label("grouped_queue_name"),
+                    )
+                    .group_by(coalesce(query.c.composition_id, query.c.message_id))
+                    .order_by(text(f"grouped_{sort_column} {sort_direction}"))
+                )
                 query_group = query_group.offset(offset).limit(size).subquery()
                 query = (
                     session.query(StoredState)
@@ -182,13 +194,12 @@ class PostgresBackend(StateBackend):
                     .join(
                         query_group,
                         or_(
-                            StoredState.message_id == query_group.c.message_id,
-                            StoredState.composition_id == query_group.c.composition_id,
+                            StoredState.message_id == query_group.c.grouped_message_id,
+                            StoredState.composition_id == query_group.c.grouped_composition_id,
                         ),
                     )
-                    .order_by(text(f"{sort_column} {sort_direction}"))
                 )
-
+            query = query.order_by(text(f"{sort_column} {sort_direction}"))
             return [state_model.as_state(self.encoder) for state_model in query]
 
     def get_states_count(

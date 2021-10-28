@@ -5,6 +5,16 @@ Changelog
 
 All notable changes to this project will be documented in this file.
 
+`0.41.1`_ -- 2021-10-28
+-----------------------
+Fixed
+^^^^^
+* state: fix sorting by column in Postgres Backend get_states
+
+Changed
+^^^^^^^
+* api : removed the possibility of sorting states by args, kwargs and options in /messages/states route
+
 `0.41.0`_ -- 2021-10-22
 -----------------------
 Added
@@ -784,6 +794,7 @@ Fixed
 .. _#84: https://github.com/wiremind/remoulade/issues/84
 .. _#77: https://github.com/wiremind/remoulade/issues/77
 
+.. _0.41.1: https://github.com/wiremind/remoulade/releases/tag/v0.41.1
 .. _0.41.0: https://github.com/wiremind/remoulade/releases/tag/v0.41.0
 .. _0.40.2: https://github.com/wiremind/remoulade/releases/tag/v0.40.2
 .. _0.40.1: https://github.com/wiremind/remoulade/releases/tag/v0.40.1
