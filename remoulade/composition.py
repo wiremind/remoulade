@@ -31,20 +31,18 @@ if TYPE_CHECKING:
 class GroupInfoDict(TypedDict):
     group_id: str
     children_count: int
-    cancel_on_error: bool
 
 
-class GroupInfo(namedtuple("GroupInfo", ("group_id", "children_count", "cancel_on_error"))):
+class GroupInfo(namedtuple("GroupInfo", ("group_id", "children_count"))):
     """Encapsulates metadata about a group being sent to multiple actors.
 
     Parameters:
       group_id(str): The id of the group
       children_count(int)
-      cancel_on_error(bool)
     """
 
-    def __new__(cls, *, group_id: str, children_count: int, cancel_on_error: bool):
-        return super().__new__(cls, group_id, children_count, cancel_on_error)
+    def __new__(cls, *, group_id: str, children_count: int):
+        return super().__new__(cls, group_id, children_count)
 
     def asdict(self) -> GroupInfoDict:
         return cast(GroupInfoDict, self._asdict())
@@ -60,12 +58,14 @@ class pipeline:
         pipeline.
       broker(Broker): The broker to run the pipeline on.  Defaults to
         the current global broker.
+      cancel_on_error(boolean): True if you want to cancel all messages of a composition if on of
+      the actor fails, this is only possible with a Cancel middleware.
 
     Attributes:
         children(List[Message|group]) The sequence of messages or groups to execute as a pipeline
     """
 
-    def __init__(self, children: "Iterable[Union[Message, pipeline, group]]"):
+    def __init__(self, children: "Iterable[Union[Message, pipeline, group]]", cancel_on_error: bool = False):
         self.broker = get_broker()
 
         self.children: List[Union[Message, group]] = []
@@ -77,7 +77,11 @@ class pipeline:
             else:
                 self.children.append(child.copy())
 
-    def build(self, *, last_options=None, composition_id: str = None):
+        self.cancel_on_error = cancel_on_error
+        if cancel_on_error:
+            self.broker.get_cancel_backend()
+
+    def build(self, *, last_options=None, composition_id: str = None, cancel_on_error: bool = False):
         """Build the pipeline, return the first message to be enqueued or integrated in another pipeline
 
         Build the pipeline by starting at the end. We build a message with all it's options in one step and
@@ -87,6 +91,7 @@ class pipeline:
         edit the pipeline after it has been built.
 
         Parameters:
+            cancel_on_error(bool): Whether the whole composition should be canceled when one of its messages fails
             composition_id(str): The composition id to pass to messages
             last_options(dict): options to be assigned to the last actor of the pipeline (ex: pipe_target)
 
@@ -94,6 +99,7 @@ class pipeline:
             the first message of the pipeline
         """
         composition_id = composition_id or generate_unique_id()
+        cancel_on_error = cancel_on_error or self.cancel_on_error
         next_child = None
         for child in reversed(self.children):
             if next_child:
@@ -102,6 +108,7 @@ class pipeline:
                 options = last_options or {}
 
             options["composition_id"] = composition_id
+            options["cancel_on_error"] = cancel_on_error
 
             if isinstance(child, group):
                 next_child = child.build(options)
@@ -173,8 +180,6 @@ class group:
 
     Parameters:
       children(Iterable[Message|pipeline]): A sequence of messages or pipelines.
-      cancel_on_error(boolean): True if you want to cancel all messages of a group if on of
-        the actor fails, this is only possible with a Cancel middleware.
 
     Attributes:
         children(List[Message|pipeline]) The sequence to execute as a group
@@ -198,6 +203,7 @@ class group:
 
         self.broker = get_broker()
         self.group_id: str = generate_unique_id() if group_id is None else group_id
+
         self.cancel_on_error = cancel_on_error
         if cancel_on_error:
             self.broker.get_cancel_backend()
@@ -220,12 +226,20 @@ class group:
         else:
             self.broker.emit_before("build_group_pipeline", group_id=self.group_id, message_ids=list(self.message_ids))
 
-        composition_id = options.get("composition_id") or self.group_id
-        options = {"group_info": self.info.asdict(), "composition_id": composition_id, **options}
+        composition_id = options.get("composition_id", self.group_id)
+        cancel_on_error = options.get("composition_id", self.cancel_on_error)
+        options = {
+            "group_info": self.info.asdict(),
+            "composition_id": composition_id,
+            "cancel_on_error": self.cancel_on_error,
+            **options,
+        }
         messages: "List[Message]" = []
         for group_child in self.children:
             if isinstance(group_child, pipeline):
-                messages += group_child.build(last_options=options, composition_id=composition_id)
+                messages += group_child.build(
+                    last_options=options, composition_id=composition_id, cancel_on_error=cancel_on_error
+                )
             else:
                 messages += [group_child.build(options)]
         return messages
@@ -233,9 +247,7 @@ class group:
     @property
     def info(self) -> GroupInfo:
         """Info used for group completion and cancel"""
-        return GroupInfo(
-            group_id=self.group_id, children_count=len(self.children), cancel_on_error=self.cancel_on_error
-        )
+        return GroupInfo(group_id=self.group_id, children_count=len(self.children))
 
     @property
     def message_ids(self):

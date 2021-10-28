@@ -5,6 +5,13 @@ Changelog
 
 All notable changes to this project will be documented in this file.
 
+`0.42.0`_ -- 2021-10-28
+-----------------------
+Changed
+^^^^^^^
+* cancel: when any message of a composition fails with cancel_on_error set to True, the whole composition will now be canceled
+* compositions: cancel_on_error can now be set on a pipeline as well by passing it to the constructor
+
 `0.41.1`_ -- 2021-10-28
 -----------------------
 Fixed
@@ -794,6 +801,7 @@ Fixed
 .. _#84: https://github.com/wiremind/remoulade/issues/84
 .. _#77: https://github.com/wiremind/remoulade/issues/77
 
+.. _0.42.0: https://github.com/wiremind/remoulade/releases/tag/v0.42.0
 .. _0.41.1: https://github.com/wiremind/remoulade/releases/tag/v0.41.1
 .. _0.41.0: https://github.com/wiremind/remoulade/releases/tag/v0.41.0
 .. _0.40.2: https://github.com/wiremind/remoulade/releases/tag/v0.40.2
