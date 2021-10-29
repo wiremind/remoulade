@@ -24,9 +24,10 @@ from threading import Event, Thread
 from typing import TYPE_CHECKING, DefaultDict, Dict, List
 
 from .cancel import MessageCanceled
-from .common import current_millis, iter_queue, join_all, q_name
+from .common import current_millis
 from .errors import ActorNotFound, ConnectionError, RateLimitExceeded, RemouladeError
 from .helpers import compute_backoff
+from .helpers.queues import iter_queue, join_all, q_name
 from .logging import get_logger
 from .middleware import Middleware, SkipMessage
 

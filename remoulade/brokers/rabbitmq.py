@@ -24,8 +24,9 @@ from amqpstorm import AMQPChannelError, AMQPConnectionError, AMQPError, UriConne
 from typing_extensions import Final
 
 from ..broker import Broker, Consumer, MessageProxy
-from ..common import current_millis, dq_name, xq_name
+from ..common import current_millis
 from ..errors import ChannelPoolTimeout, ConnectionClosed, QueueJoinTimeout
+from ..helpers.queues import dq_name, xq_name
 from ..logging import get_logger
 from ..message import Message
 

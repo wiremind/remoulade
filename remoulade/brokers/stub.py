@@ -20,8 +20,9 @@ from queue import Empty, Queue
 from typing import List, Optional
 
 from ..broker import Broker, Consumer, MessageProxy
-from ..common import current_millis, dq_name, iter_queue, join_queue
+from ..common import current_millis
 from ..errors import QueueNotFound
+from ..helpers.queues import dq_name, iter_queue, join_queue
 from ..message import Message
 
 

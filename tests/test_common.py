@@ -1,6 +1,6 @@
 import pytest
 
-from remoulade.common import dq_name, q_name, xq_name
+from remoulade.helpers.queues import dq_name, q_name, xq_name
 
 
 @pytest.mark.parametrize(
