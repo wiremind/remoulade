@@ -5,6 +5,12 @@ Changelog
 
 All notable changes to this project will be documented in this file.
 
+`0.42.1`_ -- 2021-10-29
+-----------------------
+Added
+^^^^^
+* broker: add all relevant events to the local broker
+
 `0.42.0`_ -- 2021-10-28
 -----------------------
 Changed
@@ -801,6 +807,7 @@ Fixed
 .. _#84: https://github.com/wiremind/remoulade/issues/84
 .. _#77: https://github.com/wiremind/remoulade/issues/77
 
+.. _0.42.1: https://github.com/wiremind/remoulade/releases/tag/v0.42.1
 .. _0.42.0: https://github.com/wiremind/remoulade/releases/tag/v0.42.0
 .. _0.41.1: https://github.com/wiremind/remoulade/releases/tag/v0.41.1
 .. _0.41.0: https://github.com/wiremind/remoulade/releases/tag/v0.41.0
