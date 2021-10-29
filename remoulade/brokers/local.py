@@ -18,6 +18,8 @@ from typing import Optional
 
 from ..broker import Broker, MessageProxy
 from ..common import current_millis
+from ..message import Message
+from ..middleware import SkipMessage
 from ..results import Results
 from ..results.backends import LocalBackend
 
@@ -53,12 +55,32 @@ class LocalBroker(Broker):
         raise ValueError("LocalBroker is not destined to use with a Worker")
 
     def declare_queue(self, queue_name):
+        self.emit_before("declare_queue", queue_name)
         self.queues[queue_name] = None
+        self.emit_after("declare_queue", queue_name)
 
     def _apply_delay(self, message, delay: Optional[int] = None):
         if delay is not None:
             message_eta = current_millis() + delay
             message = message.copy(options={"eta": message_eta})
+        return message
+
+    def enqueue(self, message: "Message", *, delay: Optional[int] = None) -> "Message":  # pragma: no cover
+        """Enqueue a message on this broker.
+
+        Parameters:
+          message(Message): The message to enqueue.
+          delay(int): The number of milliseconds to delay the message for.
+
+        Returns:
+          Message: Either the original message or a copy of it.
+        """
+
+        message = self._apply_delay(message, delay)
+        self.emit_before("enqueue", message, delay)
+        self.emit_after("enqueue", message, delay)
+
+        message = self._enqueue(message, delay=delay)
         return message
 
     def _enqueue(self, message, *, delay=None):
@@ -70,9 +92,27 @@ class LocalBroker(Broker):
         """
         actor = self.get_actor(message.actor_name)
         message_proxy = MessageProxy(message)
-        self.emit_before("process_message", message_proxy)
-        res = actor(*message_proxy.args, **message_proxy.kwargs)
-        self.emit_after("process_message", message_proxy, result=res)
+        try:
+            self.emit_before("process_message", message_proxy)
+
+            res = None
+            if not message_proxy.failed:
+                res = actor(*message_proxy.args, **message_proxy.kwargs)
+
+            self.emit_after("process_message", message_proxy, result=res)
+        except SkipMessage:
+            self.emit_after("skip_message", message)
+
+        except BaseException as e:
+            self.emit_after("process_message", message, exception=e)
+
+        if message_proxy.failed:
+            self.emit_before("nack", message)
+            self.emit_after("nack", message)
+        else:
+            self.emit_before("ack", message)
+            self.emit_after("ack", message)
+
         return message_proxy
 
     def flush(self, _):
