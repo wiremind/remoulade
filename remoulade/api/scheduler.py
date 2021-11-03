@@ -1,13 +1,16 @@
 from functools import update_wrapper
 
 import pytz
-from flask import Blueprint, request
+from flask import Blueprint
+from flask_apispec import doc, marshal_with
 from marshmallow import Schema, ValidationError, fields, validates_schema
 from marshmallow.validate import OneOf
 
 from remoulade import get_scheduler
 from remoulade.errors import NoScheduler
 from remoulade.scheduler import ScheduledJob
+
+from .apispec import validate_schema
 
 scheduler_bp = Blueprint("scheduler", __name__, url_prefix="/scheduled")
 
@@ -33,6 +36,15 @@ class ScheduledJobSchema(Schema):
             raise ValidationError("daily_time can only be used with 24h interval")
 
 
+class JobWithHashSchema(ScheduledJobSchema):
+    hash = fields.Str()
+
+
+class ScheduleResponseSchema(Schema):
+    result = fields.List(fields.Nested(JobWithHashSchema), allow_none=True)
+    error = fields.Str(allow_none=True)
+
+
 class ScheduledJobsSchema(Schema):
     """
     Class to validate multiple scheduled jobs at once
@@ -56,36 +68,49 @@ def with_scheduler(func):
 
 
 @scheduler_bp.route("/jobs")
+@doc(tags=["scheduler"])
+@marshal_with(ScheduleResponseSchema)
 @with_scheduler
 def get_jobs(scheduler):
     pass
 
 
 @scheduler_bp.route("/jobs", methods=["POST"])
+@doc(tags=["scheduler"])
+@marshal_with(ScheduleResponseSchema)
+@validate_schema(ScheduledJobSchema)
 @with_scheduler
-def add_job(scheduler):
-    job_dict = ScheduledJobSchema().load(request.json)
-    scheduler.add_job(ScheduledJob(**job_dict))
+def add_job(scheduler, **kwargs):
+    scheduler.add_job(ScheduledJob(**kwargs))
 
 
 @scheduler_bp.route("jobs/<job_hash>", methods=["DELETE"])
+@doc(tags=["scheduler"])
+@marshal_with(ScheduleResponseSchema)
 @with_scheduler
 def delete_job(scheduler, job_hash):
     scheduler.delete_job(job_hash)
 
 
 @scheduler_bp.route("/jobs/<job_hash>", methods=["PUT"])
+@doc(tags=["scheduler"])
+@marshal_with(ScheduleResponseSchema)
+@validate_schema(ScheduledJobSchema)
 @with_scheduler
-def update_job(scheduler, job_hash):
-    job_dict = ScheduledJobSchema().load(request.json)
+def update_job(scheduler, job_hash, **kwargs):
     scheduler.delete_job(job_hash)
-    scheduler.add_job(ScheduledJob(**job_dict))
+    scheduler.add_job(ScheduledJob(**kwargs))
 
 
 @scheduler_bp.route("/jobs", methods=["PUT"])
+@doc(tags=["scheduler"])
+@marshal_with(ScheduleResponseSchema)
+@validate_schema(ScheduledJobsSchema)
 @with_scheduler
-def update_jobs(scheduler):
-    jobs_dict = ScheduledJobsSchema().load(request.json)["jobs"]
-    for job_hash, job_dict in jobs_dict.items():
+def update_jobs(scheduler, **kwargs):
+    for job_hash, job_dict in kwargs["jobs"].items():
         scheduler.delete_job(job_hash)
         scheduler.add_job(ScheduledJob(**job_dict))
+
+
+scheduler_routes = [get_jobs, add_job, delete_job, update_job, update_jobs]

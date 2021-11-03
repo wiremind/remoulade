@@ -212,12 +212,12 @@ class TestMessageStateAPI:
     def test_not_raise_error_with_pickle_and_non_serializable(
         self, pickle_encoder, stub_broker, api_client, state_middleware
     ):
-        state = State("id1", args={"status": "some_status", "date": date(2020, 12, 12)})
+        state = State("id1", args=["some_status", date(2020, 12, 12)])
         state_middleware.backend.set_state(state, ttl=1000)
         res = api_client.post("messages/states")
         assert res.json == {
             "count": 1,
-            "data": [{"args": {"date": "Sat, 12 Dec 2020 00:00:00 GMT", "status": "some_status"}, "message_id": "id1"}],
+            "data": [{"args": ["some_status", "Sat, 12 Dec 2020 00:00:00 GMT"], "message_id": "id1"}],
         }
 
     def test_requeue_message(self, stub_broker, do_work, api_client, state_middleware):
