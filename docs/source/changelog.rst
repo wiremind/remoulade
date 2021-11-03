@@ -5,6 +5,12 @@ Changelog
 
 All notable changes to this project will be documented in this file.
 
+`0.42.2`_ -- 2021-11-05
+-----------------------
+Added
+^^^^^^^
+* api: add swagger to the api
+
 `0.42.1`_ -- 2021-10-29
 -----------------------
 Added
@@ -807,6 +813,7 @@ Fixed
 .. _#84: https://github.com/wiremind/remoulade/issues/84
 .. _#77: https://github.com/wiremind/remoulade/issues/77
 
+.. _0.42.2: https://github.com/wiremind/remoulade/releases/tag/v0.42.2
 .. _0.42.1: https://github.com/wiremind/remoulade/releases/tag/v0.42.1
 .. _0.42.0: https://github.com/wiremind/remoulade/releases/tag/v0.42.0
 .. _0.41.1: https://github.com/wiremind/remoulade/releases/tag/v0.41.1

@@ -1,4 +1,4 @@
-from remoulade.api.state import StatesSchema
+from remoulade.api.state import StatesParamsSchema
 
 
 class TestSchemeAPI:
@@ -14,7 +14,7 @@ class TestSchemeAPI:
             "start_datetime": "2021-08-16 10:00:00",
             "end_datetime": "2021-08-16 10:00:00",
         }
-        result = StatesSchema().validate(page)
+        result = StatesParamsSchema().validate(page)
         assert len(result) == 0
 
     def test_invalid_page_scheme(self):
@@ -29,7 +29,7 @@ class TestSchemeAPI:
             "start_datetime": 100000,
             "end_datetime": 100000,
         }
-        result = StatesSchema().validate(page)
+        result = StatesParamsSchema().validate(page)
         assert result == {
             "end_datetime": ["Not a valid datetime."],
             "offset": ["Not a valid integer."],

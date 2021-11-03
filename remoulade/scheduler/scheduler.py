@@ -73,22 +73,30 @@ class ScheduledJob:
 
         return hashlib.sha1("".join(path).encode("utf-8")).hexdigest()
 
-    def as_dict(self) -> Dict:
-        return {
+    def as_dict(self, encode: bool = False) -> Dict:
+        job_dict = {
             "hash": self.get_hash(),
             "actor_name": self.actor_name,
             "interval": self.interval,
-            "daily_time": None if self.daily_time is None else self.daily_time.strftime("%H:%M:%S"),
+            "daily_time": self.daily_time,
             "iso_weekday": self.iso_weekday,
             "enabled": self.enabled,
-            "last_queued": None if self.last_queued is None else self.last_queued.strftime("%Y-%m-%dT%H:%M:%S"),
+            "last_queued": self.last_queued,
             "tz": self.tz,
             "args": self.args,
             "kwargs": self.kwargs,
         }
+        if encode:
+            job_dict["daily_time"] = (
+                None if job_dict["daily_time"] is None else job_dict["daily_time"].strftime("%H:%M:%S")
+            )
+            job_dict["last_queued"] = (
+                None if job_dict["last_queued"] is None else job_dict["last_queued"].strftime("%Y-%m-%dT%H:%M:%S")
+            )
+        return job_dict
 
     def encode(self) -> bytes:
-        return get_encoder().encode(self.as_dict())
+        return get_encoder().encode(self.as_dict(encode=True))
 
     @classmethod
     def decode(cls, data: bytes) -> "ScheduledJob":

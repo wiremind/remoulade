@@ -2,7 +2,8 @@
 import sys
 from typing import List
 
-from flask import Flask, request
+from flask import Flask
+from flask_apispec import marshal_with
 from marshmallow import Schema, ValidationError, fields, validate
 from typing_extensions import TypedDict
 from werkzeug.exceptions import HTTPException
@@ -12,8 +13,9 @@ from remoulade.errors import NoResultBackend, NoStateBackend, RemouladeError
 from remoulade.result import Result
 from remoulade.results import ResultMissing
 
-from .scheduler import scheduler_bp
-from .state import messages_bp
+from .apispec import add_swagger, validate_schema
+from .scheduler import scheduler_bp, scheduler_routes
+from .state import messages_bp, messages_routes
 
 app = Flask(__name__)
 app.register_blueprint(scheduler_bp)
@@ -32,7 +34,35 @@ class MessageSchema(Schema):
     delay = fields.Number(validate=validate.Range(min=1), allow_none=True)
 
 
+class ResponseSchema(Schema):
+    result = fields.Raw(allow_none=True)
+    error = fields.Str(allow_none=True)
+
+
+class ArgsSchema(Schema):
+    name = fields.Str()
+    type = fields.Str()
+    default = fields.Str(allow_none=True)
+
+
+class ActorSchema(Schema):
+    name = fields.Str()
+    queue_name = fields.Str()
+    alternative_queues = fields.List(fields.Str())
+    priority = fields.Int()
+    args = fields.List(fields.Nested(ArgsSchema))
+
+
+class ActorResponseSchema(Schema):
+    result = fields.List(fields.Nested(ActorSchema))
+
+
+class OptionsResponseSchema(Schema):
+    options = fields.List(fields.Str())
+
+
 @app.route("/messages/cancel/<message_id>", methods=["POST"])
+@marshal_with(ResponseSchema)
 def cancel_message(message_id):
     broker = get_broker()
     cancel_backend = broker.get_cancel_backend()
@@ -49,6 +79,7 @@ def cancel_message(message_id):
 
 
 @app.route("/messages/requeue/<message_id>")
+@marshal_with(ResponseSchema)
 def requeue_message(message_id):
     broker = get_broker()
     backend = broker.get_state_backend()
@@ -64,6 +95,7 @@ def requeue_message(message_id):
 
 
 @app.route("/messages/result/<message_id>")
+@marshal_with(ResponseSchema)
 def get_results(message_id):
     from ..message import get_encoder
 
@@ -84,11 +116,12 @@ def get_results(message_id):
 
 
 @app.route("/messages", methods=["POST"])
-def enqueue_message():
-    payload = MessageSchema().load(request.json)
-    actor = get_broker().get_actor(payload.pop("actor_name"))
-    options = payload.pop("options") or {}
-    actor.send_with_options(**payload, **options)
+@marshal_with(ResponseSchema)
+@validate_schema(MessageSchema)
+def enqueue_message(**kwargs):
+    actor = get_broker().get_actor(kwargs.pop("actor_name"))
+    options = kwargs.pop("options") or {}
+    actor.send_with_options(**kwargs, **options)
     return {"result": "ok"}
 
 
@@ -98,11 +131,13 @@ class GroupMessagesT(TypedDict):
 
 
 @app.route("/actors")
+@marshal_with(ActorResponseSchema)
 def get_actors():
     return {"result": [actor.as_dict() for actor in get_broker().actors.values()]}
 
 
 @app.route("/options")
+@marshal_with(OptionsResponseSchema)
 def get_options():
     broker = get_broker()
     return {"options": list(broker.actor_options)}
@@ -121,3 +156,8 @@ def http_exception(e):
 @app.errorhandler(ValidationError)
 def validation_error(e):
     return {"error": e.normalized_messages()}, 400
+
+
+routes = [cancel_message, requeue_message, get_results, enqueue_message, get_actors, get_options]
+
+add_swagger(app, {"main": routes, "scheduler": scheduler_routes, "messages": messages_routes})
