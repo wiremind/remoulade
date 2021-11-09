@@ -6,6 +6,7 @@ from flask_apispec import doc, marshal_with
 from marshmallow import Schema, ValidationError, fields, validates_schema
 from marshmallow.validate import OneOf
 
+import remoulade
 from remoulade import get_scheduler
 from remoulade.errors import NoScheduler
 from remoulade.scheduler import ScheduledJob
@@ -34,6 +35,21 @@ class ScheduledJobSchema(Schema):
     def validate_sort(self, data, **kwargs):
         if data.get("daily_time") is not None and data.get("interval") != 86400:
             raise ValidationError("daily_time can only be used with 24h interval")
+
+    @validates_schema
+    def validate_actor_name(self, data, **kwargs):
+        actor_name = data.get("actor_name")
+        if actor_name not in remoulade.get_broker().actors.keys():
+            raise ValidationError(f"No actor named {actor_name} exists")
+
+    @validates_schema
+    def validate_tz(self, data, **kwargs):
+        daily_time = data.get("daily_time")
+        last_queued = data.get("last_queued")
+        if (daily_time is not None and daily_time.tzinfo is not None) or (
+            last_queued is not None and last_queued.tzinfo is not None
+        ):
+            raise ValidationError("Datetimes should be naive")
 
 
 class JobWithHashSchema(ScheduledJobSchema):

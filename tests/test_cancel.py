@@ -185,5 +185,15 @@ def test_composition_can_be_canceled(stub_broker, stub_worker, cancel_backend):
     stub_broker.join(do_work.queue_name)
     stub_worker.join()
 
-    # It messages should not have run
+    # It messages should not have runMessageSchema
     assert calls_count == 0
+
+
+def test_raise_error_if_unknown_id(stub_broker, cancel_backend, api_client):
+    # Given a cancel middleware
+    stub_broker.add_middleware(Cancel(backend=cancel_backend))
+
+    # If I try to cancel a id that is not a id of a message or composition
+    res = api_client.post("messages/cancel/invalid_id")
+
+    assert res.status_code == 400

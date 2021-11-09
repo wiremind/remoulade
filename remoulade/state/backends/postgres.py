@@ -79,13 +79,24 @@ class StateVersion(Base):
     version = Column(SmallInteger, primary_key=True)
 
 
-def filter_query(*, query, selected_actors, selected_statuses, selected_ids, start_datetime, end_datetime):
+def filter_query(
+    *,
+    query,
+    selected_actors: Optional[List[str]],
+    selected_statuses: Optional[List[str]],
+    selected_message_ids: Optional[List[str]],
+    selected_composition_ids: Optional[List[str]],
+    start_datetime: Optional[datetime.datetime],
+    end_datetime: Optional[datetime.datetime],
+):
     if selected_actors is not None:
         query = query.filter(StoredState.actor_name.in_(selected_actors))
     if selected_statuses is not None:
         query = query.filter(StoredState.status.in_(selected_statuses))
-    if selected_ids is not None:
-        query = query.filter(StoredState.message_id.in_(selected_ids))
+    if selected_message_ids is not None:
+        query = query.filter(StoredState.message_id.in_(selected_message_ids))
+    if selected_composition_ids is not None:
+        query = query.filter(StoredState.composition_id.in_(selected_composition_ids))
     if start_datetime is not None:
         query = query.filter(StoredState.enqueued_datetime >= start_datetime)
     if end_datetime is not None:
@@ -150,7 +161,8 @@ class PostgresBackend(StateBackend):
         offset: int = 0,
         selected_actors: Optional[List[str]] = None,
         selected_statuses: Optional[List[str]] = None,
-        selected_ids: Optional[List[str]] = None,
+        selected_message_ids: Optional[List[str]] = None,
+        selected_composition_ids: Optional[List[str]] = None,
         start_datetime: Optional[datetime.datetime] = None,
         end_datetime: Optional[datetime.datetime] = None,
         sort_column: Optional[str] = None,
@@ -165,7 +177,8 @@ class PostgresBackend(StateBackend):
                 query=query,
                 selected_actors=selected_actors,
                 selected_statuses=selected_statuses,
-                selected_ids=selected_ids,
+                selected_message_ids=selected_message_ids,
+                selected_composition_ids=selected_composition_ids,
                 start_datetime=start_datetime,
                 end_datetime=end_datetime,
             )
@@ -207,7 +220,8 @@ class PostgresBackend(StateBackend):
         *,
         selected_actors: Optional[List[str]] = None,
         selected_statuses: Optional[List[str]] = None,
-        selected_ids: Optional[List[str]] = None,
+        selected_messages_ids: Optional[List[str]] = None,
+        selected_composition_ids: Optional[List[str]] = None,
         start_datetime: Optional[datetime.datetime] = None,
         end_datetime: Optional[datetime.datetime] = None,
         **kwargs,
@@ -219,7 +233,8 @@ class PostgresBackend(StateBackend):
                 query=query,
                 selected_actors=selected_actors,
                 selected_statuses=selected_statuses,
-                selected_ids=selected_ids,
+                selected_message_ids=selected_messages_ids,
+                selected_composition_ids=selected_composition_ids,
                 start_datetime=start_datetime,
                 end_datetime=end_datetime,
             )

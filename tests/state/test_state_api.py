@@ -69,11 +69,12 @@ class TestMessageStateAPI:
         for state in states:
             assert state in random_states
 
-    def test_request_cancel(self, stub_broker, api_client, cancel_backend):
-        message_id = "1"
-        stub_broker.add_middleware(Cancel(backend=cancel_backend))
-        api_client.post("/messages/cancel/{}".format(message_id))
-        assert cancel_backend.is_canceled(message_id, None)
+    def test_request_cancel(self, stub_broker, cancel_backend):
+        with app.test_client() as client:
+            message_id = "1"
+            stub_broker.add_middleware(Cancel(backend=cancel_backend))
+            client.post(f"/messages/cancel/{message_id}")
+            assert cancel_backend.is_canceled(message_id, None)
 
     def test_request_cancel_without_backend(self, stub_broker, api_client):
         res = api_client.post("/messages/cancel/{}".format("id"))
@@ -159,12 +160,18 @@ class TestMessageStateAPI:
     )
     def test_invalid_delay_to_enqueue(self, delay, error, stub_broker, do_work, api_client):
         data = {
-            "actor_name": "some_actor_name",
+            "actor_name": "do_work",
             "delay": delay,
         }
         res = api_client.post("/messages", data=json.dumps(data), content_type="application/json")
         validation_error = res.json["error"]
         assert validation_error["delay"] == [error]
+        assert res.status_code == 400
+
+    def test_enqueue_invalid_actor_name(self, stub_broker, api_client):
+        data = {"actor_name": "invalid_actor"}
+        res = api_client.post("/messages", data=json.dumps(data), content_type="application/json")
+
         assert res.status_code == 400
 
     def test_get_declared_actors(self, stub_broker, do_work, api_client):
@@ -180,10 +187,11 @@ class TestMessageStateAPI:
         ].sort(key=itemgetter("name"))
         assert res.json["result"].sort(key=itemgetter("name")) == expected
 
-    def test_filter_messages(self, stub_broker, api_client, state_middleware):
+    def test_filter_messages(self, stub_broker, api_client):
         state = State("some_message_id")
-        state_middleware.backend.set_state(state, ttl=1000)
-        data = {"sort_column": "message_id", "selected_ids": ["some_message_id"]}
+        state_backend = stub_broker.get_state_backend()
+        state_backend.set_state(state, ttl=1000)
+        data = {"sort_column": "message_id", "selected_message_ids": ["some_message_id"]}
         res = api_client.post("/messages/states", data=json.dumps(data), content_type="application/json")
         assert res.json == {"count": 1, "data": [state.as_dict()]}
 
@@ -224,7 +232,7 @@ class TestMessageStateAPI:
         stub_broker.enqueue = MagicMock()
         state = State("id1", StateStatusesEnum.Success, actor_name="do_work", options={"time_limit": 1000})
         state_middleware.backend.set_state(state, ttl=1000)
-        res = api_client.get("messages/requeue/id1")
+        res = api_client.post("messages/requeue/id1")
         message = Message(
             queue_name="default",
             actor_name="do_work",
@@ -238,11 +246,15 @@ class TestMessageStateAPI:
         assert stub_broker.enqueue.call_args == mock.call(message, delay=None)
         assert res.status_code == 200
 
+    def test_requeue_invalid_id(self, stub_broker, api_client, state_middleware):
+        res = api_client.post("messages/requeue/invalid_id")
+        assert res.status_code == 400
+
     def test_requeue_message_with_pipeline(self, stub_broker, do_work, api_client, state_middleware):
         stub_broker.enqueue = MagicMock()
         state = State("id1", StateStatusesEnum.Success, actor_name="do_work", options={"pipe_target": "some_pipe"})
         state_middleware.backend.set_state(state, ttl=1000)
-        res = api_client.get("messages/requeue/id1")
+        res = api_client.post("messages/requeue/id1")
         assert res.json == {"error": "requeue message in a pipeline not supported"}
         assert res.status_code == 400
 
@@ -297,7 +309,7 @@ class TestMessageStateAPI:
         backend = postgres_state_middleware.backend
         for i in range(2):
             backend.set_state(State(f"id{i}"))
-        res = backend.get_states(selected_ids=["id1"])
+        res = backend.get_states(selected_message_ids=["id1"])
         assert len(res) == 1
         assert res[0].message_id == "id1"
 

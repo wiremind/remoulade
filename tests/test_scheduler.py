@@ -284,16 +284,16 @@ def test_get_scheduled_jobs(scheduler, api_client):
     }
 
 
-def test_api_add_job(scheduler, api_client):
+def test_api_add_job(scheduler, api_client, do_work):
     res = api_client.post(
-        "/scheduled/jobs", data=json.dumps({"actor_name": "actor_name"}), content_type="application/json"
+        "/scheduled/jobs", data=json.dumps({"actor_name": "do_work"}), content_type="application/json"
     )
     assert res.status_code == 200
     assert res.json == {
         "result": [
             {
                 "hash": res.json["result"][0]["hash"],
-                "actor_name": "actor_name",
+                "actor_name": "do_work",
                 "args": [],
                 "daily_time": None,
                 "enabled": True,
@@ -315,7 +315,7 @@ def test_api_delete_job(scheduler, api_client):
     assert res.json == {"result": []}
 
 
-def test_update_job(scheduler, api_client):
+def test_update_job(scheduler, api_client, do_work):
     scheduler.schedule = [ScheduledJob(actor_name="do_work")]
     scheduler.sync_config()
     res = api_client.put(
@@ -342,7 +342,7 @@ def test_update_job(scheduler, api_client):
     }
 
 
-def test_api_update_jobs(scheduler, api_client):
+def test_api_update_jobs(scheduler, api_client, do_work):
     scheduler.schedule = [ScheduledJob(actor_name="do_work"), ScheduledJob(actor_name="do_other_work")]
     scheduler.sync_config()
     res = api_client.put(
@@ -351,7 +351,7 @@ def test_api_update_jobs(scheduler, api_client):
             {
                 "jobs": {
                     scheduler.schedule[0].get_hash(): {"actor_name": "do_work", "enabled": False},
-                    scheduler.schedule[1].get_hash(): {"actor_name": "do_other_work", "enabled": False},
+                    scheduler.schedule[1].get_hash(): {"actor_name": "do_work", "enabled": False, "interval": "55"},
                 }
             }
         ),
@@ -378,4 +378,21 @@ def test_invalid_timezone(scheduler, api_client):
         data=json.dumps({"actor_name": "do_work", "tz": "invalid_tz"}),
         content_type="application/json",
     )
+    assert res.status_code == 400
+
+
+def test_invalid_actor_name(scheduler, api_client):
+    res = api_client.post(
+        "/scheduled/jobs", data=json.dumps({"actor_name": "invalid_actor"}), content_type="application/json"
+    )
+    assert res.status_code == 400
+
+
+def test_tz_aware_last_queued(scheduler, api_client, do_work):
+    res = api_client.post(
+        "scheduled/jobs",
+        data=json.dumps({"actor_name": "do_work", "last_queued": "2020-10-10 10:00:00Z"}),
+        content_type="application/json",
+    )
+
     assert res.status_code == 400

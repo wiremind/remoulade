@@ -4,10 +4,11 @@ from typing import List
 
 from flask import Flask
 from flask_apispec import marshal_with
-from marshmallow import Schema, ValidationError, fields, validate
+from marshmallow import Schema, ValidationError, fields, validate, validates_schema
 from typing_extensions import TypedDict
 from werkzeug.exceptions import HTTPException
 
+import remoulade
 from remoulade import get_broker
 from remoulade.errors import NoResultBackend, NoStateBackend, RemouladeError
 from remoulade.result import Result
@@ -32,6 +33,12 @@ class MessageSchema(Schema):
     kwargs = fields.Dict(allow_none=True)
     options = fields.Dict(allow_none=True)
     delay = fields.Number(validate=validate.Range(min=1), allow_none=True)
+
+    @validates_schema
+    def validate_actor_name(self, data, **kwargs):
+        actor_name = data.get("actor_name")
+        if actor_name not in remoulade.get_broker().actors.keys():
+            raise ValidationError(f"No actor named {actor_name} exists")
 
 
 class ResponseSchema(Schema):
@@ -69,7 +76,10 @@ def cancel_message(message_id):
     try:
         # If a single message in a composition is canceled, we cancel the whole composition
         state_backend = broker.get_state_backend()
+        states_count = state_backend.get_states_count(selected_composition_ids=[message_id])
         state = state_backend.get_state(message_id)
+        if states_count == 0 and state is None:
+            raise ValidationError(f"This message id or composition id {message_id} does not exist.")
         if state and state.composition_id:
             message_id = state.composition_id
     except NoStateBackend:
@@ -78,12 +88,14 @@ def cancel_message(message_id):
     return {"result": "ok"}
 
 
-@app.route("/messages/requeue/<message_id>")
+@app.route("/messages/requeue/<message_id>", methods=["POST"])
 @marshal_with(ResponseSchema)
 def requeue_message(message_id):
     broker = get_broker()
     backend = broker.get_state_backend()
     state = backend.get_state(message_id)
+    if state is None:
+        raise ValidationError(f"No message with id {message_id} exists")
     actor = broker.get_actor(state.actor_name)
     payload = {"args": state.args, "kwargs": state.kwargs}
     pipe_target = state.options.get("pipe_target")

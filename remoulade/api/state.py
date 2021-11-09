@@ -38,7 +38,8 @@ class StatesParamsSchema(Schema):
         fields.String(validate=validate.OneOf([status.name for status in StateStatusesEnum])),
         allow_none=True,
     )
-    selected_ids = fields.List(fields.String, allow_none=True)
+    selected_message_ids = fields.List(fields.String, allow_none=True)
+    selected_composition_ids = fields.List(fields.String, allow_none=True)
     start_datetime = fields.DateTime(allow_none=True)
     end_datetime = fields.DateTime(allow_none=True)
 
@@ -98,7 +99,7 @@ def get_state(message_id):
     backend = get_broker().get_state_backend()
     data = backend.get_state(message_id)
     if data is None:
-        raise NotFound("message_id = {} does not exist".format(message_id))
+        raise NotFound(f"message_id = {message_id} does not exist")
     return data.as_dict()
 
 

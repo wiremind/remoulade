@@ -5,6 +5,17 @@ Changelog
 
 All notable changes to this project will be documented in this file.
 
+`0.42.3`_ -- 2021-11-09
+-----------------------
+Changed
+^^^^^
+* api: /messages/requeue route is now POST instead of GET
+* api: /messages/requeue route will now return 400 status code if there is a State middleware and the given id does not match any message's id
+* api: trying to enqueue a message or add or update a scheduled job with an actor name that doesn't match an existing actor's name will return a 400 status code
+* state: renamed get_states and get_states_count argument selected_ids to selected_message_ids
+* state: add a selected_composition_ids to get_states and get_states_count to filter
+* api: passing a timezone aware datetime in a job will now return a 400 status code
+
 `0.42.2`_ -- 2021-11-05
 -----------------------
 Added
@@ -813,6 +824,7 @@ Fixed
 .. _#84: https://github.com/wiremind/remoulade/issues/84
 .. _#77: https://github.com/wiremind/remoulade/issues/77
 
+.. _0.42.3: https://github.com/wiremind/remoulade/releases/tag/v0.42.3
 .. _0.42.2: https://github.com/wiremind/remoulade/releases/tag/v0.42.2
 .. _0.42.1: https://github.com/wiremind/remoulade/releases/tag/v0.42.1
 .. _0.42.0: https://github.com/wiremind/remoulade/releases/tag/v0.42.0
