@@ -85,7 +85,10 @@ class Retries(Middleware):
             or max_retries is not None
             and retries >= max_retries
         ):
-            self.logger.warning(f"Retries exceeded for message {message.message_id}.")
+            if max_retries is not None and retries >= max_retries:
+                self.logger.warning(f"Retries exceeded for message {message.message_id}.")
+            else:
+                self.logger.warning(f"Message {message.message_id} has failed and will not be retried.")
             message.fail()
             return
 
