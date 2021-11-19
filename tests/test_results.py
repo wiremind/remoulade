@@ -6,7 +6,7 @@ from unittest.mock import patch
 import pytest
 
 import remoulade
-from remoulade import Result
+from remoulade import Result, CollectionResults
 from remoulade.middleware import Retries
 from remoulade.results import ErrorStored, ResultBackend, ResultMissing, Results, ResultTimeout
 from remoulade.results.backends import StubBackend
@@ -482,3 +482,8 @@ def test_retry_if_saving_result_fail(stub_broker, stub_worker):
 
         # The actor has been tried 4 times
         assert len(attempts) == 4
+
+
+def test_completed_count_no_messages(stub_broker, result_middleware):
+    result = CollectionResults([])
+    assert result.completed_count == 0

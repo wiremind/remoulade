@@ -5,6 +5,12 @@ Changelog
 
 All notable changes to this project will be documented in this file.
 
+`0.42.5`_ -- 2021-11-19
+-----------------------
+Changed
+^^^^^^^
+* redis: fix completed_count when no message
+
 `0.42.4`_ -- 2021-11-09
 -----------------------
 Changed
@@ -830,6 +836,7 @@ Fixed
 .. _#84: https://github.com/wiremind/remoulade/issues/84
 .. _#77: https://github.com/wiremind/remoulade/issues/77
 
+.. _0.42.5: https://github.com/wiremind/remoulade/releases/tag/v0.42.5
 .. _0.42.4: https://github.com/wiremind/remoulade/releases/tag/v0.42.4
 .. _0.42.3: https://github.com/wiremind/remoulade/releases/tag/v0.42.3
 .. _0.42.2: https://github.com/wiremind/remoulade/releases/tag/v0.42.2
