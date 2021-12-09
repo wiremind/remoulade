@@ -113,3 +113,16 @@ def test_local_broker_cancel(local_broker, stub_cancel_backend):
 def test_local_broker_worker_forbidden(local_broker):
     with pytest.raises(RemouladeError):
         Worker(broker=local_broker)
+
+
+def test_local_raise_error(local_broker):
+    # Given that I have an actor that raise an exception
+    @remoulade.actor()
+    def raise_error():
+        raise ValueError()
+
+    local_broker.declare_actor(raise_error)
+
+    # When I send that actor a message, a get an exception
+    with pytest.raises(ValueError):
+        raise_error.send()

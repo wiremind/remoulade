@@ -104,14 +104,15 @@ class LocalBroker(Broker):
             self.emit_after("skip_message", message)
 
         except BaseException as e:
-            self.emit_after("process_message", message, exception=e)
-
-        if message_proxy.failed:
-            self.emit_before("nack", message)
-            self.emit_after("nack", message)
-        else:
-            self.emit_before("ack", message)
-            self.emit_after("ack", message)
+            self.emit_after("process_message", message_proxy, exception=e)
+            raise
+        finally:
+            if message_proxy.failed:
+                self.emit_before("nack", message)
+                self.emit_after("nack", message)
+            else:
+                self.emit_before("ack", message)
+                self.emit_after("ack", message)
 
         return message_proxy
 
