@@ -14,6 +14,7 @@
 #
 # You should have received a copy of the GNU Lesser General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
+import os
 import time
 from contextlib import contextmanager
 from functools import partial
@@ -88,7 +89,7 @@ class RabbitmqBroker(Broker):
         if delivery_mode not in {1, 2}:
             raise ValueError("Invalid value for delivery_mode, should be 1 for non-persistent 2, for persistent")
 
-        self.url = url or ""
+        self.url = url or os.getenv("REMOULADE_RABBITMQ_URL") or ""
         self.confirm_delivery = confirm_delivery
         self.max_priority = max_priority
         self.dead_queue_max_length = dead_queue_max_length
