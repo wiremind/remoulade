@@ -1,0 +1,2 @@
+remoulade[redis,rabbitmq,postgres,server]
+requests
