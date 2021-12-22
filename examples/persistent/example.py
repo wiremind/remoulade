@@ -51,15 +51,15 @@ def fib(n):
     i, x2, x1 = load_state(n)
 
     try:
-        for i in range(i, n + 1):
+        for j in range(i, n + 1):
             state = {
-                "i": i,
+                "i": j,
                 "x2": x2,
                 "x1": x1,
             }
 
             x2, x1 = x1, x2 + x1
-            fib.logger.info("fib(%d): %d", i, x1)
+            fib.logger.info("fib(%d): %d", j, x1)
             time.sleep(0.1)
 
         remove_state(n)

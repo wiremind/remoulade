@@ -11,7 +11,7 @@ with open(rel("README.md")) as f:
     long_description = f.read()
 
 
-with open(rel("remoulade", "__init__.py"), "r") as f:
+with open(rel("remoulade", "__init__.py")) as f:
     version_marker = "__version__ = "
     for line in f:
         if line.startswith(version_marker):
@@ -45,7 +45,7 @@ extra_dependencies["dev"] = extra_dependencies["all"] + [
     "flake8-quotes",
     "isort",
     "black==21.7b0",
-    "mypy",
+    "mypy<0.920",  # 0.930 and 9.20 breaks, both in a different way
     "sqlalchemy[mypy]",
     "types-redis",
     "types-python-dateutil",
@@ -106,6 +106,7 @@ setup(
         "Programming Language :: Python :: 3.7",
         "Programming Language :: Python :: 3.8",
         "Programming Language :: Python :: 3.9",
+        "Programming Language :: Python :: 3.10",
         "Programming Language :: Python :: 3 :: Only",
         "Topic :: System :: Distributed Computing",
         "License :: OSI Approved :: GNU Lesser General Public License v3 or later (LGPLv3+)",
