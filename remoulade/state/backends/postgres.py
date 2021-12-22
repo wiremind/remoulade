@@ -1,4 +1,5 @@
 import datetime
+import os
 import sys
 import threading
 from typing import List, Optional, Type, TypeVar
@@ -115,7 +116,7 @@ class PostgresBackend(StateBackend):
         max_size: int = 2000000,
         url: Optional[str] = None,
     ):
-        self.url = url or DEFAULT_POSTGRES_URI
+        self.url = url or os.getenv("REMOULADE_POSTGRESQL_URL") or DEFAULT_POSTGRES_URI
         super().__init__(namespace=namespace, encoder=encoder)
         self.client = client or sessionmaker(create_engine(self.url))
         self.init_db()

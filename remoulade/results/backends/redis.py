@@ -14,6 +14,7 @@
 #
 # You should have received a copy of the GNU Lesser General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
+import os
 from typing import List
 
 import redis
@@ -44,6 +45,7 @@ class RedisBackend(ResultBackend):
     ):
         super().__init__(namespace=namespace, encoder=encoder, default_timeout=default_timeout)
 
+        url = url or os.getenv("REMOULADE_REDIS_URL")
         if url:
             parameters["connection_pool"] = redis.ConnectionPool.from_url(url)
 
