@@ -9,7 +9,7 @@ def setup(app):
 
 
 def collect_pages(basedir):
-    for root, dirs, files in os.walk(basedir):
+    for root, _, files in os.walk(basedir):
         for filename in files:
             if not filename.endswith(".html"):
                 continue
@@ -37,7 +37,7 @@ def build_sitemap(app, exception):
     pages = collect_pages(app.outdir)
     root = ET.Element("urlset")
     root.set("xmlns", "http://www.sitemaps.org/schemas/sitemap/0.9")
-    for page, mod, prio in sorted(pages, key=lambda t: -t[2]):
+    for _, mod, _ in sorted(pages, key=lambda t: -t[2]):
         url = ET.SubElement(root, "url")
         loc = ET.SubElement(url, "loc")
         lastmod = ET.SubElement(url, "lastmod")
