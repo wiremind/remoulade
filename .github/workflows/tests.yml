@@ -40,4 +40,3 @@ jobs:
         pip install -e '.[dev]'
     - name: Test
       run: py.test --benchmark-skip
-

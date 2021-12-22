@@ -18,7 +18,7 @@ def path_to(*xs):
 
 def load_state(n):
     try:
-        with open(path_to("states", n), "r") as f:
+        with open(path_to("states", n)) as f:
             data = json.load(f)
     except Exception:
         fib.logger.info("Could not read state file, using defaults.")

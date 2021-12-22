@@ -8,3 +8,11 @@ services:
     image: rabbitmq
     ports:
       - "5672:5672"
+  postgres:
+    image: postgres
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: remoulade
+      POSTGRES_HOST_AUTH_METHOD: trust
+      POSTGRES_DB: remoulade
