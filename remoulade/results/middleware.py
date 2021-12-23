@@ -82,7 +82,7 @@ class Results(Middleware):
         # even if the actor do not have store_results, we need to invalidate the messages in the pipeline that has it
         if message_failed:
             error_str = self._serialize_exception(exception)
-            exception = ParentFailed("%s failed because of %s" % (message, error_str))
+            exception = ParentFailed(f"{message} failed because of {error_str}")
             children_result = BackendResult(result=None, error=self._serialize_exception(exception))
 
             for message_id in self._get_children_message_ids(

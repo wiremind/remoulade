@@ -47,7 +47,7 @@ def test_simple_interval_scheduler(stub_broker, stub_worker, scheduler, schedule
 
     # get the last_queued date for this slow task, this should not change when reloading schedule with new config
     tasks = scheduler.get_redis_schedule().values()
-    (slow_task,) = [job for job in tasks if job.actor_name == "mul"]
+    (slow_task,) = (job for job in tasks if job.actor_name == "mul")
     last_queued = slow_task.last_queued
     assert {j.actor_name for j in tasks} == {"mul", "write_loaded_at"}
 
@@ -61,7 +61,7 @@ def test_simple_interval_scheduler(stub_broker, stub_worker, scheduler, schedule
     # One item was deleted
     assert {j.actor_name for j in tasks} == {"add", "mul"}
     # The other one was not updated
-    (slow_task,) = [job for job in tasks if job.actor_name == "mul"]
+    (slow_task,) = (job for job in tasks if job.actor_name == "mul")
     assert slow_task.last_queued == last_queued
 
 

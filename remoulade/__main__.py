@@ -110,7 +110,7 @@ def parse_arguments():
 def setup_pidfile(filename):
     try:
         pid = os.getpid()
-        with open(filename, "r") as pid_file:
+        with open(filename) as pid_file:
             old_pid = int(pid_file.read().strip())
             # This can happen when reloading the process via SIGHUP.
             if old_pid == pid:
@@ -141,7 +141,7 @@ def setup_pidfile(filename):
         os.chmod(filename, 0o644)
         return pid
     except (FileNotFoundError, PermissionError) as e:
-        raise RuntimeError("Failed to write PID file %r. %s." % (e.filename, e.strerror)) from e
+        raise RuntimeError(f"Failed to write PID file {e.filename!r}. {e.strerror}.") from e
 
 
 def remove_pidfile(filename, logger):

@@ -50,7 +50,7 @@ class WindowRateLimiter(RateLimiter):
 
     def _get_keys(self):
         timestamp = int(time.time())
-        return ["%s@%s" % (self.key, timestamp - i) for i in range(self.window)]
+        return [f"{self.key}@{timestamp - i}" for i in range(self.window)]
 
     def _acquire(self):
         keys = self._get_keys()

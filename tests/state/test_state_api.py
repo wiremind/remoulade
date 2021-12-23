@@ -49,7 +49,7 @@ class TestMessageStateAPI:
         message_id = "1"
         state = State(message_id, StateStatusesEnum.Pending)
         state_middleware.backend.set_state(state, ttl=1000)
-        res = api_client.get("/messages/states/{}".format(message_id))
+        res = api_client.get(f"/messages/states/{message_id}")
         assert res.json == state.as_dict()
 
     @pytest.mark.parametrize("n", [0, 10, 50, 100])
@@ -210,7 +210,7 @@ class TestMessageStateAPI:
     @pytest.mark.parametrize("size", [1, 5, 100])
     def test_get_states_page_size(self, size, stub_broker, api_client, state_middleware):
         for i in range(0, 10):
-            state_middleware.backend.set_state(State("id{}".format(i)), ttl=1000)
+            state_middleware.backend.set_state(State(f"id{i}"), ttl=1000)
         res = api_client.post("/messages/states", data=json.dumps({"size": size}), content_type="application/json")
         if size >= 10:
             assert res.json["count"] == 10

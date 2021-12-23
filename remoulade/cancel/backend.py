@@ -32,8 +32,8 @@ class CancelBackend:
 
     def is_canceled(self, message_id: str, composition_id: str) -> bool:
         """Return true if the message has been canceled"""
-        raise NotImplementedError("%(classname)r does not implement is_canceled" % {"classname": type(self).__name__})
+        raise NotImplementedError(f"{type(self).__name__!r} does not implement is_canceled")
 
     def cancel(self, message_ids: Iterable[str]) -> None:
         """Mark a message as canceled"""
-        raise NotImplementedError("%(classname)r does not implement cancel" % {"classname": type(self).__name__})
+        raise NotImplementedError(f"{type(self).__name__!r} does not implement cancel")
