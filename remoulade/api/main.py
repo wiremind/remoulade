@@ -117,7 +117,7 @@ def get_results(message_id):
         encoded_result = get_encoder().encode(result).decode("utf-8")
         size_result = sys.getsizeof(encoded_result)
         if size_result >= max_size:
-            encoded_result = "The result is too big {}M".format(size_result / 1e6)
+            encoded_result = f"The result is too big {size_result / 1e6}M"
         return {"result": encoded_result}
     except ResultMissing:
         return {"result": "result is missing"}

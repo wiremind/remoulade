@@ -29,7 +29,7 @@ def main():
         importlib.import_module(module)
 
     if args.actor_name not in get_broker().actors:
-        print("{} is not an available actor".format(args.actor_name))
+        print(f"{args.actor_name} is not an available actor")
         return
 
     _args = args.args or []

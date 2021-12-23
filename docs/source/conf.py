@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 #
 # remoulade documentation build configuration file, created by
 # sphinx-quickstart on Sat Mar 18 19:48:26 2017.
