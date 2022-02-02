@@ -34,7 +34,7 @@ def test_prometheus_process_message(_, stub_broker, do_work):
     prom = prometheus.Prometheus()
 
     stub_broker.emit_before("worker_boot", mock.Mock())
-    prom.before_worker_boot(stub_broker, mock.Mock())
+    prom.before_worker_boot(stub_broker, mock.Mock(consumer_whitelist=None))
 
     message = do_work.message()
 
