@@ -5,6 +5,14 @@ Changelog
 
 All notable changes to this project will be documented in this file.
 
+
+`0.43.0`_ -- 2022-02-02
+-----------------------
+Changed
+^^^^^
+* Prometheus: add option use_default_prometheus_label and DEFAULT_LABEL to reduce cardinality
+* Prometheus: only declare metrics for actors which are executed by the worker
+
 `0.42.6`_ -- 2021-12-09
 -----------------------
 Fixed

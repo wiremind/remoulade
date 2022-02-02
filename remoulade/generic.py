@@ -34,7 +34,7 @@ class generic_actor(type):
             clazz_instance.__actor__ = actor_instance
             return clazz_instance
 
-        meta.abstract = False
+        meta.abstract = False  # type: ignore
         clazz.__actor__ = None  # type: ignore
         return clazz
 

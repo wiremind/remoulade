@@ -29,6 +29,9 @@ DEFAULT_HTTP_HOST = os.getenv("remoulade_prom_host", "127.0.0.1")
 #: The default HTTP port the exposition server should listen on.
 DEFAULT_HTTP_PORT = int(os.getenv("remoulade_prom_port", "9191"))
 
+#: The default HTTP port the exposition server should listen on.
+DEFAULT_LABEL = "default"
+
 
 class Prometheus(Middleware):
     """A middleware that exports stats via Prometheus_.
@@ -45,12 +48,20 @@ class Prometheus(Middleware):
     .. _Prometheus: https://prometheus.io
     """
 
-    def __init__(self, *, http_host=DEFAULT_HTTP_HOST, http_port=DEFAULT_HTTP_PORT, registry=None):
+    def __init__(
+        self,
+        *,
+        http_host=DEFAULT_HTTP_HOST,
+        http_port=DEFAULT_HTTP_PORT,
+        registry=None,
+        use_default_label=False,
+    ):
         self.logger = get_logger(__name__, type(self))
         self.http_host = http_host
         self.http_port = http_port
         self.local_data = local()
         self.registry = registry
+        self.use_default_label = use_default_label
 
         self.worker_busy = None
         self.total_errored_messages = None
@@ -61,14 +72,19 @@ class Prometheus(Middleware):
     @property
     def actor_options(self):
         """The set of options that may be configured on each actor."""
-        return {"prometheus_label"}
+        return {"prometheus_label", "use_default_prometheus_label"}
 
-    @staticmethod
-    def _get_labels(broker, message):
+    def _get_label(self, actor):
+        use_default_label = actor.options.get("use_default_prometheus_label", self.use_default_label)
+        if use_default_label:
+            return DEFAULT_LABEL
+        return actor.options.get("prometheus_label", actor.actor_name)
+
+    def _get_labels(self, broker, message):
         actor = broker.get_actor(message.actor_name)
-        return message.queue_name, actor.options.get("prometheus_label", message.actor_name)
+        return message.queue_name, self._get_label(actor)
 
-    def _init_labels(self, actor):
+    def _init_labels(self, actor, worker=None):
         # initialize the metrics for all labels to 0
         metrics = [
             self.total_errored_messages,
@@ -76,9 +92,17 @@ class Prometheus(Middleware):
             self.total_rejected_messages,
             self.message_durations,
         ]
+        worker_queues = worker.consumer_whitelist if worker else None
         for metric in metrics:
             if metric:  # metric can be None if actor is declared before worker boot
-                metric.labels(actor.queue_name, actor.options.get("prometheus_label", actor.actor_name))
+                label = self._get_label(actor)
+
+                queues = set(actor.queue_names)
+                if worker_queues:
+                    queues &= worker_queues
+
+                for queue_name in queues:
+                    metric.labels(queue_name, label)
 
     def before_worker_boot(self, broker, worker):
         self.logger.debug("Setting up metrics...")
@@ -112,7 +136,7 @@ class Prometheus(Middleware):
             registry=self.registry,
         )
         for actor in broker.actors.values():
-            self._init_labels(actor)
+            self._init_labels(actor, worker)
 
         self.logger.debug("Starting exposition server...")
         prom.start_http_server(addr=self.http_host, port=self.http_port, registry=self.registry)
