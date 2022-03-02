@@ -1,5 +1,6 @@
 import time
 from threading import Event
+from unittest import mock
 from unittest.mock import Mock
 
 import pytest
@@ -7,6 +8,7 @@ import pytest
 import remoulade
 from remoulade import ActorNotFound, Message, QueueJoinTimeout, Worker
 from remoulade.common import current_millis
+from remoulade.errors import MessageNotDelivered
 
 
 def test_rabbitmq_actors_can_be_sent_messages(rabbitmq_broker, rabbitmq_worker):
@@ -210,6 +212,24 @@ def test_rabbitmq_broker_reconnects_after_enqueue_failure(rabbitmq_broker):
 
     # And the connection be reopened
     assert rabbitmq_broker.connection.is_open
+
+
+@mock.patch("amqpstorm.basic.Basic.publish")
+@pytest.mark.confirm_delivery(True)
+def test_rabbitmq_broker_retry_to_enqueue_message(publish, rabbitmq_broker):
+    # Given that I have an actor
+    @remoulade.actor
+    def do_nothing():
+        pass
+
+    # And this actor is declared
+    rabbitmq_broker.declare_actor(do_nothing)
+
+    publish.return_value = False
+    with pytest.raises(MessageNotDelivered):
+        assert do_nothing.send()
+
+    assert publish.call_count == 6
 
 
 def test_rabbitmq_connections_can_be_deleted_multiple_times(rabbitmq_broker):

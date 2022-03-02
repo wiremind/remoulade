@@ -60,6 +60,10 @@ class ConnectionClosed(ConnectionError):
     """Raised when a broker connection is suddenly closed."""
 
 
+class MessageNotDelivered(ConnectionError):
+    """Raised when a message has not been delivered."""
+
+
 class RateLimitExceeded(RemouladeError):
     """Raised when a rate limit has been exceeded."""
 
