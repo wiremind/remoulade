@@ -5,6 +5,13 @@ Changelog
 
 All notable changes to this project will be documented in this file.
 
+`0.43.1`_ -- 2022-03-02
+-----------------------
+Fixed
+^^^^^
+* RabbitMQ: check message confirmation when confirm_delivery=True
+* dependencies: allow for bigger flask version
+
 
 `0.43.0`_ -- 2022-02-02
 -----------------------

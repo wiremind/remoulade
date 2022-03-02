@@ -25,7 +25,7 @@ from typing_extensions import Final
 
 from ..broker import Broker, Consumer, MessageProxy
 from ..common import current_millis
-from ..errors import ChannelPoolTimeout, ConnectionClosed, QueueJoinTimeout
+from ..errors import ChannelPoolTimeout, ConnectionClosed, MessageNotDelivered, QueueJoinTimeout
 from ..helpers.queues import dq_name, xq_name
 from ..logging import get_logger
 from ..message import Message
@@ -248,10 +248,19 @@ class RabbitmqBroker(Broker):
                     self.queues_declared = True
                 self.logger.debug("Enqueueing message %r on queue %r.", message.message_id, queue_name)
                 with self.channel_pool.acquire() as channel:
-                    channel.basic.publish(
+                    confirmation = channel.basic.publish(
                         exchange="", routing_key=queue_name, body=message.encode(), properties=properties
                     )
+                    if self.confirm_delivery and not confirmation:
+                        raise MessageNotDelivered("Message could not be delivered")
                 return message
+
+            except MessageNotDelivered:
+                attempts += 1
+                if attempts > MAX_ENQUEUE_ATTEMPTS:
+                    raise
+                time.sleep(0.1)  # wait a bit and retry
+                self.logger.debug("Retrying enqueue on message not delivered. [%d/%d]", attempts, MAX_ENQUEUE_ATTEMPTS)
 
             except (AMQPConnectionError, AMQPChannelError) as e:
                 # Delete the channel (and the connection if needed) so that the
