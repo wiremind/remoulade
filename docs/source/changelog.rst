@@ -5,6 +5,12 @@ Changelog
 
 All notable changes to this project will be documented in this file.
 
+`0.43.2`_ -- 2022-03-10
+-----------------------
+Fixed
+^^^^^
+* RedisCancelBackend: consider the message as not cancelled if error while connection to redis
+
 `0.43.1`_ -- 2022-03-02
 -----------------------
 Fixed
