@@ -60,6 +60,8 @@ class RabbitmqBroker(Broker):
         support priority queue in RabbitMQ itself
       channel_pool_size(int): Size of the channel pool
       dead_queue_max_length(int|None): Max size of the dead queue. If None, no max size.
+      delivery_mode(int): 2 (persistent) to wait for message to be flushed to disk for confirmation (safer)
+        or 1 (transient) which don't (faster)
 
     """
 
@@ -72,6 +74,7 @@ class RabbitmqBroker(Broker):
         max_priority: Optional[int] = None,
         channel_pool_size: int = 200,
         dead_queue_max_length: Optional[int] = None,
+        delivery_mode: int = 1,
     ):
         super().__init__(middleware=middleware)
 
@@ -80,6 +83,9 @@ class RabbitmqBroker(Broker):
 
         if dead_queue_max_length is not None and dead_queue_max_length <= 0:
             raise ValueError("dead_queue_max_length must be strictly above 0")
+
+        if delivery_mode not in {1, 2}:
+            raise ValueError("Invalid value for delivery_mode, should be 1 for non-persistent 2, for persistent")
 
         self.url = url or ""
         self.confirm_delivery = confirm_delivery
@@ -92,6 +98,7 @@ class RabbitmqBroker(Broker):
         self.queues_declared = False
         # we need a Lock on self._connection as it can be modified by multiple threads
         self.lock = Lock()
+        self.delivery_mode = delivery_mode
 
     @property
     def connection(self):
@@ -235,7 +242,7 @@ class RabbitmqBroker(Broker):
         """
         queue_name = message.queue_name
         actor = self.get_actor(message.actor_name)
-        properties = {"delivery_mode": 2, "priority": message.options.get("priority", actor.priority)}
+        properties = {"delivery_mode": self.delivery_mode, "priority": message.options.get("priority", actor.priority)}
 
         attempts = 1
         while True:

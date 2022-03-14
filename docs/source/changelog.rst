@@ -5,6 +5,13 @@ Changelog
 
 All notable changes to this project will be documented in this file.
 
+
+`0.43.3`_ -- 2022-03-14
+-----------------------
+Fixed
+^^^^^
+* RabbitMQ: make delivery_mode configurable (set to 1 by default)
+
 `0.43.2`_ -- 2022-03-10
 -----------------------
 Fixed
