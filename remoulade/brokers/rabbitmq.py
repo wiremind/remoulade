@@ -74,7 +74,7 @@ class RabbitmqBroker(Broker):
         max_priority: Optional[int] = None,
         channel_pool_size: int = 200,
         dead_queue_max_length: Optional[int] = None,
-        delivery_mode: int = 1,
+        delivery_mode: int = 2,
     ):
         super().__init__(middleware=middleware)
 
