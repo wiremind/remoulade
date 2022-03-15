@@ -52,7 +52,7 @@ def test_rabbitmq_process_100k_messages_with_cli(benchmark, info_logging, start_
         # The connection error tests have the side-effect of
         # disconnecting this broker so we need to force it to
         # reconnect.
-        broker.channel_pool.clear()
+        broker.clear_channel_pools()
         del broker.connection
 
         for _ in range(100000):
@@ -72,7 +72,7 @@ def test_rabbitmq_process_10k_fib_with_cli(benchmark, info_logging, start_cli):
         # The connection error tests have the side-effect of
         # disconnecting this broker so we need to force it to
         # reconnect.
-        broker.channel_pool.clear()
+        broker.clear_channel_pools()
         del broker.connection
 
         for _ in range(10000):

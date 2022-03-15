@@ -9,6 +9,7 @@ import remoulade
 from remoulade import ActorNotFound, Message, QueueJoinTimeout, Worker
 from remoulade.common import current_millis
 from remoulade.errors import MessageNotDelivered
+from remoulade.results import Results
 
 
 def test_rabbitmq_actors_can_be_sent_messages(rabbitmq_broker, rabbitmq_worker):
@@ -238,8 +239,8 @@ def test_rabbitmq_connections_can_be_deleted_multiple_times(rabbitmq_broker):
 
 
 def test_rabbitmq_channels_can_be_deleted_multiple_times(rabbitmq_broker):
-    rabbitmq_broker.channel_pool.clear()
-    rabbitmq_broker.channel_pool.clear()
+    rabbitmq_broker.clear_channel_pools()
+    rabbitmq_broker.clear_channel_pools()
 
 
 def test_rabbitmq_consumers_ignore_unknown_messages_in_ack_and_nack(rabbitmq_broker):
@@ -321,3 +322,21 @@ def test_rabbitmq_broker_can_enqueue_messages_with_priority(rabbitmq_broker):
         assert message_processing_order == list(reversed(range(max_priority)))
     finally:
         worker.stop()
+
+
+def test_rabbitmq_broker_disable_delivery_confirmation(rabbitmq_broker, rabbitmq_worker, stub_result_backend):
+    rabbitmq_broker.add_middleware(Results(backend=stub_result_backend))
+
+    @remoulade.actor(store_results=True)
+    def do_work():
+        return 1
+
+    rabbitmq_broker.declare_actor(do_work)
+
+    message = do_work.send_with_options(confirm_delivery=False)
+
+    # Then join on the queue
+    rabbitmq_broker.join(do_work.queue_name)
+    rabbitmq_worker.join()
+
+    assert message.result.get() == 1

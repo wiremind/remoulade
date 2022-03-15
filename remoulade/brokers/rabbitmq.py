@@ -16,11 +16,12 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 import time
 from contextlib import contextmanager
+from functools import partial
 from queue import Empty, Full, LifoQueue
 from threading import Lock, local
-from typing import TYPE_CHECKING, List, Optional
+from typing import TYPE_CHECKING, Callable, List, Optional
 
-from amqpstorm import AMQPChannelError, AMQPConnectionError, AMQPError, UriConnection
+from amqpstorm import AMQPChannelError, AMQPConnectionError, AMQPError, Channel, UriConnection
 from typing_extensions import Final
 
 from ..broker import Broker, Consumer, MessageProxy
@@ -94,11 +95,19 @@ class RabbitmqBroker(Broker):
         self._connection = None
         self.queues = {}
         self.state = local()
-        self.channel_pool = ChannelPool(channel_factory=self.channel_factory, pool_size=channel_pool_size)
+        self.channel_pools = {
+            "confirm_delivery": ChannelPool(
+                channel_factory=partial(self.channel_factory, confirm_delivery=True), pool_size=channel_pool_size
+            ),
+            "no_confirm_delivery": ChannelPool(
+                channel_factory=partial(self.channel_factory, confirm_delivery=False), pool_size=channel_pool_size
+            ),
+        }
         self.queues_declared = False
         # we need a Lock on self._connection as it can be modified by multiple threads
         self.lock = Lock()
         self.delivery_mode = delivery_mode
+        self.actor_options.add("confirm_delivery")
 
     @property
     def connection(self):
@@ -120,11 +129,24 @@ class RabbitmqBroker(Broker):
                     pass
             self._connection = None
 
-    def channel_factory(self):
+    def channel_factory(self, confirm_delivery):
         channel = self.connection.channel()
-        if self.confirm_delivery:
+        if confirm_delivery:
             channel.confirm_deliveries()
         return channel
+
+    def get_channel_pool(self, confirm_delivery: bool):
+        if confirm_delivery:
+            return self.channel_pools["confirm_delivery"]
+        return self.channel_pools["no_confirm_delivery"]
+
+    @property
+    def default_channel_pool(self):
+        return self.get_channel_pool(self.confirm_delivery)
+
+    def clear_channel_pools(self):
+        self.channel_pools["confirm_delivery"].clear()
+        self.channel_pools["no_confirm_delivery"].clear()
 
     def close(self) -> None:
         """Close all open RabbitMQ connections."""
@@ -135,7 +157,7 @@ class RabbitmqBroker(Broker):
         except Exception:  # pragma: no cover
             self.logger.debug("Encountered an error while connection.", exc_info=True)
         self._connection = None
-        self.channel_pool.clear()
+        self.clear_channel_pools()
         self.logger.debug("Channels and connections closed.")
 
     def consume(self, queue_name: str, prefetch: int = 1, timeout: int = 5000) -> "_RabbitmqConsumer":
@@ -155,7 +177,7 @@ class RabbitmqBroker(Broker):
             if isinstance(e, AMQPConnectionError):
                 del self.connection
 
-            self.channel_pool.clear()
+            self.clear_channel_pools()
 
             raise ConnectionClosed(e) from None
         return _RabbitmqConsumer(self.connection, queue_name, prefetch, timeout)
@@ -166,7 +188,7 @@ class RabbitmqBroker(Broker):
         Raises:
           AMQPConnectionError or AMQPChannelError: If the underlying channel or connection has been closed.
         """
-        with self.channel_pool.acquire() as channel:
+        with self.default_channel_pool.acquire() as channel:
             for queue_name in self.queues:
                 self._declare_queue(channel, queue_name)
                 self._declare_dq_queue(channel, queue_name)
@@ -243,6 +265,10 @@ class RabbitmqBroker(Broker):
         queue_name = message.queue_name
         actor = self.get_actor(message.actor_name)
         properties = {"delivery_mode": self.delivery_mode, "priority": message.options.get("priority", actor.priority)}
+        confirm_delivery = message.options.get(
+            "confirm_delivery", actor.options.get("confirm_delivery", self.confirm_delivery)
+        )
+        channel_pool = self.get_channel_pool(confirm_delivery)
 
         attempts = 1
         while True:
@@ -254,11 +280,11 @@ class RabbitmqBroker(Broker):
                     self._declare_rabbitmq_queues()
                     self.queues_declared = True
                 self.logger.debug("Enqueueing message %r on queue %r.", message.message_id, queue_name)
-                with self.channel_pool.acquire() as channel:
+                with channel_pool.acquire() as channel:
                     confirmation = channel.basic.publish(
                         exchange="", routing_key=queue_name, body=message.encode(), properties=properties
                     )
-                    if self.confirm_delivery and not confirmation:
+                    if confirm_delivery and not confirmation:
                         raise MessageNotDelivered("Message could not be delivered")
                 return message
 
@@ -275,7 +301,7 @@ class RabbitmqBroker(Broker):
                 if isinstance(e, AMQPConnectionError):
                     del self.connection
 
-                self.channel_pool.clear()
+                self.clear_channel_pools()
 
                 attempts += 1
                 if attempts > MAX_ENQUEUE_ATTEMPTS:
@@ -294,7 +320,7 @@ class RabbitmqBroker(Broker):
           tuple: A triple representing the number of messages in the
           queue, its delayed queue and its dead letter queue.
         """
-        with self.channel_pool.acquire() as channel:
+        with self.default_channel_pool.acquire() as channel:
             queue_response = self._declare_queue(channel, queue_name)
             dq_queue_response = self._declare_dq_queue(channel, queue_name)
             xq_queue_response = self._declare_xq_queue(channel, queue_name)
@@ -312,7 +338,7 @@ class RabbitmqBroker(Broker):
           queue_name(str): The queue to flush.
         """
         for name in (queue_name, dq_name(queue_name), xq_name(queue_name)):
-            with self.channel_pool.acquire() as channel:
+            with self.default_channel_pool.acquire() as channel:
                 channel.queue.purge(name)
 
     def flush_all(self) -> None:
@@ -445,9 +471,9 @@ class ChannelPool:
 
     """
 
-    def __init__(self, channel_factory, *, pool_size):
+    def __init__(self, channel_factory: Callable[[], Channel], *, pool_size: int):
         self._channel_factory = channel_factory
-        self._pool = LifoQueue(pool_size)  # type: LifoQueue
+        self._pool: LifoQueue = LifoQueue(pool_size)
         self._pool_size = pool_size
 
         for _ in range(pool_size):
