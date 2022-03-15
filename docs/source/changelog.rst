@@ -5,6 +5,13 @@ Changelog
 
 All notable changes to this project will be documented in this file.
 
+`0.44.0`_ -- 2022-03-15
+-----------------------
+Added
+^^^^^
+* RabbitMQ: pass delivery confirmation as message option and actor option
+
+
 `0.43.4`_ -- 2022-03-14
 -----------------------
 Fixed
