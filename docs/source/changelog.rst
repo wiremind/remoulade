@@ -5,6 +5,13 @@ Changelog
 
 All notable changes to this project will be documented in this file.
 
+
+`0.45.0`_ -- 2022-03-16
+-----------------------
+Added
+^^^^^
+* RabbitMQ: add transactions support
+
 `0.44.0`_ -- 2022-03-15
 -----------------------
 Added

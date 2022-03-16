@@ -340,3 +340,31 @@ def test_rabbitmq_broker_disable_delivery_confirmation(rabbitmq_broker, rabbitmq
     rabbitmq_worker.join()
 
     assert message.result.get() == 1
+
+
+def test_rabbitmq_broker_can_use_transactions(rabbitmq_broker, rabbitmq_worker):
+    call_count = 0
+
+    @remoulade.actor()
+    def do_work():
+        nonlocal call_count
+        call_count += 1
+
+    rabbitmq_broker.declare_actor(do_work)
+
+    # check than a message is executed
+    with rabbitmq_broker.tx():
+        do_work.send()
+
+    # then enqueue message but raise in the transaction
+    with pytest.raises(ValueError):
+        with rabbitmq_broker.tx():
+            [do_work.send() for _ in range(10)]
+            raise ValueError()
+
+    # Then join on the queue
+    rabbitmq_broker.join(do_work.queue_name)
+    rabbitmq_worker.join()
+
+    # messages have been rollback (but not the one outside the transaction)
+    assert call_count == 1

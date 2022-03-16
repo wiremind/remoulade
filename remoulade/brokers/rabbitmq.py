@@ -250,6 +250,24 @@ class RabbitmqBroker(Broker):
 
         return message
 
+    @contextmanager
+    def tx(self):
+        with self.get_channel_pool(confirm_delivery=False).acquire() as channel:
+            with channel.tx:
+                self.state.channel_with_transaction = channel
+                try:
+                    yield
+                finally:
+                    self.state.channel_with_transaction = None
+
+    @contextmanager
+    def _get_channel(self, confirm_delivery: bool):
+        if getattr(self.state, "channel_with_transaction", None):
+            yield self.state.channel_with_transaction
+        else:
+            with self.get_channel_pool(confirm_delivery).acquire() as channel:
+                yield channel
+
     def _enqueue(self, message: "Message", *, delay: Optional[int] = None) -> "Message":
         """Enqueue a message.
 
@@ -268,7 +286,6 @@ class RabbitmqBroker(Broker):
         confirm_delivery = message.options.get(
             "confirm_delivery", actor.options.get("confirm_delivery", self.confirm_delivery)
         )
-        channel_pool = self.get_channel_pool(confirm_delivery)
 
         attempts = 1
         while True:
@@ -280,7 +297,7 @@ class RabbitmqBroker(Broker):
                     self._declare_rabbitmq_queues()
                     self.queues_declared = True
                 self.logger.debug("Enqueueing message %r on queue %r.", message.message_id, queue_name)
-                with channel_pool.acquire() as channel:
+                with self._get_channel(confirm_delivery) as channel:
                     confirmation = channel.basic.publish(
                         exchange="", routing_key=queue_name, body=message.encode(), properties=properties
                     )

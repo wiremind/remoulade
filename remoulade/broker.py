@@ -14,6 +14,7 @@
 #
 # You should have received a copy of the GNU Lesser General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
+from contextlib import contextmanager
 from queue import Queue
 from typing import TYPE_CHECKING, Dict, Iterable, List, Optional, Set, Type, TypeVar, Union
 
@@ -146,6 +147,10 @@ class Broker:
     @property
     def local(self) -> bool:
         return False
+
+    @contextmanager
+    def tx(self):
+        yield
 
     def emit_before(self, signal, *args, **kwargs):
         for middleware in self.middleware:

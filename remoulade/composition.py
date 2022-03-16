@@ -15,6 +15,7 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 from collections import namedtuple
+from contextlib import nullcontext
 from typing import TYPE_CHECKING, Iterable, List, Optional, Union, cast
 
 from typing_extensions import TypedDict
@@ -136,7 +137,7 @@ class pipeline:
             else:
                 yield child.message_id
 
-    def run(self, *, delay: Optional[int] = None) -> "pipeline":
+    def run(self, *, delay: Optional[int] = None, transaction: bool = False) -> "pipeline":
         """Run this pipeline.
 
         Parameters:
@@ -146,12 +147,13 @@ class pipeline:
         Returns:
           pipeline: Itself.
         """
-        first = self.build()
-        if isinstance(first, list):
-            for message in first:
-                self.broker.enqueue(message, delay=delay)
-        else:
-            self.broker.enqueue(first, delay=delay)
+        with self.broker.tx() if transaction else nullcontext():
+            first = self.build()
+            if isinstance(first, list):
+                for message in first:
+                    self.broker.enqueue(message, delay=delay)
+            else:
+                self.broker.enqueue(first, delay=delay)
         return self
 
     @property
@@ -257,15 +259,17 @@ class group:
             else:
                 yield child.message_id
 
-    def run(self, *, delay: Optional[int] = None) -> "group":
+    def run(self, *, delay: Optional[int] = None, transaction: bool = False) -> "group":
         """Run the actors in this group.
 
         Parameters:
           delay(int): The minimum amount of time, in milliseconds,
             each message in the group should be delayed by.
+          transaction(bool):
         """
-        for message in self.build():
-            self.broker.enqueue(message, delay=delay)
+        with self.broker.tx() if transaction else nullcontext():
+            for message in self.build():
+                self.broker.enqueue(message, delay=delay)
 
         return self
 
