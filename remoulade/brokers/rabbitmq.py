@@ -260,9 +260,13 @@ class RabbitmqBroker(Broker):
                 finally:
                     self.state.channel_with_transaction = None
 
+    @property
+    def _has_transaction(self) -> bool:
+        return bool(getattr(self.state, "channel_with_transaction", None))
+
     @contextmanager
     def _get_channel(self, confirm_delivery: bool):
-        if getattr(self.state, "channel_with_transaction", None):
+        if self._has_transaction:
             yield self.state.channel_with_transaction
         else:
             with self.get_channel_pool(confirm_delivery).acquire() as channel:
@@ -307,7 +311,7 @@ class RabbitmqBroker(Broker):
 
             except MessageNotDelivered:
                 attempts += 1
-                if attempts > MAX_ENQUEUE_ATTEMPTS:
+                if self._has_transaction or attempts > MAX_ENQUEUE_ATTEMPTS:
                     raise
                 time.sleep(0.1)  # wait a bit and retry
                 self.logger.debug("Retrying enqueue on message not delivered. [%d/%d]", attempts, MAX_ENQUEUE_ATTEMPTS)
@@ -321,7 +325,7 @@ class RabbitmqBroker(Broker):
                 self.clear_channel_pools()
 
                 attempts += 1
-                if attempts > MAX_ENQUEUE_ATTEMPTS:
+                if self._has_transaction or attempts > MAX_ENQUEUE_ATTEMPTS:
                     raise ConnectionClosed(e) from None
 
                 self.logger.debug("Retrying enqueue due to closed connection. [%d/%d]", attempts, MAX_ENQUEUE_ATTEMPTS)
