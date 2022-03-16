@@ -91,7 +91,7 @@ setup(
     package_data={"remoulade": ["py.typed"]},
     include_package_data=True,
     install_requires=dependencies,
-    python_requires=">=3.6",
+    python_requires=">=3.7",
     extras_require=extra_dependencies,
     entry_points={
         "console_scripts": [
@@ -103,7 +103,6 @@ setup(
     },
     scripts=["bin/remoulade-gevent"],
     classifiers=[
-        "Programming Language :: Python :: 3.6",
         "Programming Language :: Python :: 3.7",
         "Programming Language :: Python :: 3.8",
         "Programming Language :: Python :: 3.9",
