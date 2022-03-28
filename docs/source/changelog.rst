@@ -5,6 +5,17 @@ Changelog
 
 All notable changes to this project will be documented in this file.
 
+`0.46.0`_ -- 2022-03-28
+-----------------------
+Changed
+^^^^^^^
+* Test python 3.10 and improve linters.
+* Remove deprectaed python 3.6 syntax.
+
+Added
+^^^^^
+* Services: rabbitmq, redis, postgresql URL can be specified through env vars.
+* Add dockerfile for composition example and auto build it.
 
 `0.45.0`_ -- 2022-03-16
 -----------------------
@@ -22,13 +33,11 @@ Added
 ^^^^^
 * RabbitMQ: pass delivery confirmation as message option and actor option
 
-
 `0.43.4`_ -- 2022-03-14
 -----------------------
 Fixed
 ^^^^^
 * RabbitMQ: revert delivery_mode to 2 by default
-
 
 `0.43.3`_ -- 2022-03-14
 -----------------------
@@ -53,7 +62,7 @@ Fixed
 `0.43.0`_ -- 2022-02-02
 -----------------------
 Changed
-^^^^^
+^^^^^^^
 * Prometheus: add option use_default_prometheus_label and DEFAULT_LABEL to reduce cardinality
 * Prometheus: only declare metrics for actors which are executed by the worker
 
@@ -78,7 +87,7 @@ Changed
 `0.42.3`_ -- 2021-11-09
 -----------------------
 Changed
-^^^^^
+^^^^^^^
 * api: /messages/requeue route is now POST instead of GET
 * api: /messages/requeue route will now return 400 status code if there is a State middleware and the given id does not match any message's id
 * api: trying to enqueue a message or add or update a scheduled job with an actor name that doesn't match an existing actor's name will return a 400 status code
@@ -147,13 +156,13 @@ Added
 `0.39.3`_ -- 2021-09-21
 -----------------------
 Changed
-^^^^^
+^^^^^^^
 * state: the 'Pending' state will now be saved before enqueueing instead of after. If the enqueue fails, the state will be marked as failed after the enqueueing.
 
 `0.39.2`_ -- 2021-09-20
 -----------------------
 Changed
-^^^^^
+^^^^^^^
 * middleware: when adding a middleware to a broker that already has a middleware of this type, it will now replace the middleware.
 
 `0.39.1`_ -- 2021-09-17
@@ -306,7 +315,7 @@ Fixed
 `0.31.0`_ -- 2021-07-26
 -----------------------
 Changed
-^^^^^
+^^^^^^^
 * Middleware : The value of all broker and middleware options are now obtained with the middleware get_option_value method
 * Middleware : The value returned is from higher to lower priority : message option, actor decorator option, broker option and default value.
 * Middleware : It is now possible to send any option with either message, actor or broker when it makes sense
@@ -894,6 +903,14 @@ Fixed
 .. _#84: https://github.com/wiremind/remoulade/issues/84
 .. _#77: https://github.com/wiremind/remoulade/issues/77
 
+.. _0.46.0: https://github.com/wiremind/remoulade/releases/tag/v0.46.0
+.. _0.45.0: https://github.com/wiremind/remoulade/releases/tag/v0.45.0
+.. _0.44.0: https://github.com/wiremind/remoulade/releases/tag/v0.44.0
+.. _0.43.4: https://github.com/wiremind/remoulade/releases/tag/v0.43.4
+.. _0.43.3: https://github.com/wiremind/remoulade/releases/tag/v0.43.3
+.. _0.43.2: https://github.com/wiremind/remoulade/releases/tag/v0.43.2
+.. _0.43.1: https://github.com/wiremind/remoulade/releases/tag/v0.43.1
+.. _0.43.0: https://github.com/wiremind/remoulade/releases/tag/v0.43.0
 .. _0.42.6: https://github.com/wiremind/remoulade/releases/tag/v0.42.6
 .. _0.42.5: https://github.com/wiremind/remoulade/releases/tag/v0.42.5
 .. _0.42.4: https://github.com/wiremind/remoulade/releases/tag/v0.42.4
