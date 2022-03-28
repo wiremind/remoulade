@@ -1,15 +1,13 @@
 # Remoulade Composition Example
+
 __
 This example demonstrates how to use Remoulade's high level composition
 abstractions.
 
 ## Running the Example
 
-1. Install [Docker][docker].
-1. In a terminal window, run `docker-compose up` to run the RabbitMQ and Redis services.
-1. Install remoulade and requests: `pip install -r requirements.txt`.
-1. In a separate terminal window, run the workers: `remoulade example`.
-1. In another terminal, run the example with multiple URLs as argument, for example : `python -m example https://google.com https://rabbitmq.com https://redis.io`.
-
-
-[docker]: https://docs.docker.com/engine/install/
+- Install [Docker][https://docs.docker.com/engine/install/].
+- In a terminal window, run `docker-compose -f compose/docker-compose.yml up` to run the RabbitMQ and Redis services.
+- Install this example, ideally in a virtual env: `cd examples/composition && pip install -e .`.
+- In a separate terminal window, run the worker (defined as entry_point): `composition_worker`.
+- In another terminal, run the example with multiple URLs as argument, for example : `composition_ask_count_words https://google.com https://rabbitmq.com https://redis.io`.
