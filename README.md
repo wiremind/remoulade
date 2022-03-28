@@ -82,7 +82,6 @@ Super easy to use !.
 remoulade is licensed under the LGPL.  Please see [COPYING] and
 [COPYING.LESSER] for licensing details.
 
-
 [COPYING.LESSER]: https://github.com/wiremind/remoulade/blob/master/COPYING.LESSER
 [COPYING]: https://github.com/wiremind/remoulade/blob/master/COPYING
 [RabbitMQ]: https://www.rabbitmq.com/
