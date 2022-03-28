@@ -67,7 +67,7 @@ setup(
     name="remoulade",
     version=version,
     author="Wiremind",
-    author_email="dev@wiremind.fr",
+    author_email="dev@wiremind.io",
     description="Background Processing for Python 3.",
     long_description=long_description,
     long_description_content_type="text/markdown",
