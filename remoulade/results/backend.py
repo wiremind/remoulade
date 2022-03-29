@@ -133,7 +133,7 @@ class ResultBackend:
             return error
         return result.result
 
-    def increment_group_completion(self, group_id: str, message_id: str) -> int:
+    def increment_group_completion(self, group_id: str, message_id: str, ttl: int) -> int:
         raise NotImplementedError(f"{type(self).__name__} does not implement increment_group_completion()")
 
     def store_result(self, message_id: str, result: BackendResult, ttl: int) -> None:
@@ -199,6 +199,10 @@ class ResultBackend:
     @staticmethod
     def build_group_completion_key(group_id: str) -> str:
         return f"remoulade-group-completion:{group_id}"
+
+    def delete_group_completion(self, group_id: str):
+        key = self.build_group_completion_key(group_id)
+        self._delete(key)
 
     def _get(self, message_key: str, forget: bool = False) -> Union[Type[Missing], Dict]:  # pragma: no cover
         """Get a result from the backend.  Subclasses may implement
