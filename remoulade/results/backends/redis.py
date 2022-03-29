@@ -129,13 +129,11 @@ class RedisBackend(ResultBackend):
     def _delete(self, key):
         self.client.delete(key)
 
-    def increment_group_completion(self, group_id: str, message_id: str) -> int:
-        # there should be a ttl
-        ttl = 600  # 10 min ?
+    def increment_group_completion(self, group_id: str, message_id: str, ttl: int) -> int:
         group_completion_key = self.build_group_completion_key(group_id)
         with self.client.pipeline() as pipe:
             pipe.sadd(group_completion_key, message_id)
-            pipe.expire(group_completion_key, ttl)
+            pipe.pexpire(group_completion_key, ttl)
             pipe.scard(group_completion_key)
             group_completion = pipe.execute()[2]
 

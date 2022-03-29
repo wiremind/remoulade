@@ -53,7 +53,7 @@ class StubBackend(ResultBackend):
     def _delete(self, key: str):
         del self.results[key]
 
-    def increment_group_completion(self, group_id: str, message_id: str) -> int:
+    def increment_group_completion(self, group_id: str, message_id: str, ttl: int) -> int:
         group_completion_key = self.build_group_completion_key(group_id)
         completed = self.results.get(group_completion_key, set()) | {message_id}
         self.results[group_completion_key] = completed

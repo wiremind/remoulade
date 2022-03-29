@@ -16,6 +16,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 from ..errors import NoResultBackend
 from ..logging import get_logger
+from ..results import Results
 from .middleware import Middleware
 
 
@@ -118,12 +119,13 @@ class Pipelines(Middleware):
             NoResultBackend: if there is no result backend set
         """
         try:
-            result_backend = broker.get_result_backend()
+            results = broker.get_middleware(Results)
         except NoResultBackend as e:
             raise NoResultBackend("Pipeline with groups are ony supported with a result backend") from e
 
-        with result_backend.retry(broker, message, self.logger):
-            group_completion = result_backend.increment_group_completion(group_info.group_id, message.message_id)
+        with results.backend.retry(broker, message, self.logger):
+            ttl = results.get_option("result_ttl", broker=broker, message=message)
+            group_completion = results.backend.increment_group_completion(group_info.group_id, message.message_id, ttl)
         group_competed = group_completion >= group_info.children_count
         if group_competed:
             self.logger.info("Finished group %s.", group_info.group_id)

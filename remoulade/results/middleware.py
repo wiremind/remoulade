@@ -128,6 +128,7 @@ class Results(Middleware):
             message_ids = self.backend.get_group_message_ids(group_info.group_id)
             self.backend.forget_results(message_ids, self.result_ttl)
             self.backend.delete_group_message_ids(group_info.group_id)
+            self.backend.delete_group_completion(group_info.group_id)
 
     def before_build_group_pipeline(self, _, group_id, message_ids):
         self.backend.set_group_message_ids(group_id, message_ids, self.result_ttl)

@@ -5,6 +5,12 @@ Changelog
 
 All notable changes to this project will be documented in this file.
 
+`0.46.2`_ -- 2022-03-29
+-----------------------
+Fix
+^^^
+* Group completion: use ttl from message
+
 `0.46.1`_ -- 2022-03-28
 -----------------------
 Fixed
