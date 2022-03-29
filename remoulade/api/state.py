@@ -17,7 +17,7 @@ class DeleteSchema(Schema):
     Class to validate delete body data in /messages/states
     """
 
-    max_age = fields.Int(allow_none=True)
+    max_age = fields.Int(allow_none=True, missing=None)
     not_started = fields.Bool(missing=False)
 
 
@@ -29,19 +29,20 @@ class StatesParamsSchema(Schema):
     sort_column = fields.Str(
         allow_none=True,
         validate=validate.OneOf([field for field in State._fields if field not in ["args", "kwargs", "options"]]),
+        missing=None
     )
-    sort_direction = fields.Str(allow_none=True, validate=validate.OneOf(["asc", "desc"]))
-    size = fields.Int(allow_none=True, validate=validate.Range(min=1, max=1000))
+    sort_direction = fields.Str(allow_none=True, validate=validate.OneOf(["asc", "desc"]), missing=None)
+    size = fields.Int(allow_none=True, validate=validate.Range(min=1, max=1000), missing=None)
     offset = fields.Int(missing=0)
-    selected_actors = fields.List(fields.String, allow_none=True)
+    selected_actors = fields.List(fields.String, allow_none=True, missing=None)
     selected_statuses = fields.List(
         fields.String(validate=validate.OneOf([status.name for status in StateStatusesEnum])),
-        allow_none=True,
+        allow_none=True, missing=None
     )
-    selected_message_ids = fields.List(fields.String, allow_none=True)
-    selected_composition_ids = fields.List(fields.String, allow_none=True)
-    start_datetime = fields.DateTime(allow_none=True)
-    end_datetime = fields.DateTime(allow_none=True)
+    selected_message_ids = fields.List(fields.String, allow_none=True, missing=None)
+    selected_composition_ids = fields.List(fields.String, allow_none=True, missing=None)
+    start_datetime = fields.DateTime(allow_none=True, missing=None)
+    end_datetime = fields.DateTime(allow_none=True, missing=None)
 
     @validates_schema
     def validate_sort(self, data, **kwargs):
