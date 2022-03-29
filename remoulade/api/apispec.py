@@ -9,7 +9,11 @@ from flask_apispec import FlaskApiSpec, use_kwargs
 def validate_schema(schema):
     def decorator(func):
         def wrapper(*args, **kwargs):
-            res = schema().load(request.get_json() or {})
+            if request.is_json and request.content_length and request.content_length > 0:
+                body = request.get_json()
+            else:
+                body = {}
+            res = schema().load(body)
             return func(*args, **res, **kwargs)
 
         return use_kwargs(schema, apply=False)(update_wrapper(wrapper, func))

@@ -5,6 +5,13 @@ Changelog
 
 All notable changes to this project will be documented in this file.
 
+`0.46.1`_ -- 2022-03-28
+-----------------------
+Fixed
+^^^^^
+* apisepc: validate only if request is actually json and not empty.
+* tests: test_rabbitmq_cli: use test rabbitmq_broker instead of real rabbitmq broker.
+
 `0.46.0`_ -- 2022-03-28
 -----------------------
 Changed
