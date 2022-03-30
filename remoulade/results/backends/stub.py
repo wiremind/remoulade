@@ -15,7 +15,7 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 import time
-from typing import Any, Dict, Set
+from typing import Any, Dict
 
 from ..backend import ForgottenResult, Missing, ResultBackend
 
@@ -30,7 +30,6 @@ class StubBackend(ResultBackend):
     """
 
     results: Dict[str, Any] = {}
-    group_completions: Dict[str, Set[str]] = {}
 
     def _get(self, message_key: str, forget: bool = False):
         if forget:
@@ -51,7 +50,10 @@ class StubBackend(ResultBackend):
             self.results[message_key] = (result_data, expiration)
 
     def _delete(self, key: str):
-        del self.results[key]
+        try:
+            del self.results[key]
+        except KeyError:
+            pass
 
     def increment_group_completion(self, group_id: str, message_id: str, ttl: int) -> int:
         group_completion_key = self.build_group_completion_key(group_id)
