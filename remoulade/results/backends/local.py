@@ -33,7 +33,10 @@ class LocalBackend(ResultBackend):
             self.results[message_key] = result
 
     def _delete(self, key: str):
-        del self.results[key]
+        try:
+            del self.results[key]
+        except KeyError:
+            pass
 
     def increment_group_completion(self, group_id: str, message_id: str, ttl: int) -> int:
         group_completion_key = self.build_group_completion_key(group_id)
