@@ -1,7 +1,7 @@
 import time
 from threading import Event
 from unittest import mock
-from unittest.mock import Mock
+from unittest.mock import Mock, call
 
 import pytest
 
@@ -368,3 +368,22 @@ def test_rabbitmq_broker_can_use_transactions(rabbitmq_broker, rabbitmq_worker):
 
     # messages have been rollback (but not the one outside the transaction)
     assert call_count == 1
+
+
+@mock.patch("remoulade.brokers.rabbitmq.RabbitmqBroker._get_channel")
+@pytest.mark.confirm_delivery(True)
+@pytest.mark.group_transaction(True)
+def test_rabbitmq_broker_delivery_confirmation_and_group_transaction(mocked_channel, rabbitmq_broker, rabbitmq_worker):
+    @remoulade.actor()
+    def do_work():
+        return 1
+
+    rabbitmq_broker.declare_actor(do_work)
+
+    do_work.send()
+    assert mocked_channel.call_count == 1
+    assert mocked_channel.call_args == call(True)
+
+    remoulade.group([do_work.message()]).run()
+    assert mocked_channel.call_count == 2
+    assert mocked_channel.call_args == call(False)

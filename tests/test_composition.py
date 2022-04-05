@@ -2,7 +2,7 @@ import threading
 import time
 from threading import Condition
 from unittest import mock
-from unittest.mock import patch
+from unittest.mock import patch, call
 
 import pytest
 
@@ -654,3 +654,51 @@ def test_composition_id_override(stub_broker, do_work):
     assert group_messages[0].options["pipe_target"][0]["options"]["composition_id"] == "id"
     pipeline_messages = pipeline([group([do_work.message(), do_work.message()])]).build(composition_id="id")
     assert all(message.options["composition_id"] == "id" for message in pipeline_messages)
+
+
+@mock.patch("remoulade.brokers.rabbitmq.RabbitmqBroker._get_channel")
+@pytest.mark.confirm_delivery(True)
+@pytest.mark.group_transaction(True)
+def test_pipeline_with_delivery_confirmation_and_group_transaction(mocked_channel, rabbitmq_broker, rabbitmq_worker):
+    @remoulade.actor(pipe_ignore=True)
+    def do_work():
+        return 42
+
+    # And this actor is declared
+    rabbitmq_broker.declare_actor(do_work)
+
+    # When I pipe some messages intended for that actor together and run the pipeline
+    pipe = do_work.message() | do_work.message()
+    pipe.build()
+
+    pipe.run()
+    assert mocked_channel.call_count == 1
+    assert mocked_channel.call_args == call(False)
+
+    pipe.run(transaction=False)
+    assert mocked_channel.call_count == 2
+    assert mocked_channel.call_args == call(True)
+
+
+@mock.patch("remoulade.brokers.rabbitmq.RabbitmqBroker._get_channel")
+@pytest.mark.confirm_delivery(True)
+@pytest.mark.group_transaction(True)
+def test_group_with_delivery_confirmation_and_group_transaction(mocked_channel, rabbitmq_broker, rabbitmq_worker):
+    @remoulade.actor()
+    def do_work():
+        return 42
+
+    # And this actor is declared
+    rabbitmq_broker.declare_actor(do_work)
+
+    # And I've run a group
+    messages = [do_work.message()]
+    g = group(messages)
+
+    g.run()
+    assert mocked_channel.call_count == 1
+    assert mocked_channel.call_args == call(False)
+
+    g.run(transaction=False)
+    assert mocked_channel.call_count == 2
+    assert mocked_channel.call_args == call(True)

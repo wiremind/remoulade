@@ -5,6 +5,17 @@ Changelog
 
 All notable changes to this project will be documented in this file.
 
+`0.47.0`_ -- 2022-04-05
+-----------------------
+Changed
+^^^^^
+* compositions: transaction parameter becomes optional to use default broker one by default
+
+Added
+^^^^^
+* RabbitMQ: add group_transaction parameter to use transaction for pipelines and group
+* RabbitMQ: do not use confirm_delivery during transaction
+
 `0.46.2`_ -- 2022-03-29
 -----------------------
 Fix

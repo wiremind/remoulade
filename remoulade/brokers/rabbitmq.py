@@ -64,6 +64,7 @@ class RabbitmqBroker(Broker):
       dead_queue_max_length(int|None): Max size of the dead queue. If None, no max size.
       delivery_mode(int): 2 (persistent) to wait for message to be flushed to disk for confirmation (safer)
         or 1 (transient) which don't (faster)
+      group_transaction(bool): If true, use transactions by default when running group and pipelines
 
     """
 
@@ -77,6 +78,7 @@ class RabbitmqBroker(Broker):
         channel_pool_size: int = 200,
         dead_queue_max_length: Optional[int] = None,
         delivery_mode: int = 2,
+        group_transaction: bool = False,
     ):
         super().__init__(middleware=middleware)
 
@@ -107,6 +109,7 @@ class RabbitmqBroker(Broker):
         self.queues_declared = False
         # we need a Lock on self._connection as it can be modified by multiple threads
         self.lock = Lock()
+        self.group_transaction = group_transaction
         self.delivery_mode = delivery_mode
         self.actor_options.add("confirm_delivery")
 
@@ -288,8 +291,9 @@ class RabbitmqBroker(Broker):
         queue_name = message.queue_name
         actor = self.get_actor(message.actor_name)
         properties = {"delivery_mode": self.delivery_mode, "priority": message.options.get("priority", actor.priority)}
-        confirm_delivery = message.options.get(
-            "confirm_delivery", actor.options.get("confirm_delivery", self.confirm_delivery)
+        confirm_delivery = (
+            message.options.get("confirm_delivery", actor.options.get("confirm_delivery", self.confirm_delivery))
+            and not self._has_transaction
         )
 
         attempts = 1

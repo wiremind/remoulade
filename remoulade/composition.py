@@ -137,7 +137,7 @@ class pipeline:
             else:
                 yield child.message_id
 
-    def run(self, *, delay: Optional[int] = None, transaction: bool = False) -> "pipeline":
+    def run(self, *, delay: Optional[int] = None, transaction: Optional[bool] = None) -> "pipeline":
         """Run this pipeline.
 
         Parameters:
@@ -147,6 +147,7 @@ class pipeline:
         Returns:
           pipeline: Itself.
         """
+        transaction = transaction if transaction is not None else self.broker.group_transaction
         with self.broker.tx() if transaction else nullcontext():
             first = self.build()
             if isinstance(first, list):
@@ -259,7 +260,7 @@ class group:
             else:
                 yield child.message_id
 
-    def run(self, *, delay: Optional[int] = None, transaction: bool = False) -> "group":
+    def run(self, *, delay: Optional[int] = None, transaction: Optional[bool] = None) -> "group":
         """Run the actors in this group.
 
         Parameters:
@@ -267,6 +268,7 @@ class group:
             each message in the group should be delayed by.
           transaction(bool):
         """
+        transaction = transaction if transaction is not None else self.broker.group_transaction
         with self.broker.tx() if transaction else nullcontext():
             for message in self.build():
                 self.broker.enqueue(message, delay=delay)
