@@ -137,6 +137,7 @@ class Broker:
 
         self.actor_options: Set[str] = set()
         self.middleware: "List[Middleware]" = []
+        self.group_transaction = False
 
         if middleware is None:
             middleware = [m() for m in default_middleware]

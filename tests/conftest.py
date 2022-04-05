@@ -85,12 +85,20 @@ def stub_broker():
 
 @pytest.fixture()
 def rabbitmq_broker(request):
-    confirm_delivery = False
-    marker = request.node.get_closest_marker("confirm_delivery")
-    if marker is not None:
-        confirm_delivery = marker.args[0]
+    confirm_delivery = group_transaction = False
+    marker_1 = request.node.get_closest_marker("confirm_delivery")
+    marker_2 = request.node.get_closest_marker("group_transaction")
+    if marker_1 is not None:
+        confirm_delivery = marker_1.args[0]
+    if marker_2 is not None:
+        group_transaction = marker_2.args[0]
     rmq_url = os.getenv("REMOULADE_TEST_RABBITMQ_URL") or "amqp://guest:guest@localhost:5784"
-    broker = RabbitmqBroker(max_priority=10, url=rmq_url, confirm_delivery=confirm_delivery)
+    broker = RabbitmqBroker(
+        max_priority=10,
+        url=rmq_url,
+        confirm_delivery=confirm_delivery,
+        group_transaction=group_transaction
+    )
     check_rabbitmq(broker)
     broker.emit_after("process_boot")
     remoulade.set_broker(broker)

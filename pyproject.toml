@@ -22,4 +22,5 @@ exclude = '''
 [tool.pytest.ini_options]
 markers = [
     "confirm_delivery",
+    "group_transaction",
 ]
