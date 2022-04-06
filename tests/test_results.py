@@ -4,11 +4,13 @@ from unittest import mock
 from unittest.mock import patch
 
 import pytest
+import redis
 
 import remoulade
 from remoulade import Result, CollectionResults
 from remoulade.middleware import Retries
 from remoulade.results import ErrorStored, ResultBackend, ResultMissing, Results, ResultTimeout
+from remoulade.results.backend import ForgottenResult
 from remoulade.results.backends import StubBackend
 from tests.conftest import fast_backoff
 
@@ -482,6 +484,36 @@ def test_retry_if_saving_result_fail(stub_broker, stub_worker):
 
         # The actor has been tried 4 times
         assert len(attempts) == 4
+
+
+@pytest.mark.parametrize("block", [True, False])
+@pytest.mark.parametrize("forget", [True, False])
+@mock.patch("remoulade.results.backends.redis.compute_backoff", fast_backoff)
+def test_redis_get_result_retry_when_fail(redis_result_backend, block, forget):
+    with patch.object(redis_result_backend, "client") as mock_client:
+        mock_client.pipeline.side_effect = redis.ConnectionError()
+        mock_client.brpoplpush.side_effect = redis.ConnectionError()
+        mock_client.rpoplpush.side_effect = redis.TimeoutError()
+
+        with pytest.raises(redis.RedisError):
+            redis_result_backend.get_result("message-id", block=block, forget=forget)
+
+        if block:
+            assert mock_client.brpoplpush.call_count == 4
+        elif forget:
+            assert mock_client.pipeline.call_count == 4
+        else:
+            assert mock_client.rpoplpush.call_count == 4
+
+
+@mock.patch("remoulade.results.backends.redis.compute_backoff", fast_backoff)
+def test_redis_get_result_still_return_result_if_forget_fails(redis_result_backend):
+    with patch.object(redis_result_backend, "client") as mock_client:
+        mock_client.brpoplpush.return_value = redis_result_backend.encoder.encode(ForgottenResult.asdict())
+        mock_client.pipeline.side_effect = redis.ConnectionError()
+        assert redis_result_backend.get_result("message-id", block=True, forget=True) is None
+        assert mock_client.brpoplpush.call_count == 1
+        assert mock_client.pipeline.call_count == 1
 
 
 def test_completed_count_no_messages(stub_broker, result_middleware):

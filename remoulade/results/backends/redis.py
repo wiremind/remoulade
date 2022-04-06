@@ -15,10 +15,12 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 import os
+import time
 from typing import List
 
 import redis
 
+from ...helpers.backoff import BackoffStrategy, compute_backoff
 from ..backend import BackendResult, ForgottenResult, Missing, ResultBackend, ResultMissing, ResultTimeout
 
 
@@ -41,7 +43,18 @@ class RedisBackend(ResultBackend):
     """
 
     def __init__(
-        self, *, namespace="remoulade-results", encoder=None, client=None, url=None, default_timeout=None, **parameters
+        self,
+        *,
+        namespace="remoulade-results",
+        encoder=None,
+        client=None,
+        url=None,
+        default_timeout=None,
+        max_retries=3,
+        min_backoff=500,
+        max_backoff=5000,
+        backoff_strategy: BackoffStrategy = "spread_exponential",
+        **parameters,
     ):
         super().__init__(namespace=namespace, encoder=encoder, default_timeout=default_timeout)
 
@@ -50,6 +63,10 @@ class RedisBackend(ResultBackend):
             parameters["connection_pool"] = redis.ConnectionPool.from_url(url)
 
         self.client = client or redis.Redis(**parameters)
+        self.max_retries = max_retries
+        self.min_backoff = min_backoff
+        self.max_backoff = max_backoff
+        self.backoff_strategy = backoff_strategy
 
     def get_result(self, message_id: str, *, block=False, timeout=None, forget=False, raise_on_error=True):
         """Get a result from the backend.
@@ -78,36 +95,50 @@ class RedisBackend(ResultBackend):
 
         message_key = self.build_message_key(message_id)
         timeout = int(timeout / 1000)
-        if block and timeout > 0:
-            if forget:
-                data = self.client.brpoplpush(message_key, message_key, timeout=timeout)
-                if data:
-                    with self.client.pipeline() as pipe:
-                        pipe.lpushx(message_key, self.encoder.encode(ForgottenResult.asdict()))
-                        pipe.ltrim(message_key, 0, 0)
-                        pipe.execute()
+        deadline = time.monotonic() + timeout
+        retry_count, data = 0, None
+        while data is None:
+            try:
+                if block and timeout > 0:
+                    data = self.client.brpoplpush(message_key, message_key, timeout=timeout)
+                    if forget and data is not None:
+                        with self.client.pipeline() as pipe:
+                            pipe.lpushx(message_key, self.encoder.encode(ForgottenResult.asdict()))
+                            pipe.ltrim(message_key, 0, 0)
+                            pipe.execute()
+
                 else:
-                    data = None
-            else:
-                data = self.client.brpoplpush(message_key, message_key, timeout)
+                    if forget:
+                        with self.client.pipeline() as pipe:
+                            pipe.rpushx(message_key, self.encoder.encode(ForgottenResult.asdict()))
+                            pipe.lpop(message_key)
+                            data = pipe.execute()[1]
+                    else:
+                        data = self.client.rpoplpush(message_key, message_key)
 
-            if data is None:
-                raise ResultTimeout(message_id)
+                if data is None:
+                    if block:
+                        raise ResultTimeout(message_id)
+                    else:
+                        raise ResultMissing(message_id)
 
-        else:
-            if forget:
-                with self.client.pipeline() as pipe:
-                    pipe.rpushx(message_key, self.encoder.encode(ForgottenResult.asdict()))
-                    pipe.lpop(message_key)
-                    data = pipe.execute()[1]
-            else:
-                data = self.client.rpoplpush(message_key, message_key)
-
-        if data is None:
-            if block:
-                raise ResultTimeout(message_id)
-            else:
-                raise ResultMissing(message_id)
+            except (redis.ConnectionError, redis.TimeoutError):
+                # if data is not None, it means the second step of block+forget has failed, we can live without a forget
+                if data is not None:
+                    break
+                if retry_count >= self.max_retries:
+                    raise
+                _, backoff = compute_backoff(
+                    retry_count,
+                    min_backoff=self.min_backoff,
+                    max_backoff=self.max_backoff,
+                    max_retries=self.max_retries,
+                )
+                retry_count += 1
+                time.sleep(backoff / 1000)
+                timeout = deadline - time.monotonic()
+                if block and timeout <= 0:  # do not retry is timeout is expired
+                    raise
 
         result = BackendResult(**self.encoder.decode(data))
         return self.process_result(result, raise_on_error)

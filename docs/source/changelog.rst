@@ -5,6 +5,12 @@ Changelog
 
 All notable changes to this project will be documented in this file.
 
+`0.48.0`_ -- 2022-04-06
+-----------------------
+Changed
+^^^^^^^
+* redis: add retry to get_result by default
+
 `0.47.0`_ -- 2022-04-05
 -----------------------
 Changed

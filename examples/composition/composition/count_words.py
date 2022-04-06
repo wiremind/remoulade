@@ -5,7 +5,7 @@ import argparse
 
 from remoulade import group
 
-from .actors import request, count_words
+from .actors import count_words, request
 
 
 def ask_count_words():
