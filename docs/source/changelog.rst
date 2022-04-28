@@ -5,6 +5,12 @@ Changelog
 
 All notable changes to this project will be documented in this file.
 
+`0.49.0`_ -- 2022-04-28
+-----------------------
+Added
+^^^^^
+* middleware: add remove_middleware method
+
 `0.48.1`_ -- 2022-04-28
 -----------------------
 Fixed

@@ -24,3 +24,4 @@ of those changes to CLEARTYPE SRL.
 | [@aericson](https://github.com/aericson) | André Ericson |
 | [@xdanielsb](https://github.com/xdanielsb) | Daniel Santos |
 | [@simondosda](https://github.com/simondosda) | Simon Dosda |
+| [@ben-natan](https://github.com/ben-natan) | Adrien Bennatan |
