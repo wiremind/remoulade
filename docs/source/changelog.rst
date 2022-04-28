@@ -5,6 +5,12 @@ Changelog
 
 All notable changes to this project will be documented in this file.
 
+`0.48.1`_ -- 2022-04-28
+-----------------------
+Fixed
+^^^^^
+* logging: fix logging level when retrying store_result
+
 `0.48.0`_ -- 2022-04-06
 -----------------------
 Changed
