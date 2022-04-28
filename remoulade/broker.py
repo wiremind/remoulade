@@ -262,6 +262,15 @@ class Broker:
                 return middleware
         return None
 
+    def remove_middleware(self, middleware_class: "Type[M]"):
+        """Removes a middleware object from this broker.
+
+
+        Parameters:
+          middleware_class(Type[Middleware]): The middleware class.
+        """
+        self.middleware = [m for m in self.middleware if not isinstance(m, middleware_class)]
+
     def close(self):
         """Close this broker and perform any necessary cleanup actions."""
 

@@ -123,3 +123,18 @@ def test_duplicate_middleware(stub_broker):
     # Then I should have the same amount of middleware, and the Age Limit middleware should be the new one
     assert len(stub_broker.middleware) == middleware_count
     assert stub_broker.get_middleware(AgeLimit).max_age == 2
+
+
+def test_remove_middleware(stub_broker):
+    # Given that I have a broker with multiple middlewares
+    stub_broker.add_middleware(AgeLimit())
+    stub_broker.add_middleware(ShutdownNotifications())
+    stub_broker.add_middleware(TimeLimit())
+    middleware_count = len(stub_broker.middleware)
+
+    # When I add a middleware that is already added with options
+    stub_broker.remove_middleware(ShutdownNotifications)
+
+    # Then I should have the right amount of middleware, and the ShutdownNotifications middleware should not be there
+    assert len(stub_broker.middleware) == middleware_count - 1
+    assert stub_broker.get_middleware(ShutdownNotifications) is None
