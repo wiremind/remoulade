@@ -233,8 +233,8 @@ class ResultBackend:
             retries = message.options.setdefault("retries_result_backend", 0)
             message.options["retries_result_backend"] = retries + 1
             if retries < 3:
-                logger.error(f"Could not store result of {message}: retrying it", exc_info=True)
+                logger.warning(f"Could not store result of {message}: retrying it", exc_info=True)
                 _, backoff = compute_backoff(retries, min_backoff=500)  # retry after 500ms, 1s, 2s
                 broker.enqueue(message, delay=backoff)
             else:
-                logger.critical(f"Could not store result of {message}: retries exceeded", exc_info=True)
+                logger.error(f"Could not store result of {message}: retries exceeded", exc_info=True)
