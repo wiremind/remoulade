@@ -5,6 +5,13 @@ Changelog
 
 All notable changes to this project will be documented in this file.
 
+`0.50.0`_ -- 2022-05-06
+-----------------------
+Added
+^^^^^
+* middleware: add an extra_default_middleware array for middleware that need to be instantiated before
+any broker exists
+
 `0.49.0`_ -- 2022-04-28
 -----------------------
 Added
