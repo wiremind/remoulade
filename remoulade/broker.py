@@ -64,6 +64,9 @@ middleware_order = [
     Cancel,
 ]
 
+#: A list of extra middleware that will be added to every new instance of Broker
+extra_default_middleware: "List[Middleware]" = []
+
 
 def get_broker() -> "Broker":
     """Get the global broker instance.  If no global broker is set,
@@ -102,6 +105,38 @@ def change_broker(broker: "Broker") -> None:
     actors = global_broker.actors.values() if global_broker else []
     global_broker = broker
     declare_actors(actors)
+
+
+def add_extra_default_middleware(middleware: "Middleware") -> None:
+    """Configure an extra middleware instance that will be added by default to all new Broker instances.
+    It will also be added to the current global_broker, if it exists.
+
+    Parameters:
+      middleware(Middleware): The middleware to add.
+    """
+    global extra_default_middleware
+    extra_default_middleware.append(middleware)
+
+    try:
+        get_broker().add_middleware(middleware)
+    except ValueError:
+        pass
+
+
+def remove_extra_default_middleware(middleware_class: "Type[Middleware]") -> None:
+    """Remove an extra default middleware so that it won't be added to new Broker instances.
+    It will also be removed from the current global_broker, if it exists.
+
+    Parameters:
+        middleware_class(Type[Middleware]): The middleware class.
+    """
+    global extra_default_middleware
+    extra_default_middleware = [m for m in extra_default_middleware if not isinstance(m, middleware_class)]
+
+    try:
+        get_broker().remove_middleware(middleware_class)
+    except ValueError:
+        pass
 
 
 def declare_actors(actors: "Iterable[Actor]") -> None:
@@ -143,6 +178,9 @@ class Broker:
             middleware = [m() for m in default_middleware]
 
         for m in middleware:
+            self.add_middleware(m)
+
+        for m in extra_default_middleware:
             self.add_middleware(m)
 
     @property
