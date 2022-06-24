@@ -2,7 +2,7 @@ import threading
 import time
 from threading import Condition
 from unittest import mock
-from unittest.mock import patch, call
+from unittest.mock import call, patch
 
 import pytest
 
@@ -706,3 +706,60 @@ def test_group_with_delivery_confirmation_and_group_transaction(mocked_channel, 
     g.run(transaction=False)
     assert mocked_channel.call_count == 2
     assert mocked_channel.call_args == call(True)
+
+
+def test_pipeline_pipe_on_error(stub_broker, stub_worker, stub_result_backend):
+    # Given a result backend
+    # And a broker with the results middleware
+    stub_broker.add_middleware(Results(backend=stub_result_backend))
+
+    @remoulade.actor(pipe_on_error=True, store_results=True)
+    def do_raise():
+        raise MemoryError("BOOM")
+
+    @remoulade.actor(store_results=True)
+    def rcv_error(data):
+        return data
+
+    # And this actor is declared
+    stub_broker.declare_actor(do_raise)
+    stub_broker.declare_actor(rcv_error)
+
+    pipe = pipeline([do_raise.message(), rcv_error.message()])
+    pipe.run()
+
+    stub_broker.join(do_raise.queue_name)
+    stub_broker.join(rcv_error.queue_name)
+    stub_worker.join()
+
+    assert pipe.result.get(block=True, raise_on_error=False) == "MemoryError('BOOM')"
+
+
+def test_complex_pipeline_pipe_on_error(stub_broker, stub_worker, stub_result_backend):
+    # Given a result backend
+    # And a broker with the results middleware
+    stub_broker.add_middleware(Results(backend=stub_result_backend))
+
+    @remoulade.actor(pipe_on_error=True, store_results=True)
+    def do_one():
+        return 1
+
+    @remoulade.actor(pipe_on_error=True, store_results=True)
+    def do_raise():
+        raise MemoryError("BOOM")
+
+    @remoulade.actor(store_results=True)
+    def rcv_error(data):
+        return data
+
+    # And this actor is declared
+    stub_broker.declare_actor(do_one)
+    stub_broker.declare_actor(do_raise)
+    stub_broker.declare_actor(rcv_error)
+
+    pipe = pipeline([group([do_one.message(), do_raise.message(), do_one.message()]), rcv_error.message()])
+    pipe.run()
+
+    stub_worker.join()
+
+    assert pipe.result.get(block=True, raise_on_error=False) == [1, "MemoryError('BOOM')", 1]
