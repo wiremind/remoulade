@@ -67,9 +67,17 @@ class Results(Middleware):
         return {"store_results", "result_ttl"}
 
     def after_process_message(self, broker, message, *, result=None, exception=None):
+        from ..middleware import Pipelines
+
         store_results = self.get_option("store_results", broker=broker, message=message)
         result_ttl = self.get_option("result_ttl", broker=broker, message=message)
         message_failed = getattr(message, "failed", False)
+        try:
+            pipe_on_error: bool = broker.get_middleware(Pipelines).get_option(
+                "pipe_on_error", broker=broker, message=message
+            )
+        except:  # noqa
+            pipe_on_error = False
 
         results = []
         if store_results:
@@ -80,7 +88,7 @@ class Results(Middleware):
                 results.append((message.message_id, BackendResult(result=None, error=error_str)))
 
         # even if the actor do not have store_results, we need to invalidate the messages in the pipeline that has it
-        if message_failed:
+        if message_failed and not pipe_on_error:
             error_str = self._serialize_exception(exception)
             exception = ParentFailed(f"{message} failed because of {error_str}")
             children_result = BackendResult(result=None, error=self._serialize_exception(exception))
