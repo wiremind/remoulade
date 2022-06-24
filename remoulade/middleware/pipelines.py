@@ -29,36 +29,49 @@ class Pipelines(Middleware):
         actor in the pipeline.
       pipe_target(dict): A message representing the actor the current
         result should be fed into.
+      pipe_on_error(bool): When True, pipe errors to next actor in line.
     """
 
     def __init__(self):
         self.logger = get_logger(__name__, type(self))
+        self.pipe_on_error: bool = False
 
     @property
     def actor_options(self):
         return {
             "pipe_ignore",
             "pipe_target",
+            "pipe_on_error",
         }
 
     def after_process_message(self, broker, message, *, result=None, exception=None):
         from ..composition import GroupInfo
 
-        if exception is not None or getattr(message, "failed", False):
-            return
-
         pipe_target = self.get_option("pipe_target", broker=broker, message=message)
         group_info = self.get_option("group_info", broker=broker, message=message)
+
         if group_info:
             group_info = GroupInfo(**group_info)
 
         if pipe_target is not None:
+            res = None
+            pipe_on_error: bool = self.get_option("pipe_on_error", broker=broker, message=message)
+
+            if exception is None:
+                res = result
+            # Error handling: we want to pipe only on message.failed == True (end of retry)
+            elif pipe_on_error and getattr(message, "failed", False):
+                res = Results._serialize_exception(exception)
+            else:
+                # If we have an exception we do not want to pipe (<=> pipe_on_error == False)
+                # and exception is not None
+                return
 
             try:
                 if group_info and not self._group_completed(message, group_info, broker):
                     return
 
-                self._send_next_message(pipe_target, broker, result, group_info)
+                self._send_next_message(pipe_target, broker, res, group_info, raise_on_error=not pipe_on_error)
 
                 broker.emit_after("enqueue_pipe_target", group_info)
 
@@ -66,7 +79,7 @@ class Pipelines(Middleware):
                 self.logger.error(str(e))
                 message.fail()
 
-    def _send_next_message(self, pipe_target, broker, result, group_info):
+    def _send_next_message(self, pipe_target, broker, result, group_info, raise_on_error: bool):
         """Send a message to the pipe target (if it's a list to all the pipe targets)
 
         If it's a group, we need to get the result of each actor from the result backend because it's not present in
@@ -89,15 +102,16 @@ class Pipelines(Middleware):
 
             if not pipe_ignore:
                 if group_info:
-                    result = self._group_results(group_info, broker)
+                    result = self._group_results(group_info, broker, raise_on_error)
                 next_message = next_message.copy(args=next_message.args + (result,))
 
             broker.enqueue(next_message)
 
     @staticmethod
-    def _group_results(group_info, broker):
+    def _group_results(group_info, broker, raise_on_error: bool = True):
         """Get the result of a group (fetch the group members message_ids then all the results)"""
         from ..collection_results import CollectionResults
+        from ..results.errors import ErrorStored
 
         try:
             result_backend = broker.get_result_backend()
@@ -106,7 +120,8 @@ class Pipelines(Middleware):
 
         message_ids = result_backend.get_group_message_ids(group_id=group_info.group_id)
         results = CollectionResults.from_message_ids(message_ids)
-        return list(results.get())
+
+        return [str(r) if isinstance(r, ErrorStored) else r for r in results.get(raise_on_error=raise_on_error)]
 
     def _group_completed(self, message, group_info, broker):
         """Returns true if a group is completed, and increment the completion count of the group

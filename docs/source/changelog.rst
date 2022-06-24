@@ -5,6 +5,13 @@ Changelog
 
 All notable changes to this project will be documented in this file.
 
+`0.51.0`_ -- 2022-06-29
+-----------------------
+Added
+^^^^^
+* middleware/pipeline: add pipe_on_error actor option to send errors/exception
+  to next actor
+
 `0.50.1`_ -- 2022-06-27
 -----------------------
 Fix
