@@ -10,6 +10,7 @@ import remoulade
 from remoulade import CollectionResults, group, pipeline
 from remoulade.results import ErrorStored, MessageIdsMissing, ResultMissing, Results, ResultTimeout
 from remoulade.results.backends import StubBackend
+from tests.common import get_logs
 from tests.conftest import fast_backoff, mock_func
 
 
@@ -621,7 +622,7 @@ def test_pipeline_does_not_continue_to_next_actor_when_message_is_marked_as_fail
 
 
 @mock.patch("remoulade.results.backend.compute_backoff", fast_backoff)
-def test_retry_if_increment_group_completion_fail(stub_broker, stub_worker):
+def test_retry_if_increment_group_completion_fail(stub_broker, stub_worker, caplog):
     with patch.object(StubBackend, "increment_group_completion") as mock_increment_group_completion:
         mock_increment_group_completion.side_effect = Exception("Cannot increment")
         middleware = Results(backend=StubBackend())
@@ -646,6 +647,9 @@ def test_retry_if_increment_group_completion_fail(stub_broker, stub_worker):
 
         # The actor has been tried 8 times (4 time each do_work and never the last one)
         assert len(attempts) == 8
+
+        records = get_logs(caplog, "Unexpected failure in after_process_message")
+        assert len(records) == 0
 
 
 def test_composition_id_override(stub_broker, do_work):
