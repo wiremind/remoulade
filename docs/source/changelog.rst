@@ -5,6 +5,12 @@ Changelog
 
 All notable changes to this project will be documented in this file.
 
+`0.50.1`_ -- 2022-06-27
+-----------------------
+Fix
+^^^
+* Group completion: initialize variable to prevent exception
+
 `0.50.0`_ -- 2022-05-06
 -----------------------
 Added
