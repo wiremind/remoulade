@@ -73,9 +73,22 @@ Visit the [user guide] to see more features!.
 
 ## Dashboard
 
-Checkout [SuperBowl](https://github.com/wiremind/super-bowl) a dashboard for real-time monitoring and administrating all your Remoulade tasks.
+Check out [SuperBowl](https://github.com/wiremind/super-bowl) a dashboard for real-time monitoring and administrating all your Remoulade tasks.
 ***See the current progress, enqueue, requeue, cancel and more ...***
 Super easy to use !.
+
+## Kubernetes
+
+Remoulade is tailored to run transparently in containers on [Kubernetes](https://kubernetes.io/) and to make the most of their features. This does not mean it cannot run outside of Kubernetes ;)
+
+## Monitoring/Prometheus
+
+Remoulade provides a `Prometheus` Middleware that exposes various metrics (processed messages, retries, fails etc.), [Check it out](https://github.com/wiremind/remoulade/blob/master/remoulade/middleware/prometheus.py).
+
+## Tracing/OpenTelemtry
+
+Take a look at [opentelemetry-instrumentation-remoulade](https://github.com/open-telemetry/opentelemetry-python-contrib/tree/main/instrumentation/opentelemetry-instrumentation-remoulade) if you want to enable tracing for Remoulade operations (enqueue, message processing, retries etc.). See [here](https://github.com/open-telemetry/opentelemetry-python-contrib/blob/main/instrumentation/opentelemetry-instrumentation-remoulade/src/opentelemetry/instrumentation/remoulade/__init__.py) for an example.
+The library follows [OpenTelemetry](https://opentelemetry.io/) standards.
 
 ## License
 
