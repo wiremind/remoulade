@@ -71,6 +71,10 @@ class Pipelines(Middleware):
                 if group_info and not self._group_completed(message, group_info, broker):
                     return
 
+                if "trace_ctx" in message.options:
+                    for i in range(len(pipe_target)):
+                        pipe_target[i]["options"]["trace_ctx"] = message.options.get("trace_ctx")
+
                 self._send_next_message(pipe_target, broker, res, group_info, raise_on_error=not pipe_on_error)
 
                 broker.emit_after("enqueue_pipe_target", group_info)

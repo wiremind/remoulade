@@ -5,6 +5,13 @@ Changelog
 
 All notable changes to this project will be documented in this file.
 
+
+`0.53.0`_ -- 2022-07-26
+-----------------------
+Added
+^^^^^
+* middleware/pipeline: propagate trace context (if any) to the next element in pipe_target
+
 `0.52.0`_ -- 2022-07-26
 -----------------------
 Added
