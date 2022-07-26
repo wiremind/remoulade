@@ -5,6 +5,13 @@ Changelog
 
 All notable changes to this project will be documented in this file.
 
+`0.52.0`_ -- 2022-07-26
+-----------------------
+Added
+^^^^^
+* middleware/age_limit: add AgeLimitException and raise it if max_age is
+  exceeded
+
 `0.51.0`_ -- 2022-06-29
 -----------------------
 Added
