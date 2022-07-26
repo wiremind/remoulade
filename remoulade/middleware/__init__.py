@@ -17,7 +17,7 @@
 
 import platform
 
-from .age_limit import AgeLimit
+from .age_limit import AgeLimit, AgeLimitException
 from .catch_error import CatchError
 from .current_message import CurrentMessage
 from .logging_metadata import LoggingMetadata
@@ -45,6 +45,7 @@ __all__ = [
     "raise_thread_exception",
     # Middlewares
     "AgeLimit",
+    "AgeLimitException",
     "CatchError",
     "CurrentMessage",
     "default_middleware",

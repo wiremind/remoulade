@@ -9,6 +9,7 @@ import remoulade
 from remoulade import Message, Middleware
 from remoulade.errors import RateLimitExceeded
 from remoulade.middleware import SkipMessage
+from remoulade.results import Results
 
 from .common import get_logs, worker
 
@@ -277,6 +278,35 @@ def test_actors_retry_for_a_max_time(stub_broker, stub_worker):
 
     # Then I expect at least one attempt to have occurred
     assert sum(attempts) >= 1
+
+
+def test_actors_age_limit_exception(stub_broker, stub_worker, result_backend):
+    @remoulade.actor(store_results=True)
+    def do_sleep():
+        time.sleep(0.3)
+
+    @remoulade.actor(store_results=True, max_age=100, pipe_on_error=True)
+    def do_raise():
+        raise RuntimeError("failure")
+
+    # And a broker with the results middleware
+    stub_broker.add_middleware(Results(backend=result_backend))
+
+    # And this actor is declared
+    stub_broker.declare_actor(do_sleep)
+    stub_broker.declare_actor(do_raise)
+
+    p = remoulade.pipeline([do_sleep.message(), do_raise.message()])
+    p.run()
+
+    # And join on the queue
+    stub_broker.join(do_sleep.queue_name)
+    stub_broker.join(do_raise.queue_name)
+    stub_worker.join()
+
+    err = p.result.get(block=True, raise_on_error=False)
+
+    assert "AgeLimitException" in err.message
 
 
 @pytest.mark.skipif(_current_platform == "PyPy", reason="Time limits are not supported under PyPy.")

@@ -17,7 +17,11 @@
 
 from ..common import current_millis
 from ..logging import get_logger
-from .middleware import Middleware
+from .middleware import Middleware, MiddlewareError
+
+
+class AgeLimitException(MiddlewareError):
+    pass
 
 
 class AgeLimit(Middleware):
@@ -46,4 +50,4 @@ class AgeLimit(Middleware):
         if current_millis() - message.message_timestamp >= max_age:
             self.logger.warning("Message %r has exceeded its age limit.", message.message_id)
             message.fail()
-            return
+            raise AgeLimitException(f"Message {message.message_id} has exceeded its age limit {max_age}ms.")
