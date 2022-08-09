@@ -1,4 +1,7 @@
+import pytest
+
 from remoulade.state import State, StateStatusesEnum
+from remoulade.state.backends import RedisBackend
 
 
 class TestStateBackend:
@@ -30,6 +33,9 @@ class TestStateBackend:
         assert backend.get_states_count() == 3
 
     def test_count_compositions(self, stub_broker, state_middleware):
+        if isinstance(state_middleware.backend, RedisBackend):
+            pytest.skip()
+
         backend = state_middleware.backend
 
         for i in range(3):
@@ -39,6 +45,8 @@ class TestStateBackend:
         assert backend.get_states_count() == 2
 
     def test_sort_with_offset(self, stub_broker, state_middleware):
+        if isinstance(state_middleware.backend, RedisBackend):
+            pytest.skip()
         backend = state_middleware.backend
         for i in range(8):
             backend.set_state(State(f"id{i}", actor_name=f"{3 + 4 * (i//4) - i%4}"))

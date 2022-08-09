@@ -6,6 +6,13 @@ Changelog
 All notable changes to this project will be documented in this file.
 
 
+`0.54.0`_ -- 2022-08-09
+-----------------------
+Added
+^^^^^
+* state/backend: put back RedisStateBackend
+
+
 `0.53.0`_ -- 2022-07-26
 -----------------------
 Added
@@ -979,6 +986,18 @@ Fixed
 .. _#84: https://github.com/wiremind/remoulade/issues/84
 .. _#77: https://github.com/wiremind/remoulade/issues/77
 
+.. _0.54.0: https://github.com/wiremind/remoulade/releases/tag/v0.54.0
+.. _0.53.0: https://github.com/wiremind/remoulade/releases/tag/v0.53.0
+.. _0.52.0: https://github.com/wiremind/remoulade/releases/tag/v0.52.0
+.. _0.51.0: https://github.com/wiremind/remoulade/releases/tag/v0.51.0
+.. _0.50.1: https://github.com/wiremind/remoulade/releases/tag/v0.50.1
+.. _0.50.0: https://github.com/wiremind/remoulade/releases/tag/v0.50.0
+.. _0.49.0: https://github.com/wiremind/remoulade/releases/tag/v0.49.0
+.. _0.48.1: https://github.com/wiremind/remoulade/releases/tag/v0.48.1
+.. _0.48.0: https://github.com/wiremind/remoulade/releases/tag/v0.48.0
+.. _0.47.0: https://github.com/wiremind/remoulade/releases/tag/v0.47.0
+.. _0.46.2: https://github.com/wiremind/remoulade/releases/tag/v0.46.2
+.. _0.46.1: https://github.com/wiremind/remoulade/releases/tag/v0.46.1
 .. _0.46.0: https://github.com/wiremind/remoulade/releases/tag/v0.46.0
 .. _0.45.0: https://github.com/wiremind/remoulade/releases/tag/v0.45.0
 .. _0.44.0: https://github.com/wiremind/remoulade/releases/tag/v0.44.0

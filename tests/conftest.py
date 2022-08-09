@@ -94,10 +94,7 @@ def rabbitmq_broker(request):
         group_transaction = marker_2.args[0]
     rmq_url = os.getenv("REMOULADE_TEST_RABBITMQ_URL") or "amqp://guest:guest@localhost:5784"
     broker = RabbitmqBroker(
-        max_priority=10,
-        url=rmq_url,
-        confirm_delivery=confirm_delivery,
-        group_transaction=group_transaction
+        max_priority=10, url=rmq_url, confirm_delivery=confirm_delivery, group_transaction=group_transaction
     )
     check_rabbitmq(broker)
     broker.emit_after("process_boot")
@@ -200,6 +197,14 @@ def redis_result_backend():
 
 
 @pytest.fixture
+def redis_state_backend():
+    redis_url = os.getenv("REMOULADE_TEST_REDIS_URL") or "redis://localhost:6481/0"
+    backend = st_backends.RedisBackend(url=redis_url)
+    check_redis(backend.client)
+    return backend
+
+
+@pytest.fixture
 def postgres_state_backend():
     db_string = os.getenv("REMOULADE_TEST_DB_URL") or "postgresql://remoulade@localhost:5544/test"
     backend = st_backends.PostgresBackend(url=db_string)
@@ -208,11 +213,11 @@ def postgres_state_backend():
 
 
 @pytest.fixture
-def state_backends(postgres_state_backend):
-    return {"postgres": postgres_state_backend}
+def state_backends(postgres_state_backend, redis_state_backend):
+    return {"postgres": postgres_state_backend, "redis": redis_state_backend}
 
 
-@pytest.fixture(params=["postgres"])
+@pytest.fixture(params=["postgres", "redis"])
 def state_backend(request, state_backends):
     return state_backends[request.param]
 
