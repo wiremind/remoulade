@@ -10,6 +10,7 @@ except ImportError:  # pragma: no cover
 
 try:
     from .redis import RedisBackend
+    from .stub import StubBackend
 except ImportError:  # pragma: no cover
     import warnings
 
@@ -18,4 +19,4 @@ except ImportError:  # pragma: no cover
         ImportWarning,
     )
 
-__all__ = ["PostgresBackend", "RedisBackend"]
+__all__ = ["PostgresBackend", "RedisBackend", "StubBackend"]

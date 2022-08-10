@@ -1,7 +1,7 @@
 import pytest
 
 from remoulade.state import State, StateStatusesEnum
-from remoulade.state.backends import RedisBackend
+from remoulade.state.backends import PostgresBackend
 
 
 class TestStateBackend:
@@ -33,7 +33,7 @@ class TestStateBackend:
         assert backend.get_states_count() == 3
 
     def test_count_compositions(self, stub_broker, state_middleware):
-        if isinstance(state_middleware.backend, RedisBackend):
+        if not isinstance(state_middleware.backend, PostgresBackend):
             pytest.skip()
 
         backend = state_middleware.backend
@@ -45,7 +45,7 @@ class TestStateBackend:
         assert backend.get_states_count() == 2
 
     def test_sort_with_offset(self, stub_broker, state_middleware):
-        if isinstance(state_middleware.backend, RedisBackend):
+        if not isinstance(state_middleware.backend, PostgresBackend):
             pytest.skip()
         backend = state_middleware.backend
         for i in range(8):

@@ -205,6 +205,11 @@ def redis_state_backend():
 
 
 @pytest.fixture
+def stub_state_backend():
+    return st_backends.StubBackend()
+
+
+@pytest.fixture
 def postgres_state_backend():
     db_string = os.getenv("REMOULADE_TEST_DB_URL") or "postgresql://remoulade@localhost:5544/test"
     backend = st_backends.PostgresBackend(url=db_string)
@@ -213,11 +218,11 @@ def postgres_state_backend():
 
 
 @pytest.fixture
-def state_backends(postgres_state_backend, redis_state_backend):
-    return {"postgres": postgres_state_backend, "redis": redis_state_backend}
+def state_backends(postgres_state_backend, redis_state_backend, stub_state_backend):
+    return {"postgres": postgres_state_backend, "redis": redis_state_backend, "stub": stub_state_backend}
 
 
-@pytest.fixture(params=["postgres", "redis"])
+@pytest.fixture(params=["postgres", "redis", "stub"])
 def state_backend(request, state_backends):
     return state_backends[request.param]
 
