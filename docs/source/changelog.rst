@@ -6,6 +6,11 @@ Changelog
 All notable changes to this project will be documented in this file.
 
 
+`0.54.2`_ -- 2022-08-10
+-----------------------
+Fix
+^^^
+* worker: add a limit to the logged extra when the message fails
 
 `0.54.1`_ -- 2022-08-10
 -----------------------

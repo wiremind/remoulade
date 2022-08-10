@@ -466,7 +466,7 @@ class _WorkerThread(Thread):
             if isinstance(e, RateLimitExceeded):
                 self.logger.warning("Rate limit exceeded in message %s: %s.", message, e, extra=extra)
             else:
-                extra = build_extra(message)
+                extra = build_extra(message, 5000)
                 self.logger.log(
                     logging.ERROR if message.failed else logging.WARNING,
                     "Failed to process message %s with unhandled %s",
