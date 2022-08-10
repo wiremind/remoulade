@@ -6,6 +6,13 @@ Changelog
 All notable changes to this project will be documented in this file.
 
 
+
+`0.54.1`_ -- 2022-08-10
+-----------------------
+Added
+^^^^^
+* state/backend: put back StubStateBackend
+
 `0.54.0`_ -- 2022-08-09
 -----------------------
 Added
@@ -986,6 +993,7 @@ Fixed
 .. _#84: https://github.com/wiremind/remoulade/issues/84
 .. _#77: https://github.com/wiremind/remoulade/issues/77
 
+.. _0.54.1: https://github.com/wiremind/remoulade/releases/tag/v0.54.1
 .. _0.54.0: https://github.com/wiremind/remoulade/releases/tag/v0.54.0
 .. _0.53.0: https://github.com/wiremind/remoulade/releases/tag/v0.53.0
 .. _0.52.0: https://github.com/wiremind/remoulade/releases/tag/v0.52.0
