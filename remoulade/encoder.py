@@ -28,7 +28,7 @@ class Encoder(abc.ABC):
     """Base class for message encoders."""
 
     @abc.abstractmethod
-    def encode(self, data: MessageData) -> bytes:  # pragma: no cover
+    def encode(self, data: Any) -> bytes:  # pragma: no cover
         """Convert message metadata into a bytestring."""
         raise NotImplementedError
 

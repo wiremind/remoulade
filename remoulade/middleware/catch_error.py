@@ -1,3 +1,5 @@
+from typing import Any
+
 from .middleware import Middleware
 
 
@@ -21,7 +23,7 @@ class CatchError(Middleware):
                 actor = broker.get_actor(on_failure)
                 actor.send(message.actor_name, type(exception).__name__, message.args, message.kwargs)
             elif isinstance(on_failure, dict):
-                on_failure_message = Message(**on_failure)
+                on_failure_message: Message[Any] = Message(**on_failure)
                 on_failure_message = on_failure_message.copy(
                     args=[message.actor_name, type(exception).__name__, message.args, message.kwargs]
                 )

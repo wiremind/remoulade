@@ -16,8 +16,9 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 import time
-from collections import namedtuple
-from typing import Dict, Optional, Tuple
+from typing import TYPE_CHECKING, Dict, Generic, Iterable, Optional, Tuple
+
+from typing_extensions import NamedTuple
 
 from remoulade.state import State
 
@@ -26,7 +27,11 @@ from .common import generate_unique_id
 from .composition import pipeline
 from .encoder import Encoder, JSONEncoder
 from .errors import InvalidProgress
-from .result import Result
+from .result import Result, ResultT
+
+if TYPE_CHECKING:
+    from .middleware.middleware import OptionsT
+
 
 #: The global encoder instance.
 global_encoder = JSONEncoder()  # type: Encoder
@@ -53,9 +58,24 @@ def set_encoder(encoder: Encoder) -> None:
     global_encoder = encoder
 
 
-class Message(
-    namedtuple("Message", ("queue_name", "actor_name", "args", "kwargs", "options", "message_id", "message_timestamp"))
-):
+if TYPE_CHECKING:
+    Base = object
+else:
+    Base = NamedTuple(
+        "Message",
+        (
+            ("queue_name", str),
+            ("actor_name", str),
+            ("args", Tuple),
+            ("kwargs", Dict),
+            ("options", "OptionsT"),
+            ("message_id", str),
+            ("message_timestamp", int),
+        ),
+    )
+
+
+class Message(Base, Generic[ResultT]):
     """Encapsulates metadata about messages being sent to individual actors.
 
     Parameters:
@@ -69,18 +89,26 @@ class Message(
         representing when the message was first enqueued.
     """
 
+    queue_name: str
+    actor_name: str
+    args: Tuple
+    kwargs: Dict
+    options: "OptionsT"
+    message_id: str
+    message_timestamp: int
+
     def __new__(
         cls,
         *,
         queue_name: str,
         actor_name: str,
-        args: Tuple,
+        args: Iterable,
         kwargs: Dict,
-        options: Dict,
+        options: "OptionsT",
         message_id: Optional[str] = None,
         message_timestamp: Optional[int] = None,
     ):
-        return super().__new__(
+        return super().__new__(  # type: ignore
             cls,
             queue_name,
             actor_name,
@@ -97,7 +125,7 @@ class Message(
 
     def asdict(self):
         """Convert this message to a dictionary."""
-        return self._asdict()
+        return self._asdict()  # type: ignore
 
     @classmethod
     def decode(cls, data):
@@ -106,16 +134,16 @@ class Message(
 
     def encode(self):
         """Convert this message to a bytestring."""
-        return global_encoder.encode(self._asdict())
+        return global_encoder.encode(self.asdict())
 
     def copy(self, **attributes):
         """Create a copy of this message."""
         updated_options = attributes.pop("options", {})
         options = self.options.copy()
         options.update(updated_options)
-        return self._replace(**attributes, options=options)
+        return self._replace(**attributes, options=options)  # type: ignore
 
-    def build(self, options):
+    def build(self, options: "OptionsT"):
         """Build message for pipeline"""
         return self.copy(options=options)
 
@@ -140,7 +168,7 @@ class Message(
         backend.set_state(State(self.message_id, progress=progress))
 
     @property
-    def result(self) -> Result:
+    def result(self) -> Result[ResultT]:
         return Result(message_id=self.message_id)
 
     def __str__(self) -> str:

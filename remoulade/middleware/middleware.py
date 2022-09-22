@@ -16,6 +16,13 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 
+from typing import Any, Callable, Dict, Optional, Union
+
+from typing_extensions import TypedDict
+
+from remoulade.helpers.backoff import BackoffStrategy
+
+
 class MiddlewareError(Exception):
     """Base class for middleware errors."""
 
@@ -24,6 +31,33 @@ class SkipMessage(MiddlewareError):
     """An exception that may be raised by Middleware inside the
     ``before_process_message`` hook in order to skip a message.
     """
+
+
+class OptionsT(TypedDict, total=False):
+    confirm_delivery: bool
+    max_age: Union[int, None]
+    on_failure: Union[str, Dict[str, Any]]
+    logging_metadata: Optional[Dict]
+    logging_metadata_getter: Optional[Callable[[], Dict]]
+    pipe_on_error: bool
+    pipe_target: Any
+    pipe_ignore: bool
+    prometheus_label: str
+    use_default_prometheus_label: bool
+    max_retries: Optional[int]
+    min_backoff: Optional[int]
+    max_backoff: Optional[int]
+    retry_when: Optional[Callable[[int, Exception], bool]]
+    backoff_strategy: BackoffStrategy
+    jitter: bool
+    notify_shutdown: bool
+    time_limit: int
+    store_results: bool
+    result_ttl: int
+    composition_id: str
+    eta: int
+    cancel_on_error: bool
+    group_info: Dict[str, Any]
 
 
 class Middleware:

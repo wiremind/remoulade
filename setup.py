@@ -22,7 +22,7 @@ with open(rel("remoulade", "__init__.py")) as f:
         raise RuntimeError("Version marker not found.")
 
 
-dependencies = ["prometheus-client>=0.2", "pytz", "python-dateutil>=2.8.0", "typing-extensions>=3.7"]
+dependencies = ["prometheus-client>=0.2", "pytz", "python-dateutil>=2.8.0", "typing-extensions>=4.3"]
 
 extra_dependencies = {
     "rabbitmq": ["amqpstorm>=2.6,<3"],
@@ -45,7 +45,7 @@ extra_dependencies["dev"] = extra_dependencies["all"] + [
     "flake8-quotes",
     "isort",
     "black==21.7b0",
-    "mypy>=0.930",
+    "mypy>=0.981",
     "sqlalchemy[mypy]",
     "types-redis",
     "types-python-dateutil",

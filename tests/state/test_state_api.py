@@ -124,7 +124,7 @@ class TestMessageStateAPI:
         stub_broker.enqueue = MagicMock()
         stub_broker.join(do_work.queue_name)
         res = api_client.post("/messages", data=json.dumps(data), content_type="application/json")
-        message = Message(
+        message: Message[int] = Message(
             queue_name="default",
             actor_name="do_work",
             args=("1", "2"),
@@ -233,7 +233,7 @@ class TestMessageStateAPI:
         state = State("id1", StateStatusesEnum.Success, actor_name="do_work", options={"time_limit": 1000})
         state_middleware.backend.set_state(state, ttl=1000)
         res = api_client.post("messages/requeue/id1")
-        message = Message(
+        message: Message[int] = Message(
             queue_name="default",
             actor_name="do_work",
             args=(),

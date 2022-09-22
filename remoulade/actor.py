@@ -16,9 +16,9 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 import re
-from typing import TYPE_CHECKING, Any, Callable, Generic, List, Optional, TypeVar, overload
+from typing import TYPE_CHECKING, Any, Callable, Dict, Generic, Iterable, List, Optional, TypeVar, overload
 
-from typing_extensions import Literal, TypedDict
+from typing_extensions import Literal, ParamSpec, TypedDict, Unpack
 
 from .helpers.actor_arguments import get_actor_arguments
 from .logging import get_logger
@@ -26,12 +26,14 @@ from .message import Message
 
 if TYPE_CHECKING:
     from .broker import Broker
+    from .middleware.middleware import OptionsT
 
 
 #: The regular expression that represents valid queue names.
 _queue_name_re = re.compile(r"[a-zA-Z_][a-zA-Z0-9._-]*")
 
-F = TypeVar("F", bound=Callable[..., Any])
+ActorReturnT = TypeVar("ActorReturnT")
+ActorParams = ParamSpec("ActorParams")
 
 
 class ActorDict(TypedDict):
@@ -50,32 +52,32 @@ def actor(
     queue_name: str = "default",
     alternative_queues: Optional[List[str]] = None,
     priority: int = 0,
-    **options: Any,
-) -> "Callable[[F], Actor[F]]":
+    **options: "Unpack[OptionsT]",
+) -> "Callable[[Callable[ActorParams, ActorReturnT]], Actor[ActorParams, ActorReturnT]]":
     ...
 
 
 @overload
 def actor(
-    fn: F,
+    fn: Callable[ActorParams, ActorReturnT],
     *,
     actor_name: Optional[str] = None,
     queue_name: str = "default",
     alternative_queues: Optional[List[str]] = None,
     priority: int = 0,
-    **options: Any,
-) -> "Actor[F]":
+    **options: "Unpack[OptionsT]",
+) -> "Actor[ActorParams, ActorReturnT]":
     ...
 
 
 def actor(
-    fn: Optional[F] = None,
+    fn: Callable[ActorParams, ActorReturnT] = None,
     *,
     actor_name: Optional[str] = None,
     queue_name: str = "default",
     alternative_queues: Optional[List[str]] = None,
     priority: int = 0,
-    **options: Any,
+    **options: "Unpack[OptionsT]",
 ):
     """Declare an actor.
 
@@ -121,7 +123,7 @@ def actor(
       Actor: The decorated function.
     """
 
-    def decorator(fn: F) -> Actor[F]:
+    def decorator(fn: Callable[ActorParams, ActorReturnT]) -> Actor[ActorParams, ActorReturnT]:
         nonlocal actor_name
         actor_name = actor_name or fn.__name__
         queues_names = [queue_name]
@@ -147,7 +149,7 @@ def actor(
     return decorator(fn)
 
 
-class Actor(Generic[F]):
+class Actor(Generic[ActorParams, ActorReturnT]):
     """Thin wrapper around callables that stores metadata about how
     they should be executed asynchronously.  Actors are callable.
 
@@ -165,13 +167,13 @@ class Actor(Generic[F]):
 
     def __init__(
         self,
-        fn: F,
+        fn: Callable[ActorParams, ActorReturnT],
         *,
         actor_name: str,
         queue_name: str,
         alternative_queues: Optional[List[str]],
         priority: int,
-        options: Any,
+        options: "OptionsT",
     ) -> None:
         self.logger = get_logger(fn.__module__, actor_name)
         self.fn = fn
@@ -195,7 +197,7 @@ class Actor(Generic[F]):
     def queue_names(self):
         return [self.queue_name] + (self.alternative_queues or [])
 
-    def message(self, *args, **kwargs) -> Message:
+    def message(self, *args: ActorParams.args, **kwargs: ActorParams.kwargs) -> Message[ActorReturnT]:
         """Build a message.  This method is useful if you want to
         compose actors.  See the actor composition documentation for
         details.
@@ -213,7 +215,14 @@ class Actor(Generic[F]):
         """
         return self.message_with_options(args=args, kwargs=kwargs)
 
-    def message_with_options(self, *, args=None, kwargs=None, queue_name: Optional[str] = None, **options) -> Message:
+    def message_with_options(
+        self,
+        *,
+        args: Iterable = None,
+        kwargs: Dict[str, Any] = None,
+        queue_name: Optional[str] = None,
+        **options: "Unpack[OptionsT]",
+    ) -> Message[ActorReturnT]:
         """Build a message with an arbitrary set of processing options.
         This method is useful if you want to compose actors.  See the
         actor composition documentation for details.
@@ -245,7 +254,7 @@ class Actor(Generic[F]):
             options=options,
         )
 
-    def send(self, *args, **kwargs) -> Message:
+    def send(self, *args: ActorParams.args, **kwargs: ActorParams.kwargs) -> Message[ActorReturnT]:
         """Asynchronously send a message to this actor.
 
         Parameters:
@@ -258,8 +267,14 @@ class Actor(Generic[F]):
         return self.send_with_options(args=args, kwargs=kwargs)
 
     def send_with_options(
-        self, *, args=None, kwargs=None, queue_name: Optional[str] = None, delay=None, **options
-    ) -> Message:
+        self,
+        *,
+        args: Iterable = None,
+        kwargs: Dict[str, Any] = None,
+        queue_name: Optional[str] = None,
+        delay=None,
+        **options: "Unpack[OptionsT]",
+    ) -> Message[ActorReturnT]:
         """Asynchronously send a message to this actor, along with an
         arbitrary set of processing options for the broker and
         middleware.

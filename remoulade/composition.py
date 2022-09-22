@@ -16,7 +16,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 from collections import namedtuple
 from contextlib import nullcontext
-from typing import TYPE_CHECKING, Iterable, List, Optional, Union, cast
+from typing import TYPE_CHECKING, Any, Callable, Generic, Iterable, List, Optional, Type, TypeVar, Union, cast, overload
 
 from typing_extensions import TypedDict
 
@@ -26,7 +26,12 @@ from .common import flatten, generate_unique_id
 
 if TYPE_CHECKING:
     from .message import Message  # noqa
+    from .middleware.middleware import OptionsT
     from .result import Result
+
+
+ResultT = TypeVar("ResultT")
+ChildT = TypeVar("ChildT", bound=Union["Message[Any]", "pipeline"])
 
 
 class GroupInfoDict(TypedDict):
@@ -82,7 +87,7 @@ class pipeline:
         if cancel_on_error:
             self.broker.get_cancel_backend()
 
-    def build(self, *, last_options=None, composition_id: str = None, cancel_on_error: bool = False):
+    def build(self, *, last_options: Optional["OptionsT"] = None, composition_id: str = None, cancel_on_error: bool = False):
         """Build the pipeline, return the first message to be enqueued or integrated in another pipeline
 
         Build the pipeline by starting at the end. We build a message with all it's options in one step and
@@ -178,7 +183,33 @@ class pipeline:
         backend.cancel(list(flatten(self.message_ids)))
 
 
-class group:
+if TYPE_CHECKING:
+
+    # workaround because mypy doesn't handle @property overloads
+
+    class result_property:
+        def __init__(self, func: Callable) -> None:
+            ...
+
+        @overload
+        def __get__(
+            self, instance: "group[Message[ResultT]]", owner: Union[Type[Any], None] = ...
+        ) -> CollectionResults["Result[ResultT]"]:
+            ...
+
+        @overload
+        def __get__(self, instance: object, owner: Union[Type[Any], None] = ...) -> CollectionResults[Any]:
+            ...
+
+        def __get__(self, instance, owner=...):
+            ...
+
+    prop = result_property
+else:
+    prop = property
+
+
+class group(Generic[ChildT]):
     """Run a group of actors in parallel.
 
     Parameters:
@@ -193,12 +224,12 @@ class group:
 
     def __init__(
         self,
-        children: "Iterable[Union[Message, pipeline]]",
+        children: "Iterable[ChildT]",
         *,
         group_id: Optional[str] = None,
         cancel_on_error: bool = False,
     ) -> None:
-        self.children: "List[Union[Message, pipeline]]" = []
+        self.children: "List[ChildT]" = []
         for child in children:
             if isinstance(child, group):
                 raise ValueError("Groups of groups are not supported")
@@ -222,7 +253,7 @@ class group:
     def __str__(self) -> str:  # pragma: no cover
         return f"group({', '.join(str(child) for child in self.children)})"
 
-    def build(self, options=None) -> "List[Message]":
+    def build(self, options: Optional["OptionsT"] = None) -> "List":
         """Build group for pipeline"""
         if options is None:
             options = {}
@@ -230,21 +261,21 @@ class group:
             self.broker.emit_before("build_group_pipeline", group_id=self.group_id, message_ids=list(self.message_ids))
 
         composition_id = options.get("composition_id", self.group_id)
-        cancel_on_error = options.get("composition_id", self.cancel_on_error)
-        options = {
+        cancel_on_error = options.get("cancel_on_error", self.cancel_on_error)
+        options = {  # type: ignore
             "group_info": self.info.asdict(),
             "composition_id": composition_id,
             "cancel_on_error": self.cancel_on_error,
-            **options,
+            **options,  # type: ignore
         }
-        messages: "List[Message]" = []
+        messages = []
         for group_child in self.children:
             if isinstance(group_child, pipeline):
                 messages += group_child.build(
                     last_options=options, composition_id=composition_id, cancel_on_error=cancel_on_error
                 )
             else:
-                messages += [group_child.build(options)]
+                messages += [group_child.build(options)]  # type: ignore
         return messages
 
     @property
@@ -258,9 +289,9 @@ class group:
             if isinstance(child, pipeline):
                 yield list(child.message_ids)
             else:
-                yield child.message_id
+                yield child.message_id  # type: ignore
 
-    def run(self, *, delay: Optional[int] = None, transaction: Optional[bool] = None) -> "group":
+    def run(self, *, delay: Optional[int] = None, transaction: Optional[bool] = None) -> "group[ChildT]":
         """Run the actors in this group.
 
         Parameters:
@@ -275,8 +306,8 @@ class group:
 
         return self
 
-    @property
-    def results(self) -> CollectionResults:
+    @prop
+    def results(self):
         """CollectionResults created from this group, used for result related methods"""
         return CollectionResults(children=[child.result for child in self.children])
 

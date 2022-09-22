@@ -16,27 +16,32 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 import time
 from collections import deque
-from typing import Any, Iterable, List, Optional, Union
+from typing import Any, Generic, Iterable, Iterator, List, Optional, TypeVar, Union
+
+from typing_extensions import Literal, overload
 
 from .broker import get_broker
-from .result import Result
+from .result import Result, ResultT
+from .results import ErrorStored
+
+ChildT = TypeVar("ChildT", bound=Union[Result[Any], "CollectionResults"])
 
 
-class CollectionResults:
+class CollectionResults(Generic[ChildT]):
     """Result of a group or pipeline, having result related methods
 
     Parameters:
       children(List[Result|CollectionResults]): A sequence of results of messages, groups or pipelines.
     """
 
-    def __init__(self, children: "Iterable[Union[Result,CollectionResults]]") -> None:
+    def __init__(self, children: "Iterable[ChildT]") -> None:
         self.children = list(children)
 
     def __len__(self) -> int:
         return len(self.message_ids)
 
     @classmethod
-    def from_message_ids(cls, message_ids: Iterable[str]) -> "CollectionResults":
+    def from_message_ids(cls, message_ids: Iterable[str]) -> "CollectionResults[Any]":
         children = []
         for message_id in message_ids:
             # it's a pipeline
@@ -72,7 +77,7 @@ class CollectionResults:
             if isinstance(child, CollectionResults):
                 message_ids += child.message_ids
             else:
-                message_ids += [child.message_id]
+                message_ids += [child.message_id]  # type: ignore
         return message_ids
 
     @property
@@ -94,9 +99,35 @@ class CollectionResults:
         # we could use message.completed here but we just want to make 1 call to get_status
         return backend.get_status(self.message_ids)
 
+    @overload
+    def get(
+        self: "CollectionResults[Result[ResultT]]",
+        *,
+        block: bool = False,
+        timeout: Optional[int] = None,
+        raise_on_error: Literal[True] = True,
+        forget: bool = False,
+    ) -> Iterator[ResultT]:
+        ...
+
+    @overload
+    def get(
+        self: "CollectionResults[Result[ResultT]]",
+        *,
+        block: bool = False,
+        timeout: Optional[int] = None,
+        raise_on_error: bool = True,
+        forget: bool = False,
+    ) -> Iterator[Union[ErrorStored, ResultT]]:
+        ...
+
+    @overload
     def get(
         self, *, block: bool = False, timeout: Optional[int] = None, raise_on_error: bool = True, forget: bool = False
-    ) -> Any:
+    ) -> Iterator[Any]:
+        ...
+
+    def get(self, *, block=False, timeout=None, raise_on_error=True, forget=False):
         """Get the results of each job in the collection.
 
         Parameters:

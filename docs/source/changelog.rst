@@ -5,6 +5,12 @@ Changelog
 
 All notable changes to this project will be documented in this file.
 
+`0.55.0`_ -- 2022-09-30
+-----------------------
+Added
+^^^^^
+* Better typing, so that mypy would emit errors when messages are built with the wrong parameters,
+and that results types are correctly inferred. See tests/mypy/plain_files for examples of type_checking.
 
 `0.54.2`_ -- 2022-08-10
 -----------------------

@@ -14,28 +14,54 @@
 #
 # You should have received a copy of the GNU Lesser General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
-from collections import namedtuple
-from typing import Any, Optional
+from typing import TYPE_CHECKING, Generic, Optional, TypeVar, Union, overload
+
+from typing_extensions import Literal, NamedTuple
 
 from .broker import get_broker
+from .results import ErrorStored
+
+ResultT = TypeVar("ResultT", covariant=True)
+
+if TYPE_CHECKING:
+    Base = object
+else:
+    Base = NamedTuple("Result", (("message_id", str),))
 
 
-class Result(namedtuple("Result", ("message_id",))):
+class Result(Base, Generic[ResultT]):
     """Encapsulates metadata needed to retrieve the result of a message
 
     Parameters:
       message_id(str): The id of the message sent to the broker.
     """
 
+    message_id: str
+
     def __new__(cls, *, message_id: Optional[str] = None) -> "Result":
-        return super().__new__(cls, message_id=message_id)
+        return super().__new__(cls, message_id)  # type: ignore
 
     def asdict(self):
-        return self._asdict()
+        return self._asdict()  # type: ignore
 
+    @overload
+    def get(
+        self,
+        *,
+        block: bool = False,
+        timeout: Optional[int] = None,
+        raise_on_error: Literal[True] = True,
+        forget: bool = False,
+    ) -> ResultT:
+        ...
+
+    @overload
     def get(
         self, *, block: bool = False, timeout: Optional[int] = None, raise_on_error: bool = True, forget: bool = False
-    ) -> Any:
+    ) -> Union[ResultT, ErrorStored]:
+        ...
+
+    def get(self, *, block=False, timeout=None, raise_on_error=True, forget=False):
         """Get the result associated with a message_id from a result backend.
 
         Parameters:

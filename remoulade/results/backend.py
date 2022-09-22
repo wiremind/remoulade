@@ -73,7 +73,7 @@ class ResultBackend:
         timeout: int = None,
         forget: bool = False,
         raise_on_error: bool = True,
-    ) -> BackendResult:
+    ) -> Any:
         """Get a result from the backend.
 
         Parameters:
