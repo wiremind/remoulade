@@ -5,6 +5,12 @@ Changelog
 
 All notable changes to this project will be documented in this file.
 
+`0.55.0`_ -- 2023-01-25
+-----------------------
+Added
+^^^^^
+* result: add an async_get method
+* state/backend: add an async_get_result method on ResultBackend
 
 `0.54.2`_ -- 2022-08-10
 -----------------------
