@@ -18,6 +18,7 @@ from collections import namedtuple
 from typing import Any, Optional
 
 from .broker import get_broker
+from .results import ResultBackend
 
 
 class Result(namedtuple("Result", ("message_id",))):
@@ -58,11 +59,15 @@ class Result(namedtuple("Result", ("message_id",))):
         Returns:
           object: The result.
         """
-        broker = get_broker()
-        backend = broker.get_result_backend()
-
-        return backend.get_result(
+        return self.backend.get_result(
             self.message_id, block=block, timeout=timeout, forget=forget, raise_on_error=raise_on_error
+        )
+
+    async def async_get(
+        self, *, timeout: Optional[int] = None, raise_on_error: bool = True, forget: bool = False
+    ) -> Any:
+        return await self.backend.async_get_result(
+            self.message_id, timeout=timeout, forget=forget, raise_on_error=raise_on_error
         )
 
     def completed(self) -> bool:
@@ -72,6 +77,9 @@ class Result(namedtuple("Result", ("message_id",))):
           RuntimeError: If your broker doesn't have a result backend
             set up.
         """
+        return self.backend.get_status([self.message_id]) == 1
+
+    @property
+    def backend(self) -> ResultBackend:
         broker = get_broker()
-        backend = broker.get_result_backend()
-        return backend.get_status([self.message_id]) == 1
+        return broker.get_result_backend()
