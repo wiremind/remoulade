@@ -14,7 +14,7 @@
 #
 # You should have received a copy of the GNU Lesser General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
-
+import asyncio
 import time
 from collections import namedtuple
 from contextlib import contextmanager
@@ -93,30 +93,51 @@ class ResultBackend:
         Returns:
           object: The result.
         """
-        if timeout is None:
-            timeout = self.default_timeout
-
-        end_time = time.monotonic() + timeout / 1000
         message_key = self.build_message_key(message_id)
-
+        end_time = self.get_end_time(timeout)
         attempts = 0
         while True:
             result = self._get(message_key, forget)
             if result is Missing and block:
-                attempts, delay = compute_backoff(attempts, min_backoff=BACKOFF_FACTOR)
-                delay /= 1000
-                if time.monotonic() + delay > end_time:
-                    raise ResultTimeout(message_id)
-
+                delay = self.check_timeout(attempts, end_time, message_id)
                 time.sleep(delay)
-                continue
-
             elif result is Missing:
                 raise ResultMissing(message_id)
-
             else:
                 backend_result = BackendResult(**result)  # type: ignore
                 return self.process_result(backend_result, raise_on_error)
+
+    async def async_get_result(
+        self,
+        message_id: str,
+        *,
+        timeout: int = None,
+        forget: bool = False,
+        raise_on_error: bool = True,
+    ) -> BackendResult:
+        message_key = self.build_message_key(message_id)
+        end_time = self.get_end_time(timeout)
+        attempts = 0
+        while True:
+            result = self._get(message_key, forget)
+            if result is Missing:
+                delay = self.check_timeout(attempts, end_time, message_id)
+                await asyncio.sleep(delay)
+            else:
+                backend_result = BackendResult(**result)  # type: ignore
+                return self.process_result(backend_result, raise_on_error)
+
+    def check_timeout(self, attempts: int, end_time: float, message_id: str) -> float:
+        attempts, delay = compute_backoff(attempts, min_backoff=BACKOFF_FACTOR)
+        delay /= 1000
+        if time.monotonic() + delay > end_time:
+            raise ResultTimeout(message_id)
+        return delay
+
+    def get_end_time(self, timeout: int) -> float:
+        if timeout is None:
+            timeout = self.default_timeout
+        return time.monotonic() + timeout / 1000
 
     @staticmethod
     def process_result(result: BackendResult, raise_on_error: bool):
