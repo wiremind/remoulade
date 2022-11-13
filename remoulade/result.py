@@ -14,7 +14,7 @@
 #
 # You should have received a copy of the GNU Lesser General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
-from typing import TYPE_CHECKING, Generic, Optional, TypeVar, Union, overload
+from typing import Generic, Optional, TypeVar, Union, overload
 
 from typing_extensions import Literal
 
@@ -24,6 +24,7 @@ from .broker import get_broker
 from .results import ErrorStored
 
 ResultT = TypeVar("ResultT", covariant=True)
+
 
 @attr.s(frozen=True, slots=True, kw_only=True, auto_attribs=True)
 class Result(Generic[ResultT]):

@@ -16,7 +16,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 import time
-from typing import TYPE_CHECKING, Dict, Generic, Iterable, Optional, Tuple
+from typing import TYPE_CHECKING, Dict, Generic, Tuple
 
 import attr
 
