@@ -249,7 +249,7 @@ class Actor(Generic[ActorParams, ActorReturnT]):
         return Message(
             queue_name=queue_name,
             actor_name=self.actor_name,
-            args=args or (),
+            args=tuple(args) or (),
             kwargs=kwargs or {},
             options=options,
         )

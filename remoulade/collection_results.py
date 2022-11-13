@@ -53,7 +53,7 @@ class CollectionResults(Generic[ChildT]):
                 else:
                     child = Result(message_id=last)
             else:
-                child = Result(message_id=message_id)
+                child = Result[Any](message_id=message_id)
             children.append(child)
         return CollectionResults(children)
 

@@ -16,20 +16,17 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 from typing import TYPE_CHECKING, Generic, Optional, TypeVar, Union, overload
 
-from typing_extensions import Literal, NamedTuple
+from typing_extensions import Literal
+
+import attr
 
 from .broker import get_broker
 from .results import ErrorStored
 
 ResultT = TypeVar("ResultT", covariant=True)
 
-if TYPE_CHECKING:
-    Base = object
-else:
-    Base = NamedTuple("Result", (("message_id", str),))
-
-
-class Result(Base, Generic[ResultT]):
+@attr.s(frozen=True, slots=True, kw_only=True, auto_attribs=True)
+class Result(Generic[ResultT]):
     """Encapsulates metadata needed to retrieve the result of a message
 
     Parameters:
@@ -38,11 +35,8 @@ class Result(Base, Generic[ResultT]):
 
     message_id: str
 
-    def __new__(cls, *, message_id: Optional[str] = None) -> "Result":
-        return super().__new__(cls, message_id)  # type: ignore
-
     def asdict(self):
-        return self._asdict()  # type: ignore
+        return attr.asdict(self)
 
     @overload
     def get(

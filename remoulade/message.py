@@ -18,7 +18,7 @@
 import time
 from typing import TYPE_CHECKING, Dict, Generic, Iterable, Optional, Tuple
 
-from typing_extensions import NamedTuple
+import attr
 
 from remoulade.state import State
 
@@ -58,24 +58,8 @@ def set_encoder(encoder: Encoder) -> None:
     global_encoder = encoder
 
 
-if TYPE_CHECKING:
-    Base = object
-else:
-    Base = NamedTuple(
-        "Message",
-        (
-            ("queue_name", str),
-            ("actor_name", str),
-            ("args", Tuple),
-            ("kwargs", Dict),
-            ("options", "OptionsT"),
-            ("message_id", str),
-            ("message_timestamp", int),
-        ),
-    )
-
-
-class Message(Base, Generic[ResultT]):
+@attr.s(frozen=True, slots=True, kw_only=True, auto_attribs=True)
+class Message(Generic[ResultT]):
     """Encapsulates metadata about messages being sent to individual actors.
 
     Parameters:
@@ -94,30 +78,8 @@ class Message(Base, Generic[ResultT]):
     args: Tuple
     kwargs: Dict
     options: "OptionsT"
-    message_id: str
-    message_timestamp: int
-
-    def __new__(
-        cls,
-        *,
-        queue_name: str,
-        actor_name: str,
-        args: Iterable,
-        kwargs: Dict,
-        options: "OptionsT",
-        message_id: Optional[str] = None,
-        message_timestamp: Optional[int] = None,
-    ):
-        return super().__new__(  # type: ignore
-            cls,
-            queue_name,
-            actor_name,
-            tuple(args),
-            kwargs,
-            options,
-            message_id=message_id or generate_unique_id(),
-            message_timestamp=message_timestamp or int(time.time() * 1000),
-        )
+    message_id: str = attr.field(factory=generate_unique_id)
+    message_timestamp: int = attr.field(factory=lambda: int(time.time() * 1000))
 
     def __or__(self, other) -> pipeline:
         """Combine this message into a pipeline with "other"."""
@@ -125,7 +87,7 @@ class Message(Base, Generic[ResultT]):
 
     def asdict(self):
         """Convert this message to a dictionary."""
-        return self._asdict()  # type: ignore
+        return attr.asdict(self)
 
     @classmethod
     def decode(cls, data):
@@ -141,7 +103,7 @@ class Message(Base, Generic[ResultT]):
         updated_options = attributes.pop("options", {})
         options = self.options.copy()
         options.update(updated_options)
-        return self._replace(**attributes, options=options)  # type: ignore
+        return attr.evolve(self, **attributes, options=options)
 
     def build(self, options: "OptionsT"):
         """Build message for pipeline"""

@@ -36,7 +36,7 @@ jobs:
         run: isort --check remoulade
       - name: Check typing with mypy
         run: |
-          mypy --install-types --non-interactive --show-traceback
+          mypy --install-types --non-interactive --show-traceback --enable-incomplete-features --namespace-packages
       - name: Check syntax with pyupgrade
         run: |
           find . -type f -regex '.*\.py$' -exec pyupgrade --py37-plus {} \;
