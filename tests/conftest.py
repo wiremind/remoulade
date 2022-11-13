@@ -209,7 +209,7 @@ def stub_state_backend():
     return st_backends.StubBackend()
 
 
-@pytest.fixture
+@pytest.fixture(scope="module")
 def postgres_state_backend():
     db_string = os.getenv("REMOULADE_TEST_DB_URL") or "postgresql://remoulade@localhost:5544/test"
     backend = st_backends.PostgresBackend(url=db_string)
