@@ -4,7 +4,7 @@ from mypy import api
 def check_mypy_output(fname, expected_output):
     result = api.run([f"tests/mypy/plain_files/{fname}.py"])
 
-    assert [line for line in result[0].split("\n") if "error: " in line or "note: " in line] == expected_output
+    assert [line for line in result[0].split("\n") if "error: " in line or "note: " in line] == expected_output, str(result)
 
 
 def test_message():
