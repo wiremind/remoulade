@@ -40,11 +40,3 @@ def test_group():
         ],
     )
 
-
-def test_options():
-    check_mypy_output(
-        "options",
-        [
-            'tests/mypy/plain_files/options.py:10: error: Unexpected keyword argument "foo" for "message_with_options" of "Actor"'
-        ],
-    )

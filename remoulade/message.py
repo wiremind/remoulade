@@ -16,7 +16,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 import time
-from typing import Any, Dict, Generic, Tuple
+from typing import Any, Dict, Generic, Iterable
 
 import attr
 
@@ -71,7 +71,7 @@ class Message(Generic[ResultT]):
 
     queue_name: str
     actor_name: str
-    args: Tuple
+    args: Iterable
     kwargs: Dict
     options: Dict[str, Any]
     message_id: str = attr.field(factory=generate_unique_id)
