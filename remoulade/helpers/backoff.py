@@ -81,7 +81,7 @@ def compute_backoff_exponential(attempts: int, *, min_backoff: int, max_backoff:
       int: The backoff in milliseconds.
     """
     exponent = min(attempts, max_retries - 1)
-    backoff = min(min_backoff * 2**exponent, max_backoff)
+    backoff = min(min_backoff * 2 ** exponent, max_backoff)
     return backoff
 
 

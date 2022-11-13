@@ -132,14 +132,7 @@ html_theme_options = {
 html_static_path = ["_static"]
 
 html_sidebars = {
-    "**": [
-        "sidebarlogo.html",
-        "navigation.html",
-        "relations.html",
-        "searchbox.html",
-        "versions.html",
-        "codefund.html",
-    ]
+    "**": ["sidebarlogo.html", "navigation.html", "relations.html", "searchbox.html", "versions.html", "codefund.html",]
 }
 
 # -- Options for HTMLHelp output ------------------------------------------

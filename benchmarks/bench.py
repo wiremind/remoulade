@@ -75,16 +75,10 @@ def benchmark_arg(value):
 def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        "--benchmark",
-        help="the benchmark to run",
-        type=benchmark_arg,
-        default="latency",
+        "--benchmark", help="the benchmark to run", type=benchmark_arg, default="latency",
     )
     parser.add_argument(
-        "--count",
-        help="the number of messages to benchmark with",
-        type=int,
-        default=10000,
+        "--count", help="the number of messages to benchmark with", type=int, default=10000,
     )
     parser.add_argument(
         "--use-green-threads",
@@ -93,10 +87,7 @@ def parse_args():
         default=False,
     )
     parser.add_argument(
-        "--use-celery",
-        help="run the benchmark under Celery",
-        action="store_true",
-        default=False,
+        "--use-celery", help="run the benchmark under Celery", action="store_true", default=False,
     )
     return parser.parse_args()
 

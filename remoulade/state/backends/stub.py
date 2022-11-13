@@ -73,14 +73,14 @@ class StubBackend(StateBackend):
         return states[offset : size + offset]
 
     def get_states_count(
-        self,
-        *,
-        selected_actors: Optional[List[str]] = None,
-        selected_statuses: Optional[List[str]] = None,
-        selected_messages_ids: Optional[List[str]] = None,
-        selected_composition_ids: Optional[List[str]] = None,
-        start_datetime: Optional[datetime.datetime] = None,
-        end_datetime: Optional[datetime.datetime] = None,
-        **kwargs,
+            self,
+            *,
+            selected_actors: Optional[List[str]] = None,
+            selected_statuses: Optional[List[str]] = None,
+            selected_messages_ids: Optional[List[str]] = None,
+            selected_composition_ids: Optional[List[str]] = None,
+            start_datetime: Optional[datetime.datetime] = None,
+            end_datetime: Optional[datetime.datetime] = None,
+            **kwargs,
     ) -> int:
         return len(self.states)
