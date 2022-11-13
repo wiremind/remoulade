@@ -109,7 +109,7 @@ class Pipelines(Middleware):
             if not pipe_ignore:
                 if group_info:
                     result = self._group_results(group_info, broker, raise_on_error)
-                next_message = next_message.copy(args=next_message.args + (result,))
+                next_message = next_message.copy(args=tuple(next_message.args) + (result,))
 
             broker.enqueue(next_message)
 
