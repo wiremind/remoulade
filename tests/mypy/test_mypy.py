@@ -1,8 +1,9 @@
 from mypy import api
+import pathlib
 
 
 def check_mypy_output(fname, expected_output):
-    result = api.run([f"tests/mypy/plain_files/{fname}.py"])
+    result = api.run([str(pathlib.Path(__file__).parent.resolve() / f"plain_files/{fname}.py")])
 
     assert [line for line in result[0].split("\n") if "error: " in line or "note: " in line] == expected_output, str(result)
 
