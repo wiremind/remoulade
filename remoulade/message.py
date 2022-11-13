@@ -71,7 +71,7 @@ class Message(Generic[ResultT]):
 
     queue_name: str
     actor_name: str
-    args: Iterable
+    args: tuple = attr.field(converter=tuple)
     kwargs: Dict
     options: Dict[str, Any]
     message_id: str = attr.field(factory=generate_unique_id)
