@@ -2,9 +2,9 @@ from mypy import api
 
 
 def check_mypy_output(fname, expected_output):
-    result = api.run(["--enable-incomplete-features", f"tests/mypy/plain_files/{fname}.py"])
+    result = api.run([f"tests/mypy/plain_files/{fname}.py"])
 
-    assert [line for line in result[0].split("\n") if line.startswith("tests/mypy")] == expected_output
+    assert [line for line in result[0].split("\n") if "error: " in line or "note: " in line] == expected_output
 
 
 def test_message():
