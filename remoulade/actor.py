@@ -18,7 +18,7 @@
 import re
 from typing import TYPE_CHECKING, Any, Callable, Dict, Generic, Iterable, List, Optional, TypeVar, overload
 
-from typing_extensions import Literal, ParamSpec, TypedDict, Unpack
+from typing_extensions import Literal, ParamSpec, TypedDict
 
 from .helpers.actor_arguments import get_actor_arguments
 from .logging import get_logger
@@ -26,7 +26,6 @@ from .message import Message
 
 if TYPE_CHECKING:
     from .broker import Broker
-    from .middleware.middleware import OptionsT
 
 
 #: The regular expression that represents valid queue names.
@@ -52,7 +51,7 @@ def actor(
     queue_name: str = "default",
     alternative_queues: Optional[List[str]] = None,
     priority: int = 0,
-    **options: "Unpack[OptionsT]",
+    **options: Any,
 ) -> "Callable[[Callable[ActorParams, ActorReturnT]], Actor[ActorParams, ActorReturnT]]":
     ...
 
@@ -65,7 +64,7 @@ def actor(
     queue_name: str = "default",
     alternative_queues: Optional[List[str]] = None,
     priority: int = 0,
-    **options: "Unpack[OptionsT]",
+    **options: Any,
 ) -> "Actor[ActorParams, ActorReturnT]":
     ...
 
@@ -77,7 +76,7 @@ def actor(
     queue_name: str = "default",
     alternative_queues: Optional[List[str]] = None,
     priority: int = 0,
-    **options: "Unpack[OptionsT]",
+    **options: Any,
 ):
     """Declare an actor.
 
@@ -173,7 +172,7 @@ class Actor(Generic[ActorParams, ActorReturnT]):
         queue_name: str,
         alternative_queues: Optional[List[str]],
         priority: int,
-        options: "OptionsT",
+        options: Dict[str, Any],
     ) -> None:
         self.logger = get_logger(fn.__module__, actor_name)
         self.fn = fn
@@ -221,7 +220,7 @@ class Actor(Generic[ActorParams, ActorReturnT]):
         args: Iterable = None,
         kwargs: Dict[str, Any] = None,
         queue_name: Optional[str] = None,
-        **options: "Unpack[OptionsT]",
+        **options: Any,
     ) -> Message[ActorReturnT]:
         """Build a message with an arbitrary set of processing options.
         This method is useful if you want to compose actors.  See the
@@ -273,7 +272,7 @@ class Actor(Generic[ActorParams, ActorReturnT]):
         kwargs: Dict[str, Any] = None,
         queue_name: Optional[str] = None,
         delay=None,
-        **options: "Unpack[OptionsT]",
+        **options: Any,
     ) -> Message[ActorReturnT]:
         """Asynchronously send a message to this actor, along with an
         arbitrary set of processing options for the broker and

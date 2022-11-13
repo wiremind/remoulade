@@ -16,7 +16,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 from collections import namedtuple
 from contextlib import nullcontext
-from typing import TYPE_CHECKING, Any, Callable, Generic, Iterable, List, Optional, Type, TypeVar, Union, cast, overload
+from typing import TYPE_CHECKING, Any, Callable, Dict, Generic, Iterable, List, Optional, Type, TypeVar, Union, cast, overload
 
 from typing_extensions import TypedDict
 
@@ -26,7 +26,6 @@ from .common import flatten, generate_unique_id
 
 if TYPE_CHECKING:
     from .message import Message  # noqa
-    from .middleware.middleware import OptionsT
     from .result import Result
 
 
@@ -87,7 +86,7 @@ class pipeline:
         if cancel_on_error:
             self.broker.get_cancel_backend()
 
-    def build(self, *, last_options: Optional["OptionsT"] = None, composition_id: str = None, cancel_on_error: bool = False):
+    def build(self, *, last_options: Optional[Dict[str, Any]] = None, composition_id: str = None, cancel_on_error: bool = False):
         """Build the pipeline, return the first message to be enqueued or integrated in another pipeline
 
         Build the pipeline by starting at the end. We build a message with all it's options in one step and
@@ -253,7 +252,7 @@ class group(Generic[ChildT]):
     def __str__(self) -> str:  # pragma: no cover
         return f"group({', '.join(str(child) for child in self.children)})"
 
-    def build(self, options: Optional["OptionsT"] = None) -> "List":
+    def build(self, options: Optional[Dict[str, Any]] = None) -> "List":
         """Build group for pipeline"""
         if options is None:
             options = {}
@@ -262,11 +261,11 @@ class group(Generic[ChildT]):
 
         composition_id = options.get("composition_id", self.group_id)
         cancel_on_error = options.get("cancel_on_error", self.cancel_on_error)
-        options = {  # type: ignore
+        options = {
             "group_info": self.info.asdict(),
             "composition_id": composition_id,
             "cancel_on_error": self.cancel_on_error,
-            **options,  # type: ignore
+            **options,
         }
         messages = []
         for group_child in self.children:

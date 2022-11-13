@@ -16,7 +16,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 import time
-from typing import TYPE_CHECKING, Dict, Generic, Tuple
+from typing import Any, Dict, Generic, Tuple
 
 import attr
 
@@ -28,9 +28,6 @@ from .composition import pipeline
 from .encoder import Encoder, JSONEncoder
 from .errors import InvalidProgress
 from .result import Result, ResultT
-
-if TYPE_CHECKING:
-    from .middleware.middleware import OptionsT
 
 
 #: The global encoder instance.
@@ -77,7 +74,7 @@ class Message(Generic[ResultT]):
     actor_name: str
     args: Tuple
     kwargs: Dict
-    options: "OptionsT"
+    options: Dict[str, Any]
     message_id: str = attr.field(factory=generate_unique_id)
     message_timestamp: int = attr.field(factory=lambda: int(time.time() * 1000))
 
@@ -105,7 +102,7 @@ class Message(Generic[ResultT]):
         options.update(updated_options)
         return attr.evolve(self, **attributes, options=options)
 
-    def build(self, options: "OptionsT"):
+    def build(self, options: Dict[str, Any]):
         """Build message for pipeline"""
         return self.copy(options=options)
 
