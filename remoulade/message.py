@@ -29,7 +29,6 @@ from .encoder import Encoder, JSONEncoder
 from .errors import InvalidProgress
 from .result import Result, ResultT
 
-
 #: The global encoder instance.
 global_encoder = JSONEncoder()  # type: Encoder
 

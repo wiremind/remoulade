@@ -16,7 +16,21 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 from collections import namedtuple
 from contextlib import nullcontext
-from typing import TYPE_CHECKING, Any, Callable, Dict, Generic, Iterable, List, Optional, Type, TypeVar, Union, cast, overload
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Callable,
+    Dict,
+    Generic,
+    Iterable,
+    List,
+    Optional,
+    Type,
+    TypeVar,
+    Union,
+    cast,
+    overload,
+)
 
 from typing_extensions import TypedDict
 

@@ -16,9 +16,8 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 from typing import Generic, Optional, TypeVar, Union, overload
 
-from typing_extensions import Literal
-
 import attr
+from typing_extensions import Literal
 
 from .broker import get_broker
 from .results import ErrorStored
