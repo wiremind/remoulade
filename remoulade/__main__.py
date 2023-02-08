@@ -102,6 +102,12 @@ def parse_arguments():
         type=argparse.FileType(mode="a", encoding="utf-8"),
         help="write all logs to a file (default: sys.stderr)",
     )
+    parser.add_argument(
+        "--termination-timeout",
+        type=int,
+        help="The number of seconds to wait for everything to shut down (default: 10 min)",
+        default=600,
+    )
     parser.add_argument("--version", action="version", version=__version__)
     parser.add_argument("--verbose", "-v", action="count", default=0, help="turn on verbose log output")
     return parser.parse_args()
@@ -201,7 +207,7 @@ def start_worker(args, logger):
         else:
             time.sleep(1)
 
-    worker.stop()
+    worker.stop(args.termination_timeout * 1000)
     broker.emit_before("process_stop")
     broker.close()
     return ret_code
