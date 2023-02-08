@@ -5,6 +5,13 @@ Changelog
 
 All notable changes to this project will be documented in this file.
 
+`0.56.0`_ -- 2023-02-06
+-----------------------
+Added
+^^^^^
+* cli: added a --termination-timeout argument
+
+
 `0.55.0`_ -- 2023-01-25
 -----------------------
 Added
