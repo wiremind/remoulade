@@ -10,6 +10,7 @@ from remoulade import ActorNotFound, Message, QueueJoinTimeout, Worker
 from remoulade.common import current_millis
 from remoulade.errors import MessageNotDelivered
 from remoulade.results import Results
+from remoulade.middleware import CurrentMessage
 
 
 def test_rabbitmq_actors_can_be_sent_messages(rabbitmq_broker, rabbitmq_worker):
@@ -88,6 +89,52 @@ def test_rabbitmq_actors_retry_with_backoff_on_failure(rabbitmq_broker, rabbitmq
 
     # I expect backoff time to have passed between sucesss and failure
     assert 800 <= success_time - failure_time <= 1200
+
+
+def test_rabbitmq_actors_retry_with_priority_elevation_on_failure(rabbitmq_broker, rabbitmq_worker):
+    incoming_priorities = []
+
+    @remoulade.actor(max_retries=4, increase_priority_on_retry=True, max_backoff=1)
+    def do_work():
+        nonlocal incoming_priorities
+        msg = CurrentMessage.get_current_message()
+        incoming_priorities.append(msg._rabbitmq_message.priority)
+        raise RuntimeError("Failure")
+
+    # And this actor is declared
+    rabbitmq_broker.declare_actor(do_work)
+    # If I send it a message
+    do_work.send()
+
+    # Then join on the queue
+    rabbitmq_broker.join(do_work.queue_name, min_successes=40)
+    rabbitmq_worker.join()
+
+    # I expect the priority to increase once
+    assert incoming_priorities == [0, 1, 1, 1, 1]
+
+
+def test_rabbitmq_actors_retry_without_priority_elevation(rabbitmq_broker, rabbitmq_worker):
+    incoming_priorities = []
+
+    @remoulade.actor(max_retries=4, increase_priority_on_retry=False, max_backoff=1)
+    def do_work():
+        nonlocal incoming_priorities
+        msg = CurrentMessage.get_current_message()
+        incoming_priorities.append(msg._rabbitmq_message.priority)
+        raise RuntimeError("Failure")
+
+    # And this actor is declared
+    rabbitmq_broker.declare_actor(do_work)
+    # If I send it a message
+    do_work.send()
+
+    # Then join on the queue
+    rabbitmq_broker.join(do_work.queue_name, min_successes=40)
+    rabbitmq_worker.join()
+
+    # I expect the priority to stay none for all attempts
+    assert incoming_priorities == [0] * 5
 
 
 def test_rabbitmq_actors_can_retry_multiple_times(rabbitmq_broker, rabbitmq_worker):

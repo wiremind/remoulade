@@ -44,6 +44,8 @@ class Retries(Middleware):
         predicate that can be used to programmatically determine
         whether a task should be retried or not.  This takes
         precedence over `max_retries` when set.
+      increase_priority_on_retry(bool): specifies wether to increase
+        priority of message when retried. Default is False.
     """
 
     def __init__(
@@ -55,6 +57,7 @@ class Retries(Middleware):
         retry_when: Optional[Callable[[int, Exception], bool]] = None,
         backoff_strategy: BackoffStrategy = "exponential",
         jitter: bool = True,
+        increase_priority_on_retry: bool = False
     ):
         self.logger = get_logger(__name__, type(self))
         self.max_retries = max_retries
@@ -63,10 +66,19 @@ class Retries(Middleware):
         self.retry_when = retry_when
         self.backoff_strategy = backoff_strategy
         self.jitter = jitter
+        self.increase_priority_on_retry = increase_priority_on_retry
 
     @property
     def actor_options(self):
-        return {"max_retries", "min_backoff", "max_backoff", "retry_when", "backoff_strategy", "jitter"}
+        return {
+            "max_retries",
+            "min_backoff",
+            "max_backoff",
+            "retry_when",
+            "backoff_strategy",
+            "jitter",
+            "increase_priority_on_retry",
+        }
 
     def after_process_message(self, broker, message, *, result=None, exception=None):
         if exception is None:
@@ -93,6 +105,11 @@ class Retries(Middleware):
             return
 
         new_message = message.copy()
+        increase_priority_on_retry = self.get_option("increase_priority_on_retry", broker=broker, message=message)
+        if increase_priority_on_retry and getattr(broker, "max_priority", None) is not None:
+            new_message.options["priority"] = min(message.options.get("priority", 0) + 1, broker.max_priority)
+            new_message.options["increase_priority_on_retry"] = False  # we only want to do it once
+
         new_message.options["retries"] += 1
         new_message.options["traceback"] = traceback.format_exc(limit=30)
         min_backoff = self.get_option("min_backoff", broker=broker, message=message)

@@ -5,6 +5,13 @@ Changelog
 
 All notable changes to this project will be documented in this file.
 
+`0.57.0`_ -- 2023-03-02
+-----------------------
+Added
+^^^^^
+* middleware/pipeline: added `increase_priority_on_retry` actor option
+
+
 `0.56.0`_ -- 2023-02-06
 -----------------------
 Added
