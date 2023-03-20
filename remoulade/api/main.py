@@ -108,10 +108,8 @@ def requeue_message(message_id):
 
 @app.route("/messages/result/<message_id>")
 @marshal_with(ResponseSchema)
-def get_results(message_id):
+def get_results(message_id, max_size:int = 1e4):
     from ..message import get_encoder
-
-    max_size = 1e4
     try:
         result = Result(message_id=message_id).get()
         encoded_result = get_encoder().encode(result).decode("utf-8")
