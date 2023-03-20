@@ -118,11 +118,11 @@ def get_results(message_id, max_size:int = 1e4):
             encoded_result = f"The result is too big {size_result / 1e6}M"
         return {"result": encoded_result}
     except ResultMissing:
-        return {"result": "result is missing"}
+        return {"error": "result is missing"}
     except NoResultBackend:
-        return {"result": "no result backend"}
+        return {"error": "no result backend"}
     except (UnicodeDecodeError, TypeError):
-        return {"result": "non serializable result"}
+        return {"error": "non serializable result"}
 
 
 @app.route("/messages", methods=["POST"])
