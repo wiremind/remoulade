@@ -16,7 +16,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 import os
 import time
-from typing import List
+from typing import Iterable, List
 
 import redis
 
@@ -67,6 +67,34 @@ class RedisBackend(ResultBackend):
         self.min_backoff = min_backoff
         self.max_backoff = max_backoff
         self.backoff_strategy = backoff_strategy
+
+    def get_results(
+        self,
+        message_ids: List[str],
+        *,
+        block: bool = False,
+        timeout: int = None,
+        forget: bool = False,
+        raise_on_error: bool = True,
+    ) -> Iterable[BackendResult]:
+        if block:
+            yield from super().get_results(message_ids, block=block, timeout=timeout, forget=forget, raise_on_error=raise_on_error)
+        else:
+            with self.client.pipeline() as pipe:
+                for message_id in message_ids:
+                    message_key = self.build_message_key(message_id)
+                    if forget:
+                        pipe.rpushx(message_key, self.encoder.encode(ForgottenResult.asdict()))
+                        pipe.lpop(message_key)
+                    else:
+                        pipe.rpoplpush(message_key, message_key)
+                data = pipe.execute()
+            for i, row in enumerate(data):
+                if i % 2 == 0 and forget:
+                    continue  # skip one row in two if forget as there is two commands
+                if row is None:
+                    raise ResultMissing(message_id)
+                yield self.process_result(BackendResult(**self.encoder.decode(row)), raise_on_error)
 
     def get_result(self, message_id: str, *, block=False, timeout=None, forget=False, raise_on_error=True):
         """Get a result from the backend.

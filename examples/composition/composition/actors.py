@@ -10,7 +10,6 @@ from remoulade.results.backends import RedisBackend
 from remoulade.state import MessageState
 from remoulade.state.backends import PostgresBackend
 
-
 encoder = PickleEncoder()
 backend = RedisBackend(encoder=encoder)
 broker = RabbitmqBroker()

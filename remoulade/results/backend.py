@@ -65,6 +65,27 @@ class ResultBackend:
         self.encoder = encoder or get_encoder()
         self.default_timeout = default_timeout or DEFAULT_TIMEOUT
 
+    def get_results(
+        self,
+        message_ids: List[str],
+        *,
+        block: bool = False,
+        timeout: int = None,
+        forget: bool = False,
+        raise_on_error: bool = True,
+    ) -> Iterable[BackendResult]:
+        deadline = None
+        if timeout:
+            deadline = time.monotonic() + timeout / 1000
+
+        for message_id in message_ids:
+            if deadline:
+                timeout = max(0, int((deadline - time.monotonic()) * 1000))
+
+            yield self.get_result(
+                message_id, block=block, timeout=timeout, forget=forget, raise_on_error=raise_on_error
+            )
+
     def get_result(
         self,
         message_id: str,

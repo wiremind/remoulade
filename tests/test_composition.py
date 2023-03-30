@@ -373,10 +373,7 @@ def test_groups_expose_completion_stats(stub_broker, stub_worker, result_backend
 
 
 @pytest.mark.parametrize("block", [True, False])
-def test_group_forget(stub_broker, result_backend, stub_worker, block):
-    # Given a result backend
-    stub_broker.add_middleware(Results(backend=result_backend))
-
+def test_group_forget(stub_broker, result_middleware, stub_worker, block):
     # Given an actor that stores results
     @remoulade.actor(store_results=True)
     def do_work():
@@ -429,11 +426,7 @@ def test_group_wait_forget(stub_broker, result_backend, stub_worker):
     assert list(g.results.get()) == [None] * 5
 
 
-def test_pipelines_with_groups(stub_broker, stub_worker, result_backend):
-    # Given a result backend
-    # And a broker with the results middleware
-    stub_broker.add_middleware(Results(backend=result_backend))
-
+def test_pipelines_with_groups(stub_broker, stub_worker, result_middleware):
     # Given an actor that stores results
     @remoulade.actor(store_results=True)
     def do_work(a):
@@ -453,7 +446,7 @@ def test_pipelines_with_groups(stub_broker, stub_worker, result_backend):
     pipe = g | do_sum.message()
 
     pipe.build()
-    assert result_backend.get_group_message_ids(g.group_id) == list(g.message_ids)
+    assert result_middleware.backend.get_group_message_ids(g.group_id) == list(g.message_ids)
 
     pipe.run()
 
@@ -469,7 +462,7 @@ def test_pipelines_with_groups(stub_broker, stub_worker, result_backend):
 
     # the message_ids has been forgotten
     with pytest.raises(MessageIdsMissing):
-        result_backend.get_group_message_ids(g.group_id)
+        result_middleware.backend.get_group_message_ids(g.group_id)
 
     # Given an actor that stores results
     @remoulade.actor(store_results=True)
@@ -486,11 +479,26 @@ def test_pipelines_with_groups(stub_broker, stub_worker, result_backend):
     assert [13 + 12, 13 + 15] == list(result)
 
 
-def test_complex_pipelines(stub_broker, stub_worker, result_backend):
-    # Given a result backend
-    # And a broker with the results middleware
-    stub_broker.add_middleware(Results(backend=result_backend))
+def test_group_one_not_finished(stub_broker, stub_worker, result_middleware):
+    # Given an actor that stores results
+    @remoulade.actor(store_results=True)
+    def do_work():
+        return 42
 
+    stub_broker.declare_actor(do_work)
+
+    messages = [do_work.send(), do_work.message(), do_work.send()]
+    results = CollectionResults([m.result for m in messages])
+
+    stub_broker.join(do_work.queue_name)
+    stub_worker.join()
+
+    with pytest.raises(ResultMissing):
+        list(results.get())
+    assert messages[0].result.get() == messages[2].result.get() == 42
+
+
+def test_complex_pipelines(stub_broker, stub_worker, result_middleware):
     # Given an actor that stores results
     @remoulade.actor(store_results=True)
     def do_work():

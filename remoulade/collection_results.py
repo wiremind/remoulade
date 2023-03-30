@@ -20,6 +20,7 @@ from typing import Any, Iterable, List, Optional, Union
 
 from .broker import get_broker
 from .result import Result
+from .results import ResultBackend
 
 
 class CollectionResults:
@@ -76,6 +77,11 @@ class CollectionResults:
         return message_ids
 
     @property
+    def _backend(self) -> ResultBackend:
+        broker = get_broker()
+        return broker.get_result_backend()
+
+    @property
     def completed_count(self) -> int:
         """Returns the total number of jobs that have been completed.
         Actors that don't store results are not counted, meaning this
@@ -89,10 +95,8 @@ class CollectionResults:
         Returns:
           int: The total number of results.
         """
-        broker = get_broker()
-        backend = broker.get_result_backend()
-        # we could use message.completed here but we just want to make 1 call to get_status
-        return backend.get_status(self.message_ids)
+        # we could use message.completed here, but we just want to make 1 call to get_status
+        return self._backend.get_status(self.message_ids)
 
     def get(
         self, *, block: bool = False, timeout: Optional[int] = None, raise_on_error: bool = True, forget: bool = False
@@ -121,15 +125,27 @@ class CollectionResults:
         if timeout:
             deadline = time.monotonic() + timeout / 1000
 
+        message_ids: List[str] = []
         for child in self.children:
             if deadline:
                 timeout = max(0, int((deadline - time.monotonic()) * 1000))
 
             if isinstance(child, CollectionResults):
-                results = child.get(block=block, timeout=timeout, raise_on_error=raise_on_error, forget=forget)
-                yield list(results)
+                # before yielding collection result, get results once for all normal results before
+                if message_ids:
+                    yield from self._backend.get_results(
+                        message_ids, block=block, timeout=timeout, raise_on_error=raise_on_error, forget=forget
+                    )
+                    message_ids = []
+
+                yield list(child.get(block=block, timeout=timeout, raise_on_error=raise_on_error, forget=forget))
             else:
-                yield child.get(block=block, timeout=timeout, raise_on_error=raise_on_error, forget=forget)
+                message_ids.append(child.message_id)
+
+        if message_ids:
+            yield from self._backend.get_results(
+                message_ids, block=block, timeout=timeout, raise_on_error=raise_on_error, forget=forget
+            )
 
     def wait(self, *, timeout: Optional[int] = None, raise_on_error: bool = True, forget: bool = False) -> None:
         """Block until all the jobs in the collection have finished or

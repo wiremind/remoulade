@@ -9,8 +9,8 @@ import remoulade
 from remoulade import ActorNotFound, Message, QueueJoinTimeout, Worker
 from remoulade.common import current_millis
 from remoulade.errors import MessageNotDelivered
-from remoulade.results import Results
 from remoulade.middleware import CurrentMessage
+from remoulade.results import Results
 
 
 def test_rabbitmq_actors_can_be_sent_messages(rabbitmq_broker, rabbitmq_worker):
