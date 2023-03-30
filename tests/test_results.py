@@ -7,7 +7,7 @@ import pytest
 import redis
 
 import remoulade
-from remoulade import Result, CollectionResults
+from remoulade import CollectionResults, Result
 from remoulade.middleware import Retries
 from remoulade.results import ErrorStored, ResultBackend, ResultMissing, Results, ResultTimeout
 from remoulade.results.backend import ForgottenResult

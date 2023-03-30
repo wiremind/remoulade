@@ -1,6 +1,7 @@
 # Here, we launch the worker, which will process tasks
 
 from prometheus_client.registry import REGISTRY
+
 from remoulade import Middleware
 from remoulade.__main__ import main
 from remoulade.middleware import Prometheus
