@@ -18,7 +18,7 @@ from sqlalchemy import (
     or_,
     text,
 )
-from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import declarative_base
 from sqlalchemy.orm.session import sessionmaker
 from sqlalchemy.sql import func
 from sqlalchemy.sql.functions import coalesce, count, max, min
