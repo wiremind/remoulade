@@ -24,3 +24,6 @@ markers = [
     "confirm_delivery",
     "group_transaction",
 ]
+filterwarnings = [
+    "error::sqlalchemy.exc.RemovedIn20Warning",
+]
