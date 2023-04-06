@@ -5,6 +5,13 @@ Changelog
 
 All notable changes to this project will be documented in this file.
 
+`0.59.0`_ -- 2023-04-06
+-----------------------
+Added
+^^^^^
+* sqlalchemy: make sqlalchemy1.4 suitable to 2.0
+
+
 `0.58.0`_ -- 2023-03-02
 -----------------------
 Added
