@@ -45,6 +45,25 @@ def test_actors_can_store_results(stub_broker, stub_worker, result_backend, forg
     assert result == 42
 
 
+def test_actors_store_result_with_actor_name(stub_broker, stub_worker, result_backend):  # Given a result backend
+    # And a broker with the results middleware
+    stub_broker.add_middleware(Results(backend=result_backend))
+
+    # And an actor that stores results
+    @remoulade.actor(store_results=True)
+    def do_work():
+        return 42
+
+    # And this actor is declared
+    stub_broker.declare_actor(do_work)
+    message = do_work.send()
+    # Wait message to be process
+    message.result.get(block=True)
+
+    raw_backend_result = result_backend._get(f"remoulade-results:{message.message_id}")
+    assert raw_backend_result["actor_name"] == "do_work"
+
+
 def test_store_results_can_be_set_at_message_level(stub_broker, stub_worker, result_middleware):
     # Given an actor that do not stores results
     @remoulade.actor(store_results=False)

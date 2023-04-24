@@ -5,6 +5,13 @@ Changelog
 
 All notable changes to this project will be documented in this file.
 
+`1.1.0`_ -- 2023-05-16
+-----------------------
+Added
+^^^^^
+* add actor name in the BackendResult result
+* Create Pydantic encoder
+
 `1.0.1`_ -- 2023-05-11
 -----------------------
 Fix

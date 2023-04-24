@@ -82,16 +82,22 @@ class Results(Middleware):
         results = []
         if store_results:
             if exception is None:
-                results.append((message.message_id, BackendResult(result=result, error=None)))
+                results.append(
+                    (message.message_id, BackendResult(result=result, error=None, actor_name=message.actor_name))
+                )
             elif message_failed:
                 error_str = self._serialize_exception(exception)
-                results.append((message.message_id, BackendResult(result=None, error=error_str)))
+                results.append(
+                    (message.message_id, BackendResult(result=None, error=error_str, actor_name=message.actor_name))
+                )
 
         # even if the actor do not have store_results, we need to invalidate the messages in the pipeline that has it
         if message_failed and not pipe_on_error:
             error_str = self._serialize_exception(exception)
             exception = ParentFailed(f"{message} failed because of {error_str}")
-            children_result = BackendResult(result=None, error=self._serialize_exception(exception))
+            children_result = BackendResult(
+                result=None, error=self._serialize_exception(exception), actor_name=message.actor_name
+            )
 
             for message_id in self._get_children_message_ids(
                 broker, self.get_option("pipe_target", broker=broker, message=message)
