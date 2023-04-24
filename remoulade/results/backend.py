@@ -37,15 +37,15 @@ class Missing:
 
 
 #: A type alias representing backend results.
-class BackendResult(namedtuple("BackendResult", ("result", "error", "forgot"))):
-    def __new__(cls, *, result, error, forgot=False):
-        return super().__new__(cls, result, error, forgot)
+class BackendResult(namedtuple("BackendResult", ("result", "error", "forgot", "actor_name"))):
+    def __new__(cls, *, result, error, forgot=False, actor_name=None):
+        return super().__new__(cls, result, error, forgot, actor_name)
 
     def asdict(self):
         return self._asdict()
 
 
-ForgottenResult = BackendResult(result=None, error=None, forgot=True)
+ForgottenResult = BackendResult(result=None, error=None, forgot=True, actor_name=None)
 
 
 class ResultBackend:
