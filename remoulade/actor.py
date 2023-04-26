@@ -16,7 +16,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 import re
-from typing import TYPE_CHECKING, Any, Callable, Generic, List, Optional, TypeVar, overload
+from typing import TYPE_CHECKING, Any, Callable, Dict, Generic, List, Optional, Tuple, TypeVar, overload
 
 from typing_extensions import Literal, TypedDict
 
@@ -195,7 +195,7 @@ class Actor(Generic[F]):
     def queue_names(self):
         return [self.queue_name] + (self.alternative_queues or [])
 
-    def message(self, *args, **kwargs) -> Message:
+    def message(self, *args: Any, **kwargs: Any) -> Message:
         """Build a message.  This method is useful if you want to
         compose actors.  See the actor composition documentation for
         details.
@@ -213,7 +213,14 @@ class Actor(Generic[F]):
         """
         return self.message_with_options(args=args, kwargs=kwargs)
 
-    def message_with_options(self, *, args=None, kwargs=None, queue_name: Optional[str] = None, **options) -> Message:
+    def message_with_options(
+        self,
+        *,
+        args: Optional[Tuple[Any, ...]] = None,
+        kwargs: Optional[Dict[str, Any]] = None,
+        queue_name: Optional[str] = None,
+        **options: Any,
+    ) -> Message:
         """Build a message with an arbitrary set of processing options.
         This method is useful if you want to compose actors.  See the
         actor composition documentation for details.
@@ -245,7 +252,7 @@ class Actor(Generic[F]):
             options=options,
         )
 
-    def send(self, *args, **kwargs) -> Message:
+    def send(self, *args: Any, **kwargs: Any) -> Message:
         """Asynchronously send a message to this actor.
 
         Parameters:
@@ -258,7 +265,13 @@ class Actor(Generic[F]):
         return self.send_with_options(args=args, kwargs=kwargs)
 
     def send_with_options(
-        self, *, args=None, kwargs=None, queue_name: Optional[str] = None, delay=None, **options
+        self,
+        *,
+        args: Optional[Tuple[Any, ...]] = None,
+        kwargs: Optional[Dict[str, Any]] = None,
+        queue_name: Optional[str] = None,
+        delay: Optional[int] = None,
+        **options: Any,
     ) -> Message:
         """Asynchronously send a message to this actor, along with an
         arbitrary set of processing options for the broker and
