@@ -5,6 +5,13 @@ Changelog
 
 All notable changes to this project will be documented in this file.
 
+`0.60.0`_ -- 2023-04-26
+-----------------------
+Added
+^^^^^
+* actor: Type send/message/send_with_options/message_with_options typing
+* current_message: fix return type
+
 `0.59.0`_ -- 2023-04-06
 -----------------------
 Added
