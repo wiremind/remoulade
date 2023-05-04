@@ -5,6 +5,12 @@ Changelog
 
 All notable changes to this project will be documented in this file.
 
+`1.0.0`_ -- 2023-05-04
+-----------------------
+Breaking changes
+^^^^^^^^^^^^^^^^
+* update redis dependency from 3.5 to 4.5
+
 `0.60.0`_ -- 2023-04-26
 -----------------------
 Added
