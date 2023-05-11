@@ -1,3 +1,5 @@
+from unittest.mock import patch
+
 import pytest
 
 import remoulade
@@ -53,7 +55,8 @@ def test_cancellations_not_stored_forever(cancel_backend, frozen_datetime):
     assert not cancel_backend.is_canceled("a", None)
 
 
-def test_compositions_are_canceled_on_actor_failure(stub_broker, stub_worker, cancel_backend):
+@pytest.mark.parametrize("cancel", [True, False])
+def test_compositions_are_canceled_on_actor_failure(stub_broker, stub_worker, cancel_backend, cancel):
     # Given a cancel backend
     # And a broker with the cancel middleware
     stub_broker.add_middleware(Cancel(backend=cancel_backend))
@@ -71,16 +74,19 @@ def test_compositions_are_canceled_on_actor_failure(stub_broker, stub_worker, ca
     # And those actors are declared
     remoulade.declare_actors([do_work, do_fail])
 
-    g = group([do_work.message(), do_fail.message() | do_work.message()], cancel_on_error=True)
+    g = group([do_work.message(), do_fail.message() | do_work.message()], cancel_on_error=cancel)
+    p = pipeline([g, do_work.message()], cancel_on_error=cancel)
 
     # When I group a few jobs together and run it
-    g.run()
+    with patch("remoulade.composition.generate_unique_id") as mocked_obj:
+        mocked_obj.return_value = "mocked_composition_id"
+        p.run()
 
     stub_broker.join(do_fail.queue_name)
     stub_worker.join()
 
     # All actors should have been canceled
-    assert cancel_backend.is_canceled("", g.group_id)
+    assert cancel_backend.is_canceled("", "mocked_composition_id") == cancel
 
 
 def test_compositions_are_canceled_on_message_cancel(stub_broker, cancel_backend, state_middleware, api_client):
