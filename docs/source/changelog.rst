@@ -5,6 +5,12 @@ Changelog
 
 All notable changes to this project will be documented in this file.
 
+`1.0.1`_ -- 2023-05-11
+-----------------------
+Fix
+^^^
+* group: fix `cancel_on_error` option
+
 `1.0.0`_ -- 2023-05-04
 -----------------------
 Breaking changes

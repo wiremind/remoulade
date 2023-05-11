@@ -230,7 +230,7 @@ class group:
             self.broker.emit_before("build_group_pipeline", group_id=self.group_id, message_ids=list(self.message_ids))
 
         composition_id = options.get("composition_id", self.group_id)
-        cancel_on_error = options.get("composition_id", self.cancel_on_error)
+        cancel_on_error = options.get("cancel_on_error", self.cancel_on_error)
         options = {
             "group_info": self.info.asdict(),
             "composition_id": composition_id,
