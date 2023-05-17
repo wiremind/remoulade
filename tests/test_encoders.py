@@ -85,6 +85,15 @@ def my_actor(
     return FirstOutputSchema(output=input_1.name), SecondOutputSchema(val=input_2.id if input_2 is not None else "2")
 
 
+@remoulade.actor(store_results=True)
+def my_actor_none(
+    input_1: MyFirstSchema,
+    input_2: Optional[MySecondSchema] = None,
+    input_3: Union[MyFirstSchema, MySecondSchema, None] = None,
+) -> None:
+    return
+
+
 @pytest.fixture
 def input_1() -> MyFirstSchema:
     return MyFirstSchema(name="aa", address=None, birth_date=datetime.datetime(2022, 1, 1), enum=MyEnum.val)
@@ -125,6 +134,7 @@ def message_data_encoded() -> bytes:
 def encoder(stub_broker, stub_worker, result_backend) -> PydanticEncoder:
     stub_broker.add_middleware(Results(backend=result_backend))
     stub_broker.declare_actor(my_actor)
+    stub_broker.declare_actor(my_actor_none)
     return PydanticEncoder()
 
 
@@ -177,11 +187,21 @@ def backend_result_decoded(input_1: MyFirstSchema, input_2: MySecondSchema) -> M
 
 
 @pytest.fixture
+def backend_result_decoded_none(input_1: MyFirstSchema, input_2: MySecondSchema) -> MessageData:
+    return BackendResult(result=None, error=None, forgot=True, actor_name="my_actor_none").asdict()
+
+
+@pytest.fixture
 def backend_result_encoded() -> bytes:
     return (
         b'{"result": [{"output": "aa", "error": null}, {"val": "33"}], '
         b'"error": null, "forgot": true, "actor_name": "my_actor"}'
     )
+
+
+@pytest.fixture
+def backend_result_encoded_none() -> bytes:
+    return b'{"result": null, ' b'"error": null, "forgot": true, "actor_name": "my_actor_none"}'
 
 
 def test_encoder_result(encoder: PydanticEncoder, backend_result_decoded: MessageData, backend_result_encoded: bytes):
@@ -195,6 +215,21 @@ def test_encoder_result(encoder: PydanticEncoder, backend_result_decoded: Messag
 
     assert encoder.decode(encoder.encode(backend_result_decoded)) == tuple_to_list(backend_result_decoded, "result")
     assert encoder.encode(encoder.decode(backend_result_encoded)) == backend_result_encoded
+
+
+def test_encoder_result_with_none(
+    encoder: PydanticEncoder, backend_result_decoded_none: MessageData, backend_result_encoded_none: bytes
+):
+    encoded_value = encoder.encode(backend_result_decoded_none)
+    assert encoded_value == backend_result_encoded_none
+
+    decoded_result = encoder.decode(backend_result_encoded_none)
+
+    # Args tuple are assumed to become list in remoulade
+    assert decoded_result == backend_result_decoded_none
+
+    assert encoder.decode(encoder.encode(backend_result_decoded_none)) == backend_result_decoded_none
+    assert encoder.encode(encoder.decode(backend_result_encoded_none)) == backend_result_encoded_none
 
 
 def test_backend_result_unknown_actor(encoder: PydanticEncoder, backend_result_encoded: bytes):

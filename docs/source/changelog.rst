@@ -5,6 +5,12 @@ Changelog
 
 All notable changes to this project will be documented in this file.
 
+`1.2.1`_ -- 2023-05-17
+-----------------------
+Fix
+^^^^^
+* PydanticEncoder accept None as return value
+
 `1.2.0`_ -- 2023-05-17
 -----------------------
 Fix
