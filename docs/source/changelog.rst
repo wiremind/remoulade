@@ -5,6 +5,12 @@ Changelog
 
 All notable changes to this project will be documented in this file.
 
+`1.2.0`_ -- 2023-05-17
+-----------------------
+Fix
+^^^^^
+* Adjust package version with pypi. This version add no changes.
+
 `1.1.2`_ -- 2023-05-17
 -----------------------
 Fix
