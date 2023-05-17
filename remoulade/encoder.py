@@ -159,7 +159,7 @@ class PydanticEncoder(Encoder):
                 raise e
 
     @staticmethod
-    def get_parsed_value(raw_value: Any, schema: ModelField):
+    def get_parsed_value(raw_value: Any, schema: "ModelField"):
         errors = []
         parsed_value, errors_ = schema.validate(raw_value, {}, loc=())
         if isinstance(errors_, ErrorWrapper):
