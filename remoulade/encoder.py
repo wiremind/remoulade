@@ -16,17 +16,15 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 import abc
-import inspect
 import json
 import pickle
 import warnings
-from typing import Any, Dict, Optional, Set, Type, Union, cast, get_type_hints
-
-from pydantic.error_wrappers import ErrorWrapper
-from pydantic.fields import ModelField
+from typing import Any, Dict, Optional, get_type_hints
 
 try:
     from pydantic import BaseConfig, BaseModel, ValidationError, create_model
+    from pydantic.error_wrappers import ErrorWrapper
+    from pydantic.fields import ModelField
     from simplejson.decoder import JSONDecoder
     from simplejson.encoder import JSONEncoder as _JSONEncoder
 except ImportError:  # pragma: no cover
