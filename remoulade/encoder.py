@@ -147,12 +147,7 @@ class PydanticEncoder(Encoder):
                         self.get_parsed_value(raw_value, schemas[order]) for order, raw_value in enumerate(values)
                     ]
                 elif key == "result":
-                    parsed_value = self.get_parsed_value(values, schemas_by_param_name["return"])
-                    try:
-                        _parsed_value = list(parsed_value)
-                    except TypeError:
-                        _parsed_value = parsed_value
-                    parsed_message[key] = _parsed_value
+                    parsed_message[key] = self.get_parsed_value(values, schemas_by_param_name["return"])
                 else:
                     parsed_message[key] = values
 
