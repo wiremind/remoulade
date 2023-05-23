@@ -5,6 +5,12 @@ Changelog
 
 All notable changes to this project will be documented in this file.
 
+`1.2.2_ -- 2023-05-23
+-----------------------
+Fix
+^^^^^
+* PydanticEncoder return value encoding
+
 `1.2.1`_ -- 2023-05-17
 -----------------------
 Fix
