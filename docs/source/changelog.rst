@@ -5,6 +5,12 @@ Changelog
 
 All notable changes to this project will be documented in this file.
 
+`1.2.3_ -- 2023-06-09
+-----------------------
+Added
+^^^^^
+* PostgresBackend: add pool_pre_ping=True as pessimistic approach for SQL connections
+
 `1.2.2_ -- 2023-05-23
 -----------------------
 Fix

@@ -29,3 +29,4 @@ of those changes to CLEARTYPE SRL.
 | [@antoinerabany](https://github.com/antoinerabany) | Antoine Rabany         |
 | [@thomasLeMeur](https://github.com/thomasLeMeur)   | Thomas Le Meur         |
 | [@fregogui](https://github.com/fregogui)           | Guillaume Fregosi      |
+| [@pgitips](https://github.com/pgitips)             | Pierre Giraud          |
