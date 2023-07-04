@@ -115,10 +115,11 @@ class PostgresBackend(StateBackend):
         client: Optional[sessionmaker] = None,
         max_size: int = 2000000,
         url: Optional[str] = None,
+        future: bool = False,
     ):
         self.url = url or os.getenv("REMOULADE_POSTGRESQL_URL") or DEFAULT_POSTGRES_URI
         super().__init__(namespace=namespace, encoder=encoder)
-        self.client = client or sessionmaker(create_engine(self.url, pool_pre_ping=True))
+        self.client = client or sessionmaker(create_engine(self.url, pool_pre_ping=True, future=future))
         self.init_db()
         self.max_size = max_size
         self.lock = threading.Lock()

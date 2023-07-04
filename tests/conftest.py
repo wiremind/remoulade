@@ -212,7 +212,7 @@ def stub_state_backend():
 @pytest.fixture
 def postgres_state_backend():
     db_string = os.getenv("REMOULADE_TEST_DB_URL") or "postgresql://remoulade@localhost:5544/test"
-    backend = st_backends.PostgresBackend(url=db_string)
+    backend = st_backends.PostgresBackend(url=db_string, future=True)
     backend.clean()
     return backend
 
