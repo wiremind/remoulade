@@ -5,6 +5,12 @@ Changelog
 
 All notable changes to this project will be documented in this file.
 
+`2.0.0`_ -- 2023-07-20
+-----------------------
+Breaking changes
+^^^^^^^^^^^^^^^^
+* update pydantic dependency from <2 to >=2.0 (only for remoulade[pydantic])
+
 `1.2.4`_ -- 2023-07-03
 -----------------------
 Added

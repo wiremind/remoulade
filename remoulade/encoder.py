@@ -21,10 +21,10 @@ import pickle
 import warnings
 from typing import Any, Dict, Optional, get_type_hints
 
+from typing_extensions import Annotated
+
 try:
-    from pydantic import BaseConfig, BaseModel, ValidationError, create_model
-    from pydantic.error_wrappers import ErrorWrapper
-    from pydantic.fields import ModelField
+    from pydantic import BaseConfig, BaseModel, TypeAdapter, ValidationError, WithJsonSchema, create_model
     from simplejson.decoder import JSONDecoder
     from simplejson.encoder import JSONEncoder as _JSONEncoder
 except ImportError:  # pragma: no cover
@@ -101,7 +101,7 @@ class PydanticEncoder(Encoder):
     def default(o):
         if isinstance(o, BaseModel):
             # keep dict otherwise it will be serialized as a string (see Pydantic .json())
-            return json.loads(o.json())
+            return json.loads(o.model_dump_json())
         raise TypeError("Object of type %s is not JSON serializable" % o.__class__.__name__)
 
     def encode(self, data: MessageData) -> bytes:
@@ -124,11 +124,13 @@ class PydanticEncoder(Encoder):
             # Retrieve the Pydantic schemas from typing
             schemas_by_param_name = {}
             for param_name, type_hint in get_type_hints(actor_fn).items():
-                schemas_by_param_name[param_name] = ModelField(
-                    type_=type_hint,
-                    name=f"{param_name}_schema",
-                    class_validators=None,
-                    model_config=BaseConfig,
+                schemas_by_param_name[param_name] = TypeAdapter(
+                    Annotated[
+                        type_hint,
+                        WithJsonSchema(
+                            {"type": type_hint, "description": f"{param_name}_schema"}, mode="serialization"
+                        ),
+                    ]
                 )
 
             # Override message_data with Pydantic schema when it matches
@@ -137,17 +139,17 @@ class PydanticEncoder(Encoder):
                 if key == "kwargs":
                     assert isinstance(values, dict)
                     parsed_message[key] = {
-                        param_name: self.get_parsed_value(raw_value, schemas_by_param_name[param_name])
+                        param_name: schemas_by_param_name[param_name].validate_python(raw_value)
                         for param_name, raw_value in values.items()
                     }
                 elif key == "args":
                     assert isinstance(values, list)
                     schemas = list(schemas_by_param_name.values())
                     parsed_message[key] = [
-                        self.get_parsed_value(raw_value, schemas[order]) for order, raw_value in enumerate(values)
+                        schemas[order].validate_python(raw_value) for order, raw_value in enumerate(values)
                     ]
                 elif key == "result":
-                    parsed_message[key] = self.get_parsed_value(values, schemas_by_param_name["return"])
+                    parsed_message[key] = schemas_by_param_name["return"].validate_python(values)
                 else:
                     parsed_message[key] = values
 
@@ -157,15 +159,3 @@ class PydanticEncoder(Encoder):
                 return self.fallback_encoder.decode(data)
             else:
                 raise e
-
-    @staticmethod
-    def get_parsed_value(raw_value: Any, schema: "ModelField"):
-        errors = []
-        parsed_value, errors_ = schema.validate(raw_value, {}, loc=())
-        if isinstance(errors_, ErrorWrapper):
-            errors.append(errors_)
-        elif isinstance(errors_, list):
-            errors.extend(errors_)
-        if errors:
-            raise ValidationError(errors, create_model("RemouladeEncoder"))
-        return parsed_value
