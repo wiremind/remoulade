@@ -29,7 +29,7 @@ extra_dependencies = {
     "redis": ["redis~=4.5"],
     "server": ["flask>=1.1,<2.2", "marshmallow>=3", "flask-apispec"],
     "postgres": ["sqlalchemy>=1.4.29,<2", "psycopg2==2.9.5"],
-    "pydantic": ["pydantic<2", "simplejson"]
+    "pydantic": ["pydantic>=2.0", "simplejson"],
 }
 
 extra_dependencies["all"] = list(set(sum(extra_dependencies.values(), [])))

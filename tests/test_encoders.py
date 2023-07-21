@@ -84,6 +84,7 @@ def my_actor_tuple(
 ) -> Tuple[FirstOutputSchema, Optional[SecondOutputSchema]]:
     return FirstOutputSchema(output=input_1.name), SecondOutputSchema(val=input_2.id if input_2 is not None else "2")
 
+
 @remoulade.actor(store_results=True)
 def my_actor(
     input_1: MyFirstSchema,
@@ -131,7 +132,7 @@ def message_data_encoded() -> bytes:
         b'{"queue_name": "default", '
         b'"actor_name": "my_actor_tuple", '
         b'"args": [{"name": "aa", "address": null, "birth_date": "2022-01-01T00:00:00", "enum": "val"}], '
-        b'"kwargs": {"input_2": {"id": "33", "value": 2}}, '
+        b'"kwargs": {"input_2": {"id": "33", "value": "2"}}, '
         b'"options": {}, '
         b'"message_id": "dce31cca-70eb-4a55-9b16-5fb6cdd43415", '
         b'"message_timestamp": 68139918115}'
@@ -189,6 +190,7 @@ def test_message_schema_not_matching(encoder: PydanticEncoder, message_data_enco
     with pytest.raises(ValidationError):
         encoder.decode(json.dumps(message_json_decoded).encode("utf-8"))
 
+
 @pytest.fixture
 def backend_result_decoded(input_1: MyFirstSchema, input_2: MySecondSchema) -> MessageData:
     return BackendResult(result=my_actor(input_1, input_2), error=None, forgot=True, actor_name="my_actor").asdict()
@@ -196,19 +198,19 @@ def backend_result_decoded(input_1: MyFirstSchema, input_2: MySecondSchema) -> M
 
 @pytest.fixture
 def backend_result_decoded_tuple(input_1: MyFirstSchema, input_2: MySecondSchema) -> MessageData:
-    return BackendResult(result=my_actor_tuple(input_1, input_2), error=None, forgot=True, actor_name="my_actor_tuple").asdict()
+    return BackendResult(
+        result=my_actor_tuple(input_1, input_2), error=None, forgot=True, actor_name="my_actor_tuple"
+    ).asdict()
 
 
 @pytest.fixture
 def backend_result_decoded_none(input_1: MyFirstSchema, input_2: MySecondSchema) -> MessageData:
     return BackendResult(result=None, error=None, forgot=True, actor_name="my_actor_none").asdict()
 
+
 @pytest.fixture
 def backend_result_encoded() -> bytes:
-    return (
-        b'{"result": {"output": "aa", "error": null}, '
-        b'"error": null, "forgot": true, "actor_name": "my_actor"}'
-    )
+    return b'{"result": {"output": "aa", "error": null}, ' b'"error": null, "forgot": true, "actor_name": "my_actor"}'
 
 
 @pytest.fixture
@@ -236,7 +238,9 @@ def test_encoder_result(encoder: PydanticEncoder, backend_result_decoded: Messag
     assert encoder.encode(encoder.decode(backend_result_encoded)) == backend_result_encoded
 
 
-def test_encoder_result_tuple(encoder: PydanticEncoder, backend_result_decoded_tuple: MessageData, backend_result_encoded_tuple: bytes):
+def test_encoder_result_tuple(
+    encoder: PydanticEncoder, backend_result_decoded_tuple: MessageData, backend_result_encoded_tuple: bytes
+):
     encoded_value = encoder.encode(backend_result_decoded_tuple)
     assert encoded_value == backend_result_encoded_tuple
 
