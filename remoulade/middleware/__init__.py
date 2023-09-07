@@ -29,6 +29,7 @@ from .retries import Retries
 from .shutdown import Shutdown, ShutdownNotifications
 from .threading import Interrupt, raise_thread_exception
 from .time_limit import TimeLimit, TimeLimitExceeded
+from .worker_thread_logging import WorkerThreadLogging
 
 CURRENT_OS = platform.system()
 
@@ -58,10 +59,11 @@ __all__ = [
     "TimeLimitExceeded",
     "MaxMemory",
     "MaxTasks",
+    "WorkerThreadLogging"
 ]
 
 if CURRENT_OS != "Windows":
     __all__.append("Prometheus")
 
 #: The list of middleware that are enabled by default.
-default_middleware = [AgeLimit, TimeLimit, ShutdownNotifications, Pipelines, Retries, CatchError, CurrentMessage]
+default_middleware = [WorkerThreadLogging, AgeLimit, TimeLimit, ShutdownNotifications, Pipelines, Retries, CatchError, CurrentMessage]

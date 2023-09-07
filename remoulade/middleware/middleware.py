@@ -163,3 +163,9 @@ class Middleware:
         The message options is set to this function's return value"""
 
         return options
+
+    def before_actor_execution(self, broker, message):
+        """Called before the actor is called"""
+
+    def after_actor_execution(self, broker, message, *, runtime=0):
+        """Called after the actor is called"""
