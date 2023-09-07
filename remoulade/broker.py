@@ -33,6 +33,7 @@ from .middleware import (
     Retries,
     ShutdownNotifications,
     TimeLimit,
+    WorkerThreadLogging,
     default_middleware,
 )
 from .results import ResultBackend, Results
@@ -49,6 +50,7 @@ global_broker: "Optional[Broker]" = None
 
 #: The order in which middlewares are sorted
 middleware_order = [
+    WorkerThreadLogging,
     AgeLimit,
     TimeLimit,
     ShutdownNotifications,

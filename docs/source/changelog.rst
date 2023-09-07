@@ -5,6 +5,12 @@ Changelog
 
 All notable changes to this project will be documented in this file.
 
+`2.1.0`_ -- 2023-09-08
+-----------------------
+Added
+^^^^^
+* worker: do workerThread logging in a middleware to be able to override its behavior
+
 `2.0.0`_ -- 2023-07-20
 -----------------------
 Breaking changes

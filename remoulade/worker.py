@@ -436,7 +436,7 @@ class _WorkerThread(Thread):
 
     def process_message(self, message):
         """Process a message pulled off of the work queue then push it
-        back to its associated consumer for post processing.
+        back to its associated consumer for post-processing.
 
         Parameters:
           message(MessageProxy)
@@ -453,28 +453,13 @@ class _WorkerThread(Thread):
             self.broker.emit_after("process_message", message, result=res)
 
         except SkipMessage:
-            self.logger.warning("Message %s was skipped.", message, extra=extra)
             self.broker.emit_after("skip_message", message)
 
         except MessageCanceled:
-            self.logger.warning("Message %s has been canceled", message, extra=extra)
             self.broker.emit_after("message_canceled", message)
 
         except BaseException as e:
             self.broker.emit_after("process_message", message, exception=e)
-
-            if isinstance(e, RateLimitExceeded):
-                self.logger.warning("Rate limit exceeded in message %s: %s.", message, e, extra=extra)
-            else:
-                extra = build_extra(message, 5000)
-                self.logger.log(
-                    logging.ERROR if message.failed else logging.WARNING,
-                    "Failed to process message %s with unhandled %s",
-                    message,
-                    e.__class__.__name__,
-                    exc_info=True,
-                    extra=extra,
-                )
 
         finally:
             # NOTE: There is no race here as any message that was
@@ -495,16 +480,13 @@ class _WorkerThread(Thread):
         Returns:
           Whatever the actor returns.
         """
-        extra = build_extra(message, 1000)
         actor = self.broker.get_actor(message.actor_name)
+        self.broker.emit_before("actor_execution", message)
+        start = time.perf_counter()
         try:
-            self.logger.info("Started Actor %s", message, extra=extra)
-            start = time.perf_counter()
             return actor(*message.args, **message.kwargs)
         finally:
-            runtime = (time.perf_counter() - start) * 1000
-            extra["runtime"] = runtime
-            self.logger.info("Finished Actor %s after %.02fms.", message, runtime, extra=extra)
+            self.broker.emit_after("actor_execution", message, runtime=(time.perf_counter() - start) * 1000)
 
     def pause(self):
         """Pause this worker."""
