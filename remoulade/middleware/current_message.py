@@ -3,7 +3,7 @@
 # Based in current_message.py from the dramatiq project
 
 from threading import local
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING, Any, Optional
 
 from .middleware import Middleware
 
@@ -12,11 +12,10 @@ if TYPE_CHECKING:
 
 
 class CurrentMessage(Middleware):
-
     local_data = local()
 
     @classmethod
-    def get_current_message(cls) -> Optional["Message"]:
+    def get_current_message(cls) -> Optional["Message[Any]"]:
         """Get the message that triggered the current actor.  Messages
         are thread local so this returns ``None`` when called outside
         of actor code.

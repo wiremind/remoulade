@@ -15,28 +15,52 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 from collections import namedtuple
-from typing import Any, Optional
+from typing import Any, Generic, Optional, TypeVar, Union, overload
+
+import attr
+from typing_extensions import Literal
+
+from remoulade.results.errors import ErrorStored
 
 from .broker import get_broker
 from .results import ResultBackend
 
+R = TypeVar("R", covariant=True)
 
-class Result(namedtuple("Result", ("message_id",))):
+
+@attr.s(frozen=True, slots=True, kw_only=True, auto_attribs=True)
+class Result(Generic[R]):
     """Encapsulates metadata needed to retrieve the result of a message
 
     Parameters:
       message_id(str): The id of the message sent to the broker.
     """
 
-    def __new__(cls, *, message_id: Optional[str] = None) -> "Result":
-        return super().__new__(cls, message_id=message_id)
+    message_id: str
 
     def asdict(self):
-        return self._asdict()
+        return attr.asdict(self)
+
+    @overload
+    def get(
+        self,
+        *,
+        block: bool = False,
+        timeout: Optional[int] = None,
+        raise_on_error: Literal[True] = True,
+        forget: bool = False,
+    ) -> R:
+        ...
+
+    @overload
+    def get(
+        self, *, block: bool = False, timeout: Optional[int] = None, raise_on_error: bool = True, forget: bool = False
+    ) -> Union[R, ErrorStored]:
+        ...
 
     def get(
         self, *, block: bool = False, timeout: Optional[int] = None, raise_on_error: bool = True, forget: bool = False
-    ) -> Any:
+    ) -> Union[R, ErrorStored]:
         """Get the result associated with a message_id from a result backend.
 
         Parameters:

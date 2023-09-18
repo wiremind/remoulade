@@ -16,7 +16,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 from contextlib import contextmanager
 from queue import Queue
-from typing import TYPE_CHECKING, Dict, Iterable, List, Optional, Set, Type, TypeVar, Union
+from typing import TYPE_CHECKING, Any, Dict, Iterable, List, Optional, Set, Type, TypeVar, Union
 
 from .cancel import Cancel, CancelBackend
 from .errors import ActorNotFound, NoCancelBackend, NoResultBackend, NoStateBackend
@@ -359,7 +359,7 @@ class Broker:
     def _enqueue(self, message: "Message", *, delay: Optional[int] = None) -> "Message":
         raise NotImplementedError
 
-    def enqueue(self, message: "Message", *, delay: Optional[int] = None) -> "Message":  # pragma: no cover
+    def enqueue(self, message: "Message[Any]", *, delay: Optional[int] = None) -> "Message[Any]":  # pragma: no cover
         """Enqueue a message on this broker.
 
         Parameters:

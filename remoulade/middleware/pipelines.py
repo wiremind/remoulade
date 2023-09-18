@@ -14,6 +14,8 @@
 #
 # You should have received a copy of the GNU Lesser General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
+from typing import Any
+
 from ..errors import NoResultBackend
 from ..logging import get_logger
 from ..results import Results
@@ -101,7 +103,7 @@ class Pipelines(Middleware):
         from ..message import Message
 
         for message_data in pipe_target:
-            next_message = Message(**message_data)
+            next_message = Message[Any](**message_data)
             pipe_ignore = self.get_option("pipe_ignore", broker=broker, message=next_message, default=False)
 
             if not pipe_ignore:
