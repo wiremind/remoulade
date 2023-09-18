@@ -5,6 +5,94 @@ Changelog
 
 All notable changes to this project will be documented in this file.
 
+`3.0.0`_ -- 2023-09-19
+-----------------------
+Breaking changes
+^^^^^^^^^^^^^^^^
+* The only runtime breaking change is that `Message` and `Result` are no longer named tuples, but attrs frozen classes. Other breaking changes only concern the typing system.
+* `Actor` is no longer a generic of the function it wraps, but it uses PEP 612 parameter specification variables. 
+
+.. code-block:: python
+
+   @actor
+   def add(a: int, b: int) -> int:
+      return a + b
+
+   # previously `add` was Actor[Callable[[int, int], int]]
+   # now it's Actor[[int, int], int]
+   # and Actor[Callable[..., int]] becomes Actor[..., int]
+
+
+We'll elaborate on the benefits of this approach later.
+
+Many classes become generic:
+
+* `Message` is now generic of the result that it generates.
+* `Result` is now generic of the value that it holds.
+* `CollectionResult` is now generic of the type of the child values that it contains
+* `pipeline` is generic of the type of the result of the last item in the pipeline
+* `group` is generic of the type of the result of its children
+
+.. code-block:: python
+
+   @actor
+   def add(a: int, b: int) -> int:
+      return a + b
+
+   add.message(1, 2)  # This is now Message[Result[int]]
+   add.message(1, 2).result  # this is now Result[int]
+   pipeline(message(1, 2), message(1))  # this is now pipeline[Result[int]]
+   group(message(1, 2), message(1))  # this is now group[Result[int]]
+
+* pipeline now expects to receive a `tuple` as an input. It used to only expect an iterable. At runtime, passing a list will still work but it will generate errors if you use a type checker. The benefits of this approach will be explained below.
+
+Enhancements of the type system
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+The changes presented above allow us to have various enhancements in the type system:
+
+* previously calling an actor synchronously could be made without any typechecking on the args ans kwargs passed to it. This is no longer possible and the args and kwargs passed are expected to the be the same as the ones defined in the underlying function.
+
+.. code-block:: python
+
+   @actor
+   def add(a: int, b: int) -> int:
+      return a + b
+
+   add(1, "2")  # this is now an error
+
+* Type checkers can now infer the type of the result of a single message, a group or a pipeline. 
+
+.. code-block:: python
+
+   @actor(store_results=True)
+   def add(x: int, y: int) -> int:
+      return x + y
+
+
+   @actor(store_results=True)
+   def _print(x: str) -> None:
+      print(x)
+
+
+   @actor(store_results=True)
+   def stop(x: Any) -> None:
+      return
+
+
+   result = add.message(1, 2).result.get()  # inferred type is Result[int]
+   # inferred type is Generator[int, None, None]
+   results = group([add.message(1, x) for x in range(10)]).results.get()
+   # It also works if tasks are heterogeneous. Inferred type here is Generator[Union[int, None], None, None]
+   results = group([add.message(1, 2), _print.message("hello")]).results.get()
+   # inferred type is int
+   result = pipeline((add.message(1, 2), add.message(1))).result.get()
+   # This works even with complex pipelines
+   # pyright can infer  that this will return Result[None]
+   # mypy in its development version can do the same
+   # but current stable version infers this as Never
+   reveal_type(pipeline((_print.message("a"), _print.message(), stop.message())).result)
+
 `2.1.0`_ -- 2023-09-08
 -----------------------
 Added

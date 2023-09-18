@@ -16,8 +16,9 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 import time
-from collections import namedtuple
-from typing import Dict, Optional, Tuple
+from typing import Any, Dict, Generic, TypeVar, cast
+
+import attr
 
 from remoulade.state import State
 
@@ -53,9 +54,11 @@ def set_encoder(encoder: Encoder) -> None:
     global_encoder = encoder
 
 
-class Message(
-    namedtuple("Message", ("queue_name", "actor_name", "args", "kwargs", "options", "message_id", "message_timestamp"))
-):
+ResultT = TypeVar("ResultT", bound=Result[Any], covariant=True)
+
+
+@attr.s(frozen=True, slots=True, kw_only=True, auto_attribs=True)
+class Message(Generic[ResultT]):
     """Encapsulates metadata about messages being sent to individual actors.
 
     Parameters:
@@ -69,35 +72,21 @@ class Message(
         representing when the message was first enqueued.
     """
 
-    def __new__(
-        cls,
-        *,
-        queue_name: str,
-        actor_name: str,
-        args: Tuple,
-        kwargs: Dict,
-        options: Dict,
-        message_id: Optional[str] = None,
-        message_timestamp: Optional[int] = None,
-    ):
-        return super().__new__(
-            cls,
-            queue_name,
-            actor_name,
-            tuple(args),
-            kwargs,
-            options,
-            message_id=message_id or generate_unique_id(),
-            message_timestamp=message_timestamp or int(time.time() * 1000),
-        )
+    queue_name: str
+    actor_name: str
+    args: tuple = attr.field(converter=tuple)
+    kwargs: Dict
+    options: Dict[str, Any]
+    message_id: str = attr.field(factory=generate_unique_id)
+    message_timestamp: int = attr.field(factory=lambda: int(time.time() * 1000))
 
     def __or__(self, other) -> pipeline:
         """Combine this message into a pipeline with "other"."""
-        return pipeline([self, other])
+        return pipeline((self, other))
 
     def asdict(self):
         """Convert this message to a dictionary."""
-        return self._asdict()
+        return attr.asdict(self)
 
     @classmethod
     def decode(cls, data):
@@ -106,16 +95,16 @@ class Message(
 
     def encode(self):
         """Convert this message to a bytestring."""
-        return global_encoder.encode(self._asdict())
+        return global_encoder.encode(self.asdict())
 
     def copy(self, **attributes):
         """Create a copy of this message."""
         updated_options = attributes.pop("options", {})
         options = self.options.copy()
         options.update(updated_options)
-        return self._replace(**attributes, options=options)
+        return attr.evolve(self, **attributes, options=options)
 
-    def build(self, options):
+    def build(self, options: Dict[str, Any]):
         """Build message for pipeline"""
         return self.copy(options=options)
 
@@ -140,8 +129,8 @@ class Message(
         backend.set_state(State(self.message_id, progress=progress))
 
     @property
-    def result(self) -> Result:
-        return Result(message_id=self.message_id)
+    def result(self) -> ResultT:
+        return cast(ResultT, Result(message_id=self.message_id))
 
     def __str__(self) -> str:
         return f"{self.actor_name} / {self.message_id}"

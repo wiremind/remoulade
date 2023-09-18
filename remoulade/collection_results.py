@@ -14,30 +14,39 @@
 #
 # You should have received a copy of the GNU Lesser General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
+from __future__ import annotations
+
 import time
 from collections import deque
-from typing import Any, Iterable, List, Optional, Union
+from typing import Any, Generator, Generic, Iterable, List, Optional, TypeVar, Union, cast, overload
+
+from typing_extensions import Literal
+
+from remoulade.results.errors import ErrorStored
 
 from .broker import get_broker
 from .result import Result
 from .results import ResultBackend
 
+ResultT = TypeVar("ResultT", bound=Union[Result, "CollectionResults"])
+R = TypeVar("R")
 
-class CollectionResults:
+
+class CollectionResults(Generic[ResultT]):
     """Result of a group or pipeline, having result related methods
 
     Parameters:
       children(List[Result|CollectionResults]): A sequence of results of messages, groups or pipelines.
     """
 
-    def __init__(self, children: "Iterable[Union[Result,CollectionResults]]") -> None:
+    def __init__(self, children: "Iterable[ResultT]") -> None:
         self.children = list(children)
 
     def __len__(self) -> int:
         return len(self.message_ids)
 
     @classmethod
-    def from_message_ids(cls, message_ids: Iterable[str]) -> "CollectionResults":
+    def from_message_ids(cls, message_ids: Iterable[str]) -> "CollectionResults[Any]":
         children = []
         for message_id in message_ids:
             # it's a pipeline
@@ -49,7 +58,7 @@ class CollectionResults:
                 else:
                     child = Result(message_id=last)
             else:
-                child = Result(message_id=message_id)
+                child = Result[Any](message_id=message_id)
             children.append(child)
         return CollectionResults(children)
 
@@ -73,7 +82,7 @@ class CollectionResults:
             if isinstance(child, CollectionResults):
                 message_ids += child.message_ids
             else:
-                message_ids += [child.message_id]
+                message_ids += [cast(Result[Any], child).message_id]
         return message_ids
 
     @property
@@ -98,9 +107,37 @@ class CollectionResults:
         # we could use message.completed here, but we just want to make 1 call to get_status
         return self._backend.get_status(self.message_ids)
 
+    @overload
+    def get(
+        self: CollectionResults[Result[R]],
+        *,
+        block: bool = False,
+        timeout: Optional[int] = None,
+        raise_on_error: Literal[True] = True,
+        forget: bool = False,
+    ) -> Generator[R, None, None]:
+        ...
+
+    @overload
+    def get(
+        self: CollectionResults[Result[R]],
+        *,
+        block: bool = False,
+        timeout: Optional[int] = None,
+        raise_on_error: bool = True,
+        forget: bool = False,
+    ) -> Generator[Union[R, ErrorStored], None, None]:
+        ...
+
+    @overload
     def get(
         self, *, block: bool = False, timeout: Optional[int] = None, raise_on_error: bool = True, forget: bool = False
-    ) -> Any:
+    ) -> Generator[Any, None, None]:
+        ...
+
+    def get(
+        self, *, block: bool = False, timeout: Optional[int] = None, raise_on_error: bool = True, forget: bool = False
+    ) -> Generator[Any, None, None]:
         """Get the results of each job in the collection.
 
         Parameters:
@@ -140,7 +177,7 @@ class CollectionResults:
 
                 yield list(child.get(block=block, timeout=timeout, raise_on_error=raise_on_error, forget=forget))
             else:
-                message_ids.append(child.message_id)
+                message_ids.append(cast(Result[Any], child).message_id)
 
         if message_ids:
             yield from self._backend.get_results(

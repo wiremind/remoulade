@@ -14,7 +14,7 @@
 #
 # You should have received a copy of the GNU Lesser General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
-from typing import Set
+from typing import Any, Set
 
 from ..logging import get_logger
 from ..middleware import Middleware
@@ -126,7 +126,7 @@ class Results(Middleware):
             for message_data in pipe_target:
                 message_ids |= self._get_children_message_ids(broker, message_data)
         elif pipe_target:
-            message = Message(**pipe_target)
+            message = Message[Any](**pipe_target)
             if self.get_option("store_results", broker=broker, message=message):
                 message_ids.add(message.message_id)
 

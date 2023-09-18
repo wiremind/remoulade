@@ -1,6 +1,6 @@
 """ This file describe the API to get the state of messages """
 import sys
-from typing import List
+from typing import Any, List
 
 from flask import Flask
 from flask_apispec import marshal_with
@@ -113,7 +113,7 @@ def get_results(message_id):
 
     max_size = 1e4
     try:
-        result = Result(message_id=message_id).get()
+        result = Result[Any](message_id=message_id).get()
         encoded_result = get_encoder().encode(result).decode("utf-8")
         size_result = sys.getsizeof(encoded_result)
         if size_result >= max_size:
