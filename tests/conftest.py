@@ -9,7 +9,10 @@ from unittest.mock import Mock
 import pytest
 import redis
 from freezegun import freeze_time
-from sqlalchemy import inspect
+from sqlalchemy.engine import create_engine
+from sqlalchemy.inspection import inspect
+from sqlalchemy.orm.session import sessionmaker
+from sqlalchemy.pool import NullPool
 
 import remoulade
 from remoulade import Worker
@@ -212,7 +215,7 @@ def stub_state_backend():
 @pytest.fixture
 def postgres_state_backend():
     db_string = os.getenv("REMOULADE_TEST_DB_URL") or "postgresql://remoulade@localhost:5544/test"
-    backend = st_backends.PostgresBackend(url=db_string, future=True)
+    backend = st_backends.PostgresBackend(client=sessionmaker(create_engine(db_string, poolclass=NullPool)))
     backend.clean()
     return backend
 
