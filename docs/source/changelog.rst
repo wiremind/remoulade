@@ -5,6 +5,13 @@ Changelog
 
 All notable changes to this project will be documented in this file.
 
+`3.0.1`_ -- 2023-09-25
+-----------------------
+Fix
+^^^^^
+* Add dependency to attrs library
+
+
 `3.0.0`_ -- 2023-09-19
 -----------------------
 Breaking changes
