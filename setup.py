@@ -27,7 +27,7 @@ dependencies = ["prometheus-client>=0.2", "pytz", "python-dateutil>=2.8.0", "typ
 extra_dependencies = {
     "rabbitmq": ["amqpstorm>=2.6,<3"],
     "redis": ["redis~=4.5"],
-    "server": ["flask>=1.1,<2.2", "marshmallow>=3", "flask-apispec"],
+    "server": ["flask>=1.1,<2.2", "marshmallow>=3", "flask-apispec", "Werkzeug<=2.2.2"],
     "postgres": ["sqlalchemy>=1.4.29,<2", "psycopg2==2.9.5"],
     "pydantic": ["pydantic>=2.0", "simplejson"],
 }

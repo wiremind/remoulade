@@ -5,6 +5,14 @@ Changelog
 
 All notable changes to this project will be documented in this file.
 
+`3.0.2`_ -- 2023-10-27
+----------------------
+Fix
+^^^^^
+* Pydantic encoder handles None values from exception
+* Pin Werkzeug to 2.2.2 to avoid flask dependecy error (https://stackoverflow.com/questions/77213053/importerror-cannot-import-name-url-quote-from-werkzeug-urls)
+
+
 `3.0.1`_ -- 2023-09-25
 -----------------------
 Fix

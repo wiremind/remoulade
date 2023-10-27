@@ -149,7 +149,10 @@ class PydanticEncoder(Encoder):
                         schemas[order].validate_python(raw_value) for order, raw_value in enumerate(values)
                     ]
                 elif key == "result":
-                    parsed_message[key] = schemas_by_param_name["return"].validate_python(values)
+                    if values is None:
+                        parsed_message[key] = None
+                    else:
+                        parsed_message[key] = schemas_by_param_name["return"].validate_python(values)
                 else:
                     parsed_message[key] = values
 

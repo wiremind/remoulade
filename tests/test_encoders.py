@@ -209,6 +209,16 @@ def backend_result_decoded_none(input_1: MyFirstSchema, input_2: MySecondSchema)
 
 
 @pytest.fixture
+def backend_result_decoded_raise(input_1: MyFirstSchema, input_2: MySecondSchema) -> MessageData:
+    return BackendResult(result=None, error="Exception", forgot=True, actor_name="my_actor").asdict()
+
+
+@pytest.fixture
+def backend_result_encoded_raise() -> bytes:
+    return b'{"result": null, "error": "Exception", "forgot": true, "actor_name": "my_actor"}'
+
+
+@pytest.fixture
 def backend_result_encoded() -> bytes:
     return b'{"result": {"output": "aa", "error": null}, ' b'"error": null, "forgot": true, "actor_name": "my_actor"}'
 
@@ -236,6 +246,20 @@ def test_encoder_result(encoder: PydanticEncoder, backend_result_decoded: Messag
 
     assert encoder.decode(encoder.encode(backend_result_decoded)) == backend_result_decoded
     assert encoder.encode(encoder.decode(backend_result_encoded)) == backend_result_encoded
+
+
+def test_encoder_result_when_raise(
+    encoder: PydanticEncoder, backend_result_decoded_raise: MessageData, backend_result_encoded_raise: bytes
+):
+    encoded_value = encoder.encode(backend_result_decoded_raise)
+    assert encoded_value == backend_result_encoded_raise
+
+    decoded_result = encoder.decode(backend_result_encoded_raise)
+
+    assert decoded_result == backend_result_decoded_raise
+
+    assert encoder.decode(encoder.encode(backend_result_decoded_raise)) == backend_result_decoded_raise
+    assert encoder.encode(encoder.decode(backend_result_encoded_raise)) == backend_result_encoded_raise
 
 
 def test_encoder_result_tuple(
