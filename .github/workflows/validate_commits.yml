@@ -7,6 +7,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Check out code
-        uses: actions/checkout@v1
+        uses: actions/checkout@v4.1.1
+        with:
+          fetch-depth: 0
       - name: Commitsar check
-        uses: docker://aevea/commitsar
+        uses: docker://aevea/commitsar:0.20.2

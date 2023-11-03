@@ -19,15 +19,15 @@ jobs:
 
     services:
       redis:
-        image: redis
+        image: redis:7
         ports:
           - 6481:6379
       rabbitmq:
-        image: rabbitmq
+        image: rabbitmq:3.12
         ports:
           - 5784:5672
       postgres:
-        image: postgres
+        image: postgres:16
         ports:
           - 5544:5432
         env:
@@ -36,9 +36,9 @@ jobs:
           POSTGRES_DB: test
 
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v4.1.1
     - name: Set up Python ${{ matrix.python-version }}
-      uses: actions/setup-python@v2
+      uses: actions/setup-python@v4.7.1
       with:
         python-version: ${{ matrix.python-version }}
     - name: Install dependencies

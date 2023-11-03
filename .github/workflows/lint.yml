@@ -18,10 +18,10 @@ jobs:
         python-version: ['3.7', '3.8', '3.9', '3.10']
 
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4.1.1
 
       - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v2
+        uses: actions/setup-python@v4.7.1
         with:
           python-version: ${{ matrix.python-version }}
 
@@ -45,8 +45,8 @@ jobs:
     name: black-format
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
-      - uses: reviewdog/action-black@v2
+      - uses: actions/checkout@v4.1.1
+      - uses: reviewdog/action-black@v3.10.2
         with:
           github_token: ${{ secrets.github_token }}
           # Change reviewdog reporter if you need [github-pr-check, github-check].
