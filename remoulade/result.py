@@ -14,7 +14,6 @@
 #
 # You should have received a copy of the GNU Lesser General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
-from collections import namedtuple
 from typing import Any, Generic, Optional, TypeVar, Union, overload
 
 import attr

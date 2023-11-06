@@ -1,4 +1,5 @@
 from remoulade import actor
+from typing_extensions import reveal_type
 
 
 @actor(store_results=True)

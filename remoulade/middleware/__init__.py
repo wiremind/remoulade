@@ -66,4 +66,5 @@ if CURRENT_OS != "Windows":
     __all__.append("Prometheus")
 
 #: The list of middleware that are enabled by default.
-default_middleware = [WorkerThreadLogging, AgeLimit, TimeLimit, ShutdownNotifications, Pipelines, Retries, CatchError, CurrentMessage]
+default_middleware = [WorkerThreadLogging, AgeLimit, TimeLimit,
+                      ShutdownNotifications, Pipelines, Retries, CatchError, CurrentMessage]

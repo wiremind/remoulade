@@ -71,7 +71,7 @@ class RedisBackend(StateBackend):
         if size is None:
             return states[offset:]
 
-        return states[offset : size + offset]
+        return states[offset: size + offset]
 
     def get_states_count(
         self,

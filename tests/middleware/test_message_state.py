@@ -105,7 +105,7 @@ class TestMessageState:
     @pytest.mark.parametrize("ttl, result_type", [pytest.param(1000, State), pytest.param(1, type(None))])
     def test_expiration_data_backend(self, ttl, result_type, stub_broker, state_backend):
 
-        if type(state_backend) == PostgresBackend:
+        if isinstance(state_backend, PostgresBackend):
             pytest.skip("Skipping this test as there is no expiration on PostgresBackend")
 
         @remoulade.actor
@@ -118,7 +118,7 @@ class TestMessageState:
         time.sleep(2)
         data = state_backend.get_state(msg.message_id)
         # if the ttl is  greater than the expiration, the data should be None
-        assert type(data) == result_type
+        assert isinstance(data, result_type)
 
     @pytest.mark.parametrize("max_size", [200, 1000])
     def test_maximum_size_args(self, max_size, stub_broker, state_backend, do_work):

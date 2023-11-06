@@ -1,4 +1,5 @@
 from typing import Any
+from typing_extensions import reveal_type
 
 from remoulade import actor, group, pipeline
 

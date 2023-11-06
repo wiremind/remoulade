@@ -2,7 +2,7 @@ name: Python Linting
 
 on:
   push:
-    branches: [main]
+    branches: [master]
     paths:
       - "**/*.py"
   pull_request:
@@ -15,7 +15,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: ['3.7', '3.8', '3.9', '3.10']
+        python-version: ['3.8', '3.9', '3.10', '3.11', '3.12']
 
     steps:
       - uses: actions/checkout@v4.1.1
@@ -29,9 +29,9 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           python -m pip install -e .[dev]
-      # - name: Lint with flake8
-      #   run: |
-      #     flake8 . --count --show-source --statistics
+      - name: Lint with flake8
+        run: |
+          flake8 . --count --show-source --statistics
       - name: Check imports with isort
         run: isort --check remoulade
       - name: Check typing with mypy
@@ -39,7 +39,7 @@ jobs:
           mypy --install-types --non-interactive --show-traceback
       - name: Check syntax with pyupgrade
         run: |
-          find . -type f -regex '.*\.py$' -exec pyupgrade --py37-plus {} \;
+          find . -type f -regex '.*\.py$' -exec pyupgrade --py38-plus {} \;
 
   linter:
     name: black-format

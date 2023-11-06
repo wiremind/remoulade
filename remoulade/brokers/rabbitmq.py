@@ -23,7 +23,7 @@ from threading import Lock, local
 from typing import TYPE_CHECKING, Callable, List, Optional
 
 from amqpstorm import AMQPChannelError, AMQPConnectionError, AMQPError, Channel, UriConnection
-from typing_extensions import Final
+from typing import Final
 
 from ..broker import Broker, Consumer, MessageProxy
 from ..common import current_millis
