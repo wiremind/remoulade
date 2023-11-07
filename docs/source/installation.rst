@@ -3,7 +3,7 @@
 Installation
 ============
 
-Remoulade supports Python versions 3.7 and up and is installable via
+Remoulade supports Python versions 3.8 and up and is installable via
 `pip`_ or from source.
 
 
@@ -61,7 +61,7 @@ then install it to your local site-packages by running
 
 ::
 
-   $ python setup.py install
+   $ python -m pip install .
 
 in the cloned directory.
 

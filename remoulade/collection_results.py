@@ -18,7 +18,7 @@ from __future__ import annotations
 
 import time
 from collections import deque
-from typing import Any, Generator, Generic, Iterable, List, Optional, TypeVar, Union, cast, overload
+from typing import Any, Generator, Generic, Iterable, TypeVar, Union, cast, overload
 
 from typing_extensions import Literal
 
@@ -39,14 +39,14 @@ class CollectionResults(Generic[ResultT]):
       children(List[Result|CollectionResults]): A sequence of results of messages, groups or pipelines.
     """
 
-    def __init__(self, children: "Iterable[ResultT]") -> None:
+    def __init__(self, children: Iterable[ResultT]) -> None:
         self.children = list(children)
 
     def __len__(self) -> int:
         return len(self.message_ids)
 
     @classmethod
-    def from_message_ids(cls, message_ids: Iterable[str]) -> "CollectionResults[Any]":
+    def from_message_ids(cls, message_ids: Iterable[str]) -> CollectionResults[Any]:
         children = []
         for message_id in message_ids:
             # it's a pipeline
@@ -76,8 +76,8 @@ class CollectionResults(Generic[ResultT]):
         return self.completed_count == len(self)
 
     @property
-    def message_ids(self) -> List[str]:
-        message_ids: List[str] = []
+    def message_ids(self) -> list[str]:
+        message_ids: list[str] = []
         for child in self.children:
             if isinstance(child, CollectionResults):
                 message_ids += child.message_ids
@@ -112,7 +112,7 @@ class CollectionResults(Generic[ResultT]):
         self: CollectionResults[Result[R]],
         *,
         block: bool = False,
-        timeout: Optional[int] = None,
+        timeout: int | None = None,
         raise_on_error: Literal[True] = True,
         forget: bool = False,
     ) -> Generator[R, None, None]:
@@ -123,20 +123,20 @@ class CollectionResults(Generic[ResultT]):
         self: CollectionResults[Result[R]],
         *,
         block: bool = False,
-        timeout: Optional[int] = None,
+        timeout: int | None = None,
         raise_on_error: bool = True,
         forget: bool = False,
-    ) -> Generator[Union[R, ErrorStored], None, None]:
+    ) -> Generator[R | ErrorStored, None, None]:
         ...
 
     @overload
     def get(
-        self, *, block: bool = False, timeout: Optional[int] = None, raise_on_error: bool = True, forget: bool = False
+        self, *, block: bool = False, timeout: int | None = None, raise_on_error: bool = True, forget: bool = False
     ) -> Generator[Any, None, None]:
         ...
 
     def get(
-        self, *, block: bool = False, timeout: Optional[int] = None, raise_on_error: bool = True, forget: bool = False
+        self, *, block: bool = False, timeout: int | None = None, raise_on_error: bool = True, forget: bool = False
     ) -> Generator[Any, None, None]:
         """Get the results of each job in the collection.
 
@@ -162,7 +162,7 @@ class CollectionResults(Generic[ResultT]):
         if timeout:
             deadline = time.monotonic() + timeout / 1000
 
-        message_ids: List[str] = []
+        message_ids: list[str] = []
         for child in self.children:
             if deadline:
                 timeout = max(0, int((deadline - time.monotonic()) * 1000))
@@ -184,7 +184,7 @@ class CollectionResults(Generic[ResultT]):
                 message_ids, block=block, timeout=timeout, raise_on_error=raise_on_error, forget=forget
             )
 
-    def wait(self, *, timeout: Optional[int] = None, raise_on_error: bool = True, forget: bool = False) -> None:
+    def wait(self, *, timeout: int | None = None, raise_on_error: bool = True, forget: bool = False) -> None:
         """Block until all the jobs in the collection have finished or
         until the timeout expires.
 

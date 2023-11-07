@@ -65,7 +65,6 @@ class State(
         queue_name=None,
         composition_id=None,
     ):
-
         if status and status not in list(StateStatusesEnum):
             raise InvalidStateError(f"The {status} State is not defined")
         return super().__new__(
@@ -112,7 +111,7 @@ class State(
             input_dict["status"] = StateStatusesEnum(input_dict["status"])
         datetime_keys = ["enqueued_datetime", "started_datetime", "end_datetime"]
         for key in datetime_keys:
-            if key in input_dict and type(input_dict[key]) == str:
+            if key in input_dict and isinstance(input_dict[key], str):
                 input_dict[key] = parse(input_dict[key])
         return cls(**input_dict)
 
@@ -202,7 +201,7 @@ class StateBackend:
     def _encode_dict(self, data):
         """Return the (keys, values) of a dictionary encoded"""
         encoded_data = {}
-        for (key, value) in data.items():
+        for key, value in data.items():
             encoded_value = self.encoder.encode(value)
             if sys.getsizeof(encoded_value) <= self.max_size:
                 encoded_data[self.encoder.encode(key)] = self.encoder.encode(value)
@@ -211,7 +210,7 @@ class StateBackend:
     def _decode_dict(self, data):
         """Return the (keys, values) of a dictionary decoded"""
         decoded_data = {}
-        for (key, value) in data.items():
+        for key, value in data.items():
             decoded_data[self.encoder.decode(key)] = self.encoder.decode(value)
         return decoded_data
 

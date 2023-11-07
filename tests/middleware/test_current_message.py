@@ -25,8 +25,7 @@ class TestCurrentMessage:
         assert CurrentMessage.get_current_message() is None
 
     def test_middleware_not_in_actor(self, stub_broker, stub_worker):
-
-        stub_broker.middleware.remove(next(m for m in stub_broker.middleware if type(m) == CurrentMessage))
+        stub_broker.middleware.remove(next(m for m in stub_broker.middleware if isinstance(m, CurrentMessage)))
         message_ids = set()
 
         @remoulade.actor

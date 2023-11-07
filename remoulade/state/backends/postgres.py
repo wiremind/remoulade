@@ -34,7 +34,6 @@ T = TypeVar("T", bound="StoredState")
 
 
 class StoredState(Base):
-
     __tablename__ = "states"
 
     message_id = Column(String(length=36), primary_key=True, index=True)
@@ -74,7 +73,6 @@ class StoredState(Base):
 
 
 class StateVersion(Base):
-
     __tablename__ = "version"
 
     version = Column(SmallInteger, primary_key=True)

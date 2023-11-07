@@ -40,7 +40,7 @@ class TestStateBackend:
 
         for i in range(3):
             for j in range(2):
-                backend.set_state(State(f"id{i*j}", composition_id=f"id{j}"))
+                backend.set_state(State(f"id{i * j}", composition_id=f"id{j}"))
 
         assert backend.get_states_count() == 2
 
@@ -49,7 +49,7 @@ class TestStateBackend:
             pytest.skip()
         backend = state_middleware.backend
         for i in range(8):
-            backend.set_state(State(f"id{i}", actor_name=f"{3 + 4 * (i//4) - i%4}"))
+            backend.set_state(State(f"id{i}", actor_name=f"{3 + 4 * (i // 4) - i % 4}"))
 
         res = backend.get_states(size=3, sort_column="actor_name", sort_direction="desc")
         assert res[0].actor_name == "7"

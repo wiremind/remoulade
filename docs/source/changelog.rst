@@ -5,6 +5,12 @@ Changelog
 
 All notable changes to this project will be documented in this file.
 
+`3.1.3`_ -- 2023-12-27
+----------------------
+Chore
+^^^^^
+* Support python 3.8 to 3.12 and improve linters.
+
 `3.1.2`_ -- 2023-11-29
 ----------------------
 Chore

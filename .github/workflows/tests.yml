@@ -5,9 +5,11 @@ on:
     branches: [master]
     paths:
       - "**/*.py"
+      - ".github/workflows/*.yml"
   pull_request:
     paths:
       - "**/*.py"
+      - ".github/workflows/*.yml"
 
 jobs:
   test:
@@ -15,8 +17,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: ['3.8', '3.9', '3.10']
-
+        python-version: ['3.8', '3.9', '3.10', '3.11', '3.12']
     services:
       redis:
         image: redis:7
@@ -46,4 +47,4 @@ jobs:
         python -m pip install --upgrade pip setuptools wheel
         pip install -e '.[dev]'
     - name: Test
-      run: py.test --benchmark-skip
+      run: pytest --benchmark-skip

@@ -57,7 +57,7 @@ class Retries(Middleware):
         retry_when: Optional[Callable[[int, Exception], bool]] = None,
         backoff_strategy: BackoffStrategy = "exponential",
         jitter: bool = True,
-        increase_priority_on_retry: bool = False
+        increase_priority_on_retry: bool = False,
     ):
         self.logger = get_logger(__name__, type(self))
         self.max_retries = max_retries
