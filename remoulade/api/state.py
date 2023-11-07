@@ -18,7 +18,7 @@ class DeleteSchema(Schema):
     """
 
     max_age = fields.Int(allow_none=True)
-    not_started = fields.Bool(missing=False)
+    not_started = fields.Bool(load_default=False)
 
 
 class StatesParamsSchema(Schema):
@@ -32,7 +32,7 @@ class StatesParamsSchema(Schema):
     )
     sort_direction = fields.Str(allow_none=True, validate=validate.OneOf(["asc", "desc"]))
     size = fields.Int(allow_none=True, validate=validate.Range(min=1, max=1000))
-    offset = fields.Int(missing=0)
+    offset = fields.Int(load_default=0)
     selected_actors = fields.List(fields.String, allow_none=True)
     selected_statuses = fields.List(
         fields.String(validate=validate.OneOf([status.name for status in StateStatusesEnum])),

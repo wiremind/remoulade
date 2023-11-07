@@ -112,7 +112,7 @@ class State(
             input_dict["status"] = StateStatusesEnum(input_dict["status"])
         datetime_keys = ["enqueued_datetime", "started_datetime", "end_datetime"]
         for key in datetime_keys:
-            if key in input_dict and type(input_dict[key]) == str:
+            if key in input_dict and isinstance(input_dict[key], str):
                 input_dict[key] = parse(input_dict[key])
         return cls(**input_dict)
 

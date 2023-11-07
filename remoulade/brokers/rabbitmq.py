@@ -20,10 +20,9 @@ from contextlib import contextmanager
 from functools import partial
 from queue import Empty, Full, LifoQueue
 from threading import Lock, local
-from typing import TYPE_CHECKING, Callable, List, Optional
+from typing import TYPE_CHECKING, Callable, Final, List, Optional
 
 from amqpstorm import AMQPChannelError, AMQPConnectionError, AMQPError, Channel, UriConnection
-from typing_extensions import Final
 
 from ..broker import Broker, Consumer, MessageProxy
 from ..common import current_millis

@@ -61,7 +61,7 @@ then install it to your local site-packages by running
 
 ::
 
-   $ python setup.py install
+   $ python -m pip install .
 
 in the cloned directory.
 
