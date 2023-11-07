@@ -44,7 +44,7 @@ class StubBackend(ResultBackend):
         return Missing
 
     def _store(self, message_keys, results, ttl):
-        for (message_key, result) in zip(message_keys, results):
+        for message_key, result in zip(message_keys, results):
             result_data = self.encoder.encode(result)
             expiration = time.monotonic() + int(ttl / 1000)
             self.results[message_key] = (result_data, expiration)

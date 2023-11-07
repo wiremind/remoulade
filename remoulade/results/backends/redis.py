@@ -78,7 +78,9 @@ class RedisBackend(ResultBackend):
         raise_on_error: bool = True,
     ) -> Iterable[BackendResult]:
         if block:
-            yield from super().get_results(message_ids, block=block, timeout=timeout, forget=forget, raise_on_error=raise_on_error)
+            yield from super().get_results(
+                message_ids, block=block, timeout=timeout, forget=forget, raise_on_error=raise_on_error
+            )
         else:
             with self.client.pipeline() as pipe:
                 for message_id in message_ids:
@@ -173,7 +175,7 @@ class RedisBackend(ResultBackend):
 
     def _store(self, message_keys, results, ttl):
         with self.client.pipeline() as pipe:
-            for (message_key, result) in zip(message_keys, results):
+            for message_key, result in zip(message_keys, results):
                 pipe.delete(message_key)
                 pipe.lpush(message_key, self.encoder.encode(result))
                 pipe.pexpire(message_key, ttl)

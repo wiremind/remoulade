@@ -24,17 +24,16 @@ from typing import Any, Dict, Optional, get_type_hints
 from typing_extensions import Annotated
 
 try:
-    from pydantic import BaseConfig, BaseModel, TypeAdapter, ValidationError, WithJsonSchema, create_model
+    from pydantic import BaseModel, TypeAdapter, WithJsonSchema
     from simplejson.decoder import JSONDecoder
     from simplejson.encoder import JSONEncoder as _JSONEncoder
 except ImportError:  # pragma: no cover
     warnings.warn(
         "Pydantic and simplejson are not available.  Run `pip install remoulade[pydantic]`",
         ImportWarning,
+        stacklevel=2,
     )
 
-
-from .errors import ActorNotFound
 
 #: Represents the contents of a Message object as a dict.
 MessageData = Dict[str, Any]

@@ -37,7 +37,7 @@ class StubBackend(StateBackend):
             self.states[message_key] = payload
         else:
             state = self.states[message_key]["state"]
-            for (key, value) in encoded_state.items():
+            for key, value in encoded_state.items():
                 state[key] = value
             self.states[message_key]["state"] = state
             self.states[message_key]["expiration"] = ttl

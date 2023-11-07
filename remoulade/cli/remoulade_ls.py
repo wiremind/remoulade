@@ -17,7 +17,6 @@ def parse_arguments():
 
 
 def main():
-
     args = parse_arguments()
 
     for path in args.path:

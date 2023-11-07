@@ -18,7 +18,7 @@ from __future__ import annotations
 
 from collections import namedtuple
 from contextlib import nullcontext
-from typing import TYPE_CHECKING, Any, Generic, Iterable, List, Optional, Tuple, TypeVar, Union, cast, overload
+from typing import TYPE_CHECKING, Any, Generic, Iterable, TypeVar, Union, cast, overload
 
 from typing_extensions import Self, TypedDict, Unpack
 
@@ -76,7 +76,7 @@ class pipeline(Generic[ResultsT]):
         self,
         # we should actually not use ResultTs here but define a new type var that is only bound to Result
         # but then mypy gets lost, so reusing ResultsT and ignoring the error
-        children: Tuple[Unpack[Tuple[Union[Message[Any], pipeline[Any], group[Any]], ...]], Union[Message[ResultsT], pipeline[ResultsT]]],  # type: ignore
+        children: tuple[Unpack[tuple[Message[Any] | pipeline[Any] | group[Any], ...]], Message[ResultsT] | pipeline[ResultsT]],  # type: ignore
         cancel_on_error: bool = False,
     ):
         ...
@@ -84,7 +84,7 @@ class pipeline(Generic[ResultsT]):
     @overload
     def __init__(
         self: pipeline[CollectionResults[ResultsT_1]],
-        children: Tuple[Unpack[Tuple[Union[Message[Any], pipeline[Any], group[Any]], ...]], group[ResultsT_1]],
+        children: tuple[Unpack[tuple[Message[Any] | pipeline[Any] | group[Any], ...]], group[ResultsT_1]],
         cancel_on_error: bool = False,
     ):
         ...
@@ -92,19 +92,19 @@ class pipeline(Generic[ResultsT]):
     @overload
     def __init__(
         self,
-        children: Tuple[Union[Message[Any], pipeline[Any], group[Any]], ...],
+        children: tuple[Message[Any] | pipeline[Any] | group[Any], ...],
         cancel_on_error: bool = False,
     ):
         ...
 
     def __init__(
         self,
-        children: Tuple[Union[Message[Any], pipeline[Any], group[Any]], ...],
+        children: tuple[Message[Any] | pipeline[Any] | group[Any], ...],
         cancel_on_error: bool = False,
     ):
         self.broker = get_broker()
 
-        self.children: List[Union[Message[Any], group[Any]]] = []
+        self.children: list[Message[Any] | group[Any]] = []
         for child in children:
             if isinstance(child, pipeline):
                 self.children += child.children
@@ -157,7 +157,7 @@ class pipeline(Generic[ResultsT]):
         """Returns the length of the pipeline."""
         return len(self.children)
 
-    def __or__(self, other: "Union[Message, group]"):
+    def __or__(self, other: Message | group):
         """Returns a new pipeline with "other" added to the end."""
         return type(self)(tuple(self.children) + (other,))
 
@@ -172,7 +172,7 @@ class pipeline(Generic[ResultsT]):
             else:
                 yield child.message_id
 
-    def run(self, *, delay: Optional[int] = None, transaction: Optional[bool] = None) -> Self:
+    def run(self, *, delay: int | None = None, transaction: bool | None = None) -> Self:
         """Run this pipeline.
 
         Parameters:
@@ -195,7 +195,7 @@ class pipeline(Generic[ResultsT]):
     @property
     def results(self) -> CollectionResults[Any]:
         """CollectionResults created from this pipeline, used for result related methods"""
-        results: List[Union[Result, CollectionResults]] = []
+        results: list[Result | CollectionResults] = []
         for element in self.children:
             results += [element.results if isinstance(element, group) else element.result]
         return CollectionResults(results)
@@ -230,11 +230,11 @@ class group(Generic[ResultsT]):
         self,
         # we should actually not use ResultTs here but define a new type var that is only bound to Result
         # but then mypy gets lost, so reusing ResultsT and ignoring the error
-        children: "Iterable[Union[pipeline[ResultsT], Message[ResultsT]]]",  # type: ignore
-        group_id: Optional[str] = None,
+        children: Iterable[pipeline[ResultsT] | Message[ResultsT]],  # type: ignore
+        group_id: str | None = None,
         cancel_on_error: bool = False,
     ) -> None:
-        self.children: "List[Union[Message[Any], pipeline[Any]]]" = []
+        self.children: list[Message[Any] | pipeline[Any]] = []
         for child in children:
             if isinstance(child, group):
                 raise ValueError("Groups of groups are not supported")
@@ -247,7 +247,7 @@ class group(Generic[ResultsT]):
         if cancel_on_error:
             self.broker.get_cancel_backend()
 
-    def __or__(self, other: "Union[Message, group, pipeline]") -> pipeline:
+    def __or__(self, other: Message | group | pipeline) -> pipeline:
         """Combine this group into a pipeline with "other"."""
         return pipeline((self, other))
 
@@ -258,7 +258,7 @@ class group(Generic[ResultsT]):
     def __str__(self) -> str:  # pragma: no cover
         return f"group({', '.join(str(child) for child in self.children)})"
 
-    def build(self, options=None) -> "List[Message]":
+    def build(self, options=None) -> list[Message]:
         """Build group for pipeline"""
         if options is None:
             options = {}
@@ -273,7 +273,7 @@ class group(Generic[ResultsT]):
             "cancel_on_error": self.cancel_on_error,
             **options,
         }
-        messages: "List[Message]" = []
+        messages: list[Message] = []
         for group_child in self.children:
             if isinstance(group_child, pipeline):
                 messages += group_child.build(
@@ -296,7 +296,7 @@ class group(Generic[ResultsT]):
             else:
                 yield child.message_id
 
-    def run(self, *, delay: Optional[int] = None, transaction: Optional[bool] = None) -> Self:
+    def run(self, *, delay: int | None = None, transaction: bool | None = None) -> Self:
         """Run the actors in this group.
 
         Parameters:

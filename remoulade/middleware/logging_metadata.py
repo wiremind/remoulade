@@ -38,7 +38,6 @@ class LoggingMetadata(Middleware):
         return total_logging_metadata
 
     def update_options_before_create_message(self, options, broker, actor_name):
-
         total_logging_metadata: dict = {}
 
         # getting logging_metadata at middleware level

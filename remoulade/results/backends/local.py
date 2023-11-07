@@ -29,7 +29,7 @@ class LocalBackend(ResultBackend):
             return Missing
 
     def _store(self, message_keys, results, _):
-        for (message_key, result) in zip(message_keys, results):
+        for message_key, result in zip(message_keys, results):
             self.results[message_key] = result
 
     def _delete(self, key: str):

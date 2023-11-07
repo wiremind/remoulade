@@ -33,7 +33,6 @@ class Middleware:
     """
 
     def get_option(self, option_name, *, broker, message, default=None):
-
         # get option at message level
         option = message.options.get(option_name)
         if option is not None:

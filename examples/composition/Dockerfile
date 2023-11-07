@@ -1,6 +1,6 @@
 # Please run docker build from remoulade main directory
 
-FROM python:3.10
+FROM python:3.12
 
 WORKDIR /usr/src/app
 

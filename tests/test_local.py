@@ -93,7 +93,6 @@ def test_local_broker_forget(local_broker, local_result_backend):
 
 
 def test_local_broker_cancel(local_broker, stub_cancel_backend):
-
     local_broker.add_middleware(Cancel(backend=stub_cancel_backend))
 
     @remoulade.actor()

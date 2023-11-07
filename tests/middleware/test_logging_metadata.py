@@ -3,7 +3,6 @@ from remoulade.middleware import LoggingMetadata
 
 
 def test_callback(stub_broker):
-
     # Given that I have two callbacks
     def callback_middleware():
         return {"correlation_id_middleware": "id_middleware", "correlation_id": "id_middleware"}
