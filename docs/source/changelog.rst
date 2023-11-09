@@ -5,6 +5,14 @@ Changelog
 
 All notable changes to this project will be documented in this file.
 
+`3.1.0`_ -- 2023-11-08
+----------------------
+Feat
+^^^^^
+* Update Flask to 2.3.3, remove Werkzeug version pinning
+* Drop support for Python 3.7
+
+
 `3.0.2`_ -- 2023-10-27
 ----------------------
 Fix
