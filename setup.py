@@ -22,12 +22,12 @@ with open(rel("remoulade", "__init__.py")) as f:
         raise RuntimeError("Version marker not found.")
 
 
-dependencies = ["prometheus-client>=0.2", "pytz", "python-dateutil>=2.8.0", "typing-extensions>=3.7", "attrs>=19.2.0"]
+dependencies = ["prometheus-client>=0.2", "pytz", "python-dateutil>=2.8.0", "typing-extensions>=3.8", "attrs>=19.2.0"]
 
 extra_dependencies = {
     "rabbitmq": ["amqpstorm>=2.6,<3"],
     "redis": ["redis~=4.5"],
-    "server": ["flask>=1.1,<2.2", "marshmallow>=3", "flask-apispec", "Werkzeug<=2.2.2"],
+    "server": ["flask>=1.1,~=2.3.3", "marshmallow>=3", "flask-apispec"],
     "postgres": ["sqlalchemy>=1.4.29,<2", "psycopg2==2.9.5"],
     "pydantic": ["pydantic>=2.0", "simplejson"],
 }
@@ -92,7 +92,7 @@ setup(
     package_data={"remoulade": ["py.typed"]},
     include_package_data=True,
     install_requires=dependencies,
-    python_requires=">=3.7",
+    python_requires=">=3.8",
     extras_require=extra_dependencies,
     entry_points={
         "console_scripts": [
@@ -104,7 +104,6 @@ setup(
     },
     scripts=["bin/remoulade-gevent"],
     classifiers=[
-        "Programming Language :: Python :: 3.7",
         "Programming Language :: Python :: 3.8",
         "Programming Language :: Python :: 3.9",
         "Programming Language :: Python :: 3.10",
