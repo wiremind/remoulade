@@ -5,6 +5,13 @@ Changelog
 
 All notable changes to this project will be documented in this file.
 
+`3.1.1`_ -- 2023-11-10
+----------------------
+Fix
+^^^^^
+* Fix mypy tests
+
+
 `3.1.0`_ -- 2023-11-08
 ----------------------
 Feat

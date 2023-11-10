@@ -51,7 +51,7 @@ def test_group():
             'tests/mypy/plain_files/composition.py:22: note: Revealed type is "typing.Generator[builtins.int, None, None]"',
             'tests/mypy/plain_files/composition.py:24: note: Revealed type is "typing.Generator[Union[builtins.int, None], None, None]"',
             'tests/mypy/plain_files/composition.py:27: note: Revealed type is "builtins.int"',
-            'tests/mypy/plain_files/composition.py:32: note: Revealed type is "<nothing>"',
+            'tests/mypy/plain_files/composition.py:32: note: Revealed type is "remoulade.result.Result[None]"',
             'tests/mypy/plain_files/composition.py:41: note: Revealed type is "typing.Generator[Any, None, None]"',
             'tests/mypy/plain_files/composition.py:45: note: Revealed type is "typing.Generator[Any, None, None]"',
         ],
