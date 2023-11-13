@@ -84,7 +84,7 @@ class pipeline(Generic[ResultsT]):
     @overload
     def __init__(
         self: pipeline[CollectionResults[ResultsT_1]],
-        children: Tuple[Unpack[Tuple[Union[Message[Any], pipeline[Any], group[Any]], ...]], group[ResultsT_1]],  # type: ignore [misc]
+        children: Tuple[Unpack[Tuple[Union[Message[Any], pipeline[Any], group[Any]], ...]], group[ResultsT_1]],
         cancel_on_error: bool = False,
     ):
         ...

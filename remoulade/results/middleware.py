@@ -105,9 +105,9 @@ class Results(Middleware):
                 results.append((message_id, children_result))
 
         if results:
-            message_ids, results = zip(*results)
+            message_ids, _results = zip(*results)
             with self.backend.retry(broker, message, self.logger):
-                self.backend.store_results(message_ids, results, result_ttl)
+                self.backend.store_results(message_ids, _results, result_ttl)
 
     @staticmethod
     def _serialize_exception(exception):
