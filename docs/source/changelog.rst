@@ -5,6 +5,13 @@ Changelog
 
 All notable changes to this project will be documented in this file.
 
+`3.1.2`_ -- 2023-11-29
+----------------------
+Chore
+^^^^^
+* redis: bumb from 4.5 to 5.0
+
+
 `3.1.1`_ -- 2023-11-10
 ----------------------
 Fix
