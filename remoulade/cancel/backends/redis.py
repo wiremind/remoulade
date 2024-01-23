@@ -19,6 +19,7 @@ from typing import Iterable, Optional
 
 import redis
 
+from ...helpers.redis_client import redis_client
 from ..backend import CancelBackend
 
 
@@ -55,11 +56,8 @@ class RedisBackend(CancelBackend):
     ) -> None:
         super().__init__(cancellation_ttl=cancellation_ttl)
 
-        if url:
-            parameters["connection_pool"] = redis.ConnectionPool.from_url(url)
-
+        self.client = client or redis_client(url=url, **parameters)
         self.key = key
-        self.client = client or redis.Redis(**parameters)
 
     def is_canceled(self, message_id: str, composition_id: Optional[str]) -> bool:
         try:

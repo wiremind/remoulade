@@ -9,6 +9,8 @@ import redis
 
 from remoulade import Broker, get_encoder, get_logger
 
+from ..helpers.redis_client import redis_client
+
 DEFAULT_JOB_INTERVAL = 3600 * 24
 DEFAULT_JOB_STATUS = True
 DEFAULT_TZ = "UTC"
@@ -147,11 +149,7 @@ class Scheduler:
         self.period = period if period is not None else DEFAULT_SCHEDULER_PERIOD
         self.broker = broker
         self.lock_key = lock_key if lock_key is not None else DEFAULT_SCHEDULER_LOCK_KEY
-
-        if url:
-            redis_parameters["connection_pool"] = redis.ConnectionPool.from_url(url)
-
-        self.client = client or redis.Redis(**redis_parameters)
+        self.client = client or redis_client(url=url, **redis_parameters)
         self.logger = get_logger(__name__, type(self))
         self.stopped = True
 

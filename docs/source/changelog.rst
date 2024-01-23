@@ -5,6 +5,12 @@ Changelog
 
 All notable changes to this project will be documented in this file.
 
+`3.2.0`_ -- 2024-01-23
+----------------------
+Feat
+^^^^
+* Support redis sentinel url
+
 `3.1.3`_ -- 2023-12-27
 ----------------------
 Chore

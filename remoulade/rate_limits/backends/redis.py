@@ -16,8 +16,9 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 from typing import Callable, List
 
-import redis
+from redis import WatchError
 
+from ...helpers.redis_client import redis_client
 from ..backend import RateLimiterBackend
 
 
@@ -36,10 +37,7 @@ class RedisBackend(RateLimiterBackend):
     """
 
     def __init__(self, *, client=None, url=None, **parameters):
-        if url is not None:
-            parameters["connection_pool"] = redis.ConnectionPool.from_url(url)
-
-        self.client = client or redis.Redis(**parameters)
+        self.client = client or redis_client(url=url, **parameters)
 
     def add(self, key: str, value: int, ttl: int) -> bool:
         return bool(self.client.set(key, value, px=ttl, nx=True))
@@ -49,7 +47,7 @@ class RedisBackend(RateLimiterBackend):
             while True:
                 try:
                     pipe.watch(key)
-                    value = int(pipe.get(key) or b"0")  # type: ignore
+                    value = int(pipe.get(key) or b"0")
                     value += amount
                     if value > maximum:
                         return False
@@ -58,7 +56,7 @@ class RedisBackend(RateLimiterBackend):
                     pipe.set(key, value, px=ttl)
                     pipe.execute()
                     return True
-                except redis.WatchError:
+                except WatchError:
                     continue
 
     def decr(self, key: str, amount: int, minimum: int, ttl: int) -> bool:
@@ -66,7 +64,7 @@ class RedisBackend(RateLimiterBackend):
             while True:
                 try:
                     pipe.watch(key)
-                    value = int(pipe.get(key) or b"0")  # type: ignore
+                    value = int(pipe.get(key) or b"0")
                     value -= amount
                     if value < minimum:
                         return False
@@ -75,7 +73,7 @@ class RedisBackend(RateLimiterBackend):
                     pipe.set(key, value, px=ttl)
                     pipe.execute()
                     return True
-                except redis.WatchError:
+                except WatchError:
                     continue
 
     def incr_and_sum(self, key: str, keys: Callable[[], List[str]], amount: int, maximum: int, ttl: int) -> bool:
@@ -85,14 +83,14 @@ class RedisBackend(RateLimiterBackend):
                     # TODO: Drop non-callable keys in Remoulade v2.
                     key_list = keys() if callable(keys) else keys
                     pipe.watch(key, *key_list)
-                    value = int(pipe.get(key) or b"0")  # type: ignore
+                    value = int(pipe.get(key) or b"0")
                     value += amount
                     if value > maximum:
                         return False
 
                     # Fetch keys again to account for net/server latency.
                     values = pipe.mget(keys() if callable(keys) else keys)
-                    total = amount + sum(int(n) for n in values if n)  # type: ignore
+                    total = amount + sum(int(n) for n in values if n)
                     if total > maximum:
                         return False
 
@@ -100,5 +98,5 @@ class RedisBackend(RateLimiterBackend):
                     pipe.set(key, value, px=ttl)
                     pipe.execute()
                     return True
-                except redis.WatchError:
+                except WatchError:
                     continue
