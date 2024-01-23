@@ -21,6 +21,7 @@ from typing import Iterable, List
 import redis
 
 from ...helpers.backoff import BackoffStrategy, compute_backoff
+from ...helpers.redis_client import redis_client
 from ..backend import BackendResult, ForgottenResult, Missing, ResultBackend, ResultMissing, ResultTimeout
 
 
@@ -59,10 +60,7 @@ class RedisBackend(ResultBackend):
         super().__init__(namespace=namespace, encoder=encoder, default_timeout=default_timeout)
 
         url = url or os.getenv("REMOULADE_REDIS_URL")
-        if url:
-            parameters["connection_pool"] = redis.ConnectionPool.from_url(url)
-
-        self.client = client or redis.Redis(**parameters)
+        self.client = client or redis_client(url=url, **parameters)
         self.max_retries = max_retries
         self.min_backoff = min_backoff
         self.max_backoff = max_backoff

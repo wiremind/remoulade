@@ -1,10 +1,9 @@
 import datetime
 from typing import List, Optional
 
-import redis
-
 from remoulade.common import chunk
 
+from ...helpers.redis_client import redis_client
 from ..backend import State, StateBackend
 
 
@@ -25,9 +24,7 @@ class RedisBackend(StateBackend):
 
     def __init__(self, *, namespace="remoulade-state", encoder=None, client=None, url=None, **parameters):
         super().__init__(namespace=namespace, encoder=encoder)
-        if url:
-            parameters["connection_pool"] = redis.ConnectionPool.from_url(url)
-        self.client = client or redis.Redis(**parameters)
+        self.client = client or redis_client(url=url, **parameters)
 
     def get_state(self, message_id):
         key = self._build_message_key(message_id)
