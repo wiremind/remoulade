@@ -48,26 +48,37 @@ if TYPE_CHECKING:
 #: The global broker instance.
 global_broker: "Optional[Broker]" = None
 
-#: The order in which middlewares are sorted
-middleware_order = [
-    WorkerThreadLogging,
-    AgeLimit,
-    TimeLimit,
-    ShutdownNotifications,
-    Pipelines,
-    Results,
-    CatchError,
-    Retries,
-    CurrentMessage,
-    LoggingMetadata,
-    MaxMemory,
-    MaxTasks,
-    MessageState,
-    Cancel,
-]
-
 #: A list of extra middleware that will be added to every new instance of Broker
 extra_default_middleware: "List[Middleware]" = []
+
+
+def _get_middleware_order():
+    #: The order in which middlewares are sorted
+    middleware_order = [
+        WorkerThreadLogging,
+        AgeLimit,
+        TimeLimit,
+        ShutdownNotifications,
+        Pipelines,
+        Results,
+        CatchError,
+        Retries,
+        CurrentMessage,
+        LoggingMetadata,
+        MaxMemory,
+        MaxTasks,
+        MessageState,
+        Cancel,
+    ]
+
+    try:
+        from opentelemetry.instrumentation.remoulade import _InstrumentationMiddleware
+
+        middleware_order.insert(0, _InstrumentationMiddleware)
+    except ImportError:
+        pass
+
+    return middleware_order
 
 
 def get_broker() -> "Broker":
@@ -270,6 +281,7 @@ class Broker:
         """
         middleware_order_count = 0
         added_middleware_count = 0
+        middleware_order = _get_middleware_order()
 
         while added_middleware_count < len(self.middleware) and middleware_order_count < len(middleware_order):
             current_middleware = middleware_order[middleware_order_count]
