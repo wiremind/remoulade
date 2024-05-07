@@ -5,6 +5,12 @@ Changelog
 
 All notable changes to this project will be documented in this file.
 
+`3.2.1`_ -- 2024-05-07
+----------------------
+Feat
+^^^^
+* Fix ci : pin mypy, black, pyupgrade + fix test_rabbitmq_cli.py
+
 `3.2.0`_ -- 2024-01-23
 ----------------------
 Feat

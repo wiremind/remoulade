@@ -116,7 +116,7 @@ class PydanticEncoder(Encoder):
         from remoulade import get_broker
 
         try:
-            raw_message = self.json_decoder.decode(data.decode("utf-8"))  # type: ignore
+            raw_message = self.json_decoder.decode(data.decode("utf-8"))
             actor_name = raw_message["actor_name"]
             actor_fn = get_broker().get_actor(actor_name).fn
 
