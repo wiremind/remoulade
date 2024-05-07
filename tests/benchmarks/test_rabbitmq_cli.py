@@ -37,12 +37,11 @@ def latency():
         time.sleep(duration)
 
 
-remoulade.declare_actors([throughput, fib, latency])
-
-
 @pytest.mark.skipif(os.getenv("CI") == "true", reason="test skipped on CI")
 @pytest.mark.benchmark(group="rabbitmq-100k-throughput")
 def test_rabbitmq_process_100k_messages_with_cli(benchmark, info_logging, start_cli, rabbitmq_broker):
+    remoulade.declare_actors([throughput])
+
     # Given that I've loaded 100k messages into RabbitMQ
     def setup():
         for _ in range(100000):
@@ -57,6 +56,8 @@ def test_rabbitmq_process_100k_messages_with_cli(benchmark, info_logging, start_
 @pytest.mark.skipif(os.getenv("CI") == "true", reason="test skipped on CI")
 @pytest.mark.benchmark(group="rabbitmq-10k-fib")
 def test_rabbitmq_process_10k_fib_with_cli(benchmark, info_logging, start_cli, rabbitmq_broker):
+    remoulade.declare_actors([fib])
+
     # Given that I've loaded 10k messages into RabbitMQ
     def setup():
         for _ in range(10000):
@@ -71,6 +72,8 @@ def test_rabbitmq_process_10k_fib_with_cli(benchmark, info_logging, start_cli, r
 @pytest.mark.skipif(os.getenv("CI") == "true", reason="test skipped on CI")
 @pytest.mark.benchmark(group="rabbitmq-1k-latency")
 def test_rabbitmq_process_1k_latency_with_cli(benchmark, info_logging, start_cli, rabbitmq_broker):
+    remoulade.declare_actors([latency])
+
     # Given that I've loaded 1k messages into RabbitMQ
     def setup():
         for _ in range(1000):
