@@ -7,9 +7,10 @@ All notable changes to this project will be documented in this file.
 
 `3.2.1`_ -- 2024-05-07
 ----------------------
-Feat
+Fix
 ^^^^
 * Fix ci : pin mypy, black, pyupgrade + fix test_rabbitmq_cli.py
+* Enforce order of opentelemetry-instrumentation middleware
 
 `3.2.0`_ -- 2024-01-23
 ----------------------
