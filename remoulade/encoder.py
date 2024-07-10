@@ -122,7 +122,7 @@ class PydanticEncoder(Encoder):
             actor_fn = get_broker().get_actor(actor_name).fn
 
             # Retrieve the Pydantic schemas from typing
-            schemas_by_param_name = {}
+            schemas_by_param_name: Dict[str, "TypeAdapter"] = {}
             for param_name, type_hint in get_type_hints(actor_fn).items():
                 schemas_by_param_name[param_name] = TypeAdapter(
                     Annotated[
