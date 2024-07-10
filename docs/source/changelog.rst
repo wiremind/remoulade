@@ -5,6 +5,13 @@ Changelog
 
 All notable changes to this project will be documented in this file.
 
+`3.2.2`_ -- 2024-07-10
+----------------------
+Fix
+^^^^
+* Don't use deepcopy when building Message as it can lead to OOM or performance
+  issues
+
 `3.2.1`_ -- 2024-05-07
 ----------------------
 Fix

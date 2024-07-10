@@ -86,7 +86,7 @@ class Message(Generic[ResultT]):
 
     def asdict(self):
         """Convert this message to a dictionary."""
-        return attr.asdict(self)
+        return attr.asdict(self, recurse=False)
 
     @classmethod
     def decode(cls, data):
