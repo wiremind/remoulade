@@ -10,6 +10,8 @@ All notable changes to this project will be documented in this file.
 Fix
 ^^^^^
 * Fix mypy tests
+* Don't use deepcopy when building Message as it can lead to OOM or performance
+  issues
 
 
 `3.1.0`_ -- 2023-11-08
