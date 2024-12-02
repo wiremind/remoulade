@@ -2,10 +2,11 @@ import datetime
 import hashlib
 import json
 import time
-from typing import Dict, List, Union
+from typing import Dict, List, Union, Any
 
 import pytz
 import redis
+from pydantic import BaseModel
 
 from remoulade import Broker, get_encoder, get_logger
 
@@ -62,9 +63,32 @@ class ScheduledJob:
         self.args = args if args is not None else []
         self.kwargs = kwargs if kwargs is not None else {}
 
+    @property
+    def args_json_serializable(self) -> List:
+        results = []
+        for arg in self.args:
+            if isinstance(arg, BaseModel):
+                results.append(arg.model_dump(mode="json"))
+            results.append(arg)
+        return results
+
+    @property
+    def kwargs_json_serializable(self) -> Dict:
+        def _value_as_dict(value: Dict | BaseModel | Any) -> Dict:
+            if isinstance(value, dict):
+                return {
+                    _key: _value_as_dict(_value) for _key, _value in value.items()
+                }
+            elif isinstance(value, BaseModel):
+                return value.model_dump(mode="json")
+            else:
+                return value
+        return {k: _value_as_dict(v) for k, v in self.kwargs.items()}
+
     def get_hash(self) -> str:
-        args = json.dumps(self.args)
-        kwargs = json.dumps(sorted(list(self.kwargs.items()), key=lambda x: x[0]))
+        args = json.dumps(self.args_json_serializable)
+        kwargs = json.dumps(sorted(list(self.kwargs_json_serializable.items()), key=lambda x: x[0]))
+
 
         path = [
             str(getattr(self, k)) for k in ("actor_name", "interval", "daily_time", "iso_weekday", "enabled", "tz")
@@ -85,8 +109,8 @@ class ScheduledJob:
             "enabled": self.enabled,
             "last_queued": self.last_queued,
             "tz": self.tz,
-            "args": self.args,
-            "kwargs": self.kwargs,
+            "args": self.args_json_serializable,
+            "kwargs": self.kwargs_json_serializable,
         }
         if encode:
             job_dict["daily_time"] = (
