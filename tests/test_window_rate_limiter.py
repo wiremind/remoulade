@@ -1,7 +1,6 @@
 import time
-from collections import defaultdict
+from collections import Counter
 from concurrent.futures import ThreadPoolExecutor
-from typing import Dict
 
 from remoulade.rate_limits import WindowRateLimiter
 
@@ -9,7 +8,7 @@ from remoulade.rate_limits import WindowRateLimiter
 def test_window_rate_limiter_limits_per_window(rate_limiter_backend):
     # Given that I have a bucket rate limiter and a call database
     limiter = WindowRateLimiter(rate_limiter_backend, "window-test", limit=2, window=1)
-    calls: Dict[int, int] = defaultdict(int)
+    calls = Counter()
 
     # And a function that increments keys over the span of 3 seconds
     def work():

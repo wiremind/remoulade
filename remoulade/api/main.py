@@ -32,7 +32,7 @@ class MessageSchema(Schema):
     args = fields.List(fields.Raw(), allow_none=True)
     kwargs = fields.Dict(allow_none=True)
     options = fields.Dict(allow_none=True)
-    delay = fields.Number(validate=validate.Range(min=1), allow_none=True)
+    delay = fields.Float(validate=validate.Range(min=1), allow_none=True)
 
     @validates_schema
     def validate_actor_name(self, data, **kwargs):
