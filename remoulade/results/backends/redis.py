@@ -14,6 +14,7 @@
 #
 # You should have received a copy of the GNU Lesser General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
+import asyncio
 import os
 import time
 from typing import Iterable, List
@@ -21,7 +22,7 @@ from typing import Iterable, List
 import redis
 
 from ...helpers.backoff import BackoffStrategy, compute_backoff
-from ...helpers.redis_client import redis_client
+from ...helpers.redis_client import async_redis_client, redis_client
 from ..backend import BackendResult, ForgottenResult, Missing, ResultBackend, ResultMissing, ResultTimeout
 
 
@@ -49,6 +50,7 @@ class RedisBackend(ResultBackend):
         namespace="remoulade-results",
         encoder=None,
         client=None,
+        async_client=None,
         url=None,
         default_timeout=None,
         max_retries=3,
@@ -61,6 +63,7 @@ class RedisBackend(ResultBackend):
 
         url = url or os.getenv("REMOULADE_REDIS_URL")
         self.client = client or redis_client(url=url, **parameters)
+        self.async_client = async_client or async_redis_client(url=url, **parameters)
         self.max_retries = max_retries
         self.min_backoff = min_backoff
         self.max_backoff = max_backoff
@@ -95,6 +98,54 @@ class RedisBackend(ResultBackend):
                 if row is None:
                     raise ResultMissing(message_id)
                 yield self.process_result(BackendResult(**self.encoder.decode(row)), raise_on_error)
+
+    async def async_get_result(
+        self,
+        message_id: str,
+        *,
+        timeout: int = None,
+        forget: bool = False,
+        raise_on_error: bool = True,
+    ) -> BackendResult:
+        if timeout is None:
+            timeout = self.default_timeout
+
+        message_key = self.build_message_key(message_id)
+        timeout = int(timeout / 1000)
+        deadline = time.monotonic() + timeout
+        retry_count, data = 0, None
+
+        while data is None:
+            try:
+                if timeout > 0:
+                    if forget:
+                        async with self.async_client.pipeline() as pipe:
+                            await pipe.rpushx(message_key, self.encoder.encode(ForgottenResult.asdict()))
+                            await pipe.lpop(message_key)
+                            pipe_exec = await pipe.execute()
+                            data = pipe_exec[1]
+                    else:
+                        data = await self.async_client.brpoplpush(message_key, message_key, timeout=timeout)
+                if data is None:
+                    raise ResultMissing(message_id)
+            except (redis.ConnectionError, redis.TimeoutError):
+                if data is not None:
+                    break
+                if retry_count >= self.max_retries:
+                    raise
+                _, backoff = compute_backoff(
+                    retry_count,
+                    min_backoff=self.min_backoff,
+                    max_backoff=self.max_backoff,
+                    max_retries=self.max_retries,
+                )
+                retry_count += 1
+                await asyncio.sleep(backoff / 1000)
+                timeout = int(deadline - time.monotonic())
+                if timeout <= 0:  # do not retry is timeout is expired
+                    raise
+        result = BackendResult(**self.encoder.decode(data))
+        return self.process_result(result, raise_on_error)
 
     def get_result(self, message_id: str, *, block=False, timeout=None, forget=False, raise_on_error=True):
         """Get a result from the backend.
@@ -180,7 +231,10 @@ class RedisBackend(ResultBackend):
             pipe.execute()
 
     def _get(self, key, forget=False):
-        data = self.client.rpoplpush(key, key)
+        if forget:
+            data = self.client.rpop(key)
+        else:
+            data = self.client.rpoplpush(key, key)
         if data:
             return self.encoder.decode(data)
         return Missing

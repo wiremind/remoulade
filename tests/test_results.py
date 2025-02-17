@@ -7,7 +7,8 @@ import pytest
 import redis
 
 import remoulade
-from remoulade import CollectionResults, Result
+from remoulade import CollectionResults, Result, Worker
+from remoulade.brokers.rabbitmq import RabbitmqBroker
 from remoulade.middleware import Retries
 from remoulade.results import ErrorStored, ResultBackend, ResultMissing, Results, ResultTimeout
 from remoulade.results.backend import ForgottenResult
@@ -533,6 +534,38 @@ def test_redis_get_result_still_return_result_if_forget_fails(redis_result_backe
         assert redis_result_backend.get_result("message-id", block=True, forget=True) is None
         assert mock_client.brpoplpush.call_count == 1
         assert mock_client.pipeline.call_count == 1
+
+
+@pytest.mark.parametrize("forget", [True, False])
+async def test_redis_async_get_results_with_forget(
+    rabbitmq_broker: RabbitmqBroker,
+    rabbitmq_worker: Worker,
+    redis_result_backend,
+    forget: bool,
+):
+    rabbitmq_broker.add_middleware(Results(backend=redis_result_backend))
+
+    # And an actor that stores a result
+    @remoulade.actor(store_results=True)
+    def do_work():
+        return 42
+
+    # And this actor is declared
+    rabbitmq_broker.declare_actor(do_work)
+
+    # When I send that actor a message
+    message = do_work.send()
+    # Wait to get results
+    rabbitmq_broker.join(do_work.queue_name)
+    result = await message.result.async_get(forget=forget)
+    assert result == 42
+
+    if forget:
+        forgotten_result = await message.result.async_get(forget=forget)
+        assert forgotten_result is None
+    else:
+        result = await message.result.async_get(forget=forget)
+        assert result == 42
 
 
 def test_completed_count_no_messages(stub_broker, result_middleware):
