@@ -5,6 +5,13 @@ Changelog
 
 All notable changes to this project will be documented in this file.
 
+`3.2.3`_ -- 2024-07-10
+----------------------
+Fix
+^^^^
+* Fix flake8 linting
+* Fix mypy
+
 `3.2.2`_ -- 2024-07-10
 ----------------------
 Fix

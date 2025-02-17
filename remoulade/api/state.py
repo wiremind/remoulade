@@ -56,7 +56,7 @@ class StateSchema(Schema):
     args = fields.List(fields.Raw(), allow_none=True)
     kwargs = fields.Dict(keys=fields.Str(), values=fields.Raw(), allow_none=True)
     options = fields.Dict(keys=fields.Str(), values=fields.Raw(), allow_none=True)
-    progress = fields.Number(allow_none=True)
+    progress = fields.Float(allow_none=True)
     priority = fields.Int(allow_none=True)
     enqueued_datetime = fields.Str(allow_none=True)
     started_datetime = fields.Str(allow_none=True)
