@@ -4,6 +4,13 @@ Changelog
 =========
 
 All notable changes to this project will be documented in this file.
+`3.2.4-dev`_ -- 2025-02-17
+----------------------
+Feat
+^^^^
+* Add redis async client
+* Add async_get_result in redis result backend
+* Add pytest-asyncio
 
 `3.2.3`_ -- 2025-02-17
 ----------------------

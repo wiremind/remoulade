@@ -61,6 +61,7 @@ extra_dependencies["dev"] = extra_dependencies["all"] + [
     "pytest-benchmark[histogram]",
     "pytest-cov",
     "pytest-timeout",
+    "pytest-asyncio",
     "tox",
     "freezegun",
 ]

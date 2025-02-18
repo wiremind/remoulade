@@ -20,6 +20,7 @@ exclude = '''
 '''
 
 [tool.pytest.ini_options]
+asyncio_mode = "auto"
 markers = [
     "confirm_delivery",
     "group_transaction",
