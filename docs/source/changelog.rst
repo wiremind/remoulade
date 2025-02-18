@@ -4,7 +4,7 @@ Changelog
 =========
 
 All notable changes to this project will be documented in this file.
-`3.2.4-dev`_ -- 2025-02-17
+`3.2.5-dev`_ -- 2025-02-17
 ----------------------
 Feat
 ^^^^
