@@ -5,7 +5,7 @@ Changelog
 
 All notable changes to this project will be documented in this file.
 
-`3.2.3`_ -- 2024-07-10
+`3.2.3`_ -- 2025-02-17
 ----------------------
 Fix
 ^^^^
