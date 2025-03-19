@@ -16,7 +16,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 import traceback
-from typing import Callable, Optional
+from typing import Any, Callable, Dict, Optional
 
 from ..helpers import compute_backoff
 from ..helpers.backoff import BackoffStrategy
@@ -46,6 +46,9 @@ class Retries(Middleware):
         precedence over `max_retries` when set.
       increase_priority_on_retry(bool): specifies wether to increase
         priority of message when retried. Default is False.
+      escalation_queue_mapping(Dict[str, str] | None): Mapping that specifies for each queue the escalation queue
+        on which to retry the message. Default is the current queue.
+        *example: {"my_queue.low": "my_queue.medium"}*
     """
 
     def __init__(
@@ -58,6 +61,7 @@ class Retries(Middleware):
         backoff_strategy: BackoffStrategy = "exponential",
         jitter: bool = True,
         increase_priority_on_retry: bool = False,
+        escalation_queue_mapping: Optional[Dict[str, str]] = None,
     ):
         self.logger = get_logger(__name__, type(self))
         self.max_retries = max_retries
@@ -66,7 +70,10 @@ class Retries(Middleware):
         self.retry_when = retry_when
         self.backoff_strategy = backoff_strategy
         self.jitter = jitter
+        if increase_priority_on_retry and escalation_queue_mapping is not None:
+            raise ValueError("increase_priority_on_retry and escalation_queue_mapping cannot both apply")
         self.increase_priority_on_retry = increase_priority_on_retry
+        self.escalation_queue_mapping = escalation_queue_mapping
 
     @property
     def actor_options(self):
@@ -78,6 +85,7 @@ class Retries(Middleware):
             "backoff_strategy",
             "jitter",
             "increase_priority_on_retry",
+            "escalation_queue_mapping",
         }
 
     def after_process_message(self, broker, message, *, result=None, exception=None):
@@ -104,7 +112,16 @@ class Retries(Middleware):
             message.fail()
             return
 
-        new_message = message.copy()
+        new_message_options: Dict[str, Any] = {}
+        retry_queue_name = message.queue_name
+        escalation_queue_mapping = self.get_option("escalation_queue_mapping", broker=broker, message=message)
+
+        if escalation_queue_mapping and (escalation_queue := escalation_queue_mapping.get(message.queue_name)):
+            retry_queue_name = escalation_queue
+            new_message_options = {"escalation_queue_mapping": {}}  # we escalate once
+
+        new_message = message.copy(queue_name=retry_queue_name, options=new_message_options)
+
         increase_priority_on_retry = self.get_option("increase_priority_on_retry", broker=broker, message=message)
         if increase_priority_on_retry and getattr(broker, "max_priority", None) is not None:
             new_message.options["priority"] = min(message.options.get("priority", 0) + 1, broker.max_priority)
