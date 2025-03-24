@@ -71,6 +71,16 @@ if __name__ == "__main__":
 
 Visit the [user guide] to see more features!.
 
+## Releasing
+
+If you want to contribute to the project. First make a Pull request and get approval from a Maintainer and then:
+1. Merge your pull request
+2. Update your local clone with latest version of upstream.
+3. run `bumpversion [minor|major|patch]` depending on your change level
+4. This will create a commit with appropriate version changes
+5. Run `git push` and `git push --tag` to the upstream/origin
+6. The tag will be created in github repository and a CI/CD pipeline will run to publish the package
+
 ## Dashboard
 
 Check out [SuperBowl](https://github.com/wiremind/super-bowl) a dashboard for real-time monitoring and administrating all your Remoulade tasks.
