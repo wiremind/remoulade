@@ -91,6 +91,56 @@ def test_rabbitmq_actors_retry_with_backoff_on_failure(rabbitmq_broker, rabbitmq
     assert 800 <= success_time - failure_time <= 1200
 
 
+def test_rabbitmq_actors_retry_with_queue_escalation_on_failure(rabbitmq_broker, rabbitmq_worker):
+    for queue_name in ["default.high", "default.medium"]:
+        rabbitmq_broker.declare_queue(queue_name)
+
+    incoming_queues = []
+    escalation_queue_mapping_arg = {"default": "default.medium", "default.medium": "default.high"}
+
+    @remoulade.actor(max_retries=4, escalation_queue_mapping=escalation_queue_mapping_arg, max_backoff=1)
+    def do_work():
+        nonlocal incoming_queues
+        msg = CurrentMessage.get_current_message()
+        incoming_queues.append(msg.queue_name)
+        raise RuntimeError("Failure")
+
+    rabbitmq_broker.declare_actor(do_work)
+
+    do_work.send()
+
+    rabbitmq_broker.join(do_work.queue_name, min_successes=40)
+    rabbitmq_worker.join()
+
+    # Queue should be escalated only once
+    assert incoming_queues == ["default", "default.medium", "default.medium", "default.medium", "default.medium"]
+
+
+def test_rabbitmq_actors_retry_without_queue_escalation(rabbitmq_broker, rabbitmq_worker):
+    for queue_name in ["default.high", "default.medium"]:
+        rabbitmq_broker.declare_queue(queue_name)
+
+    incoming_queues = []
+    escalation_queue_mapping_arg = {}
+
+    @remoulade.actor(max_retries=4, escalation_queue_mapping=escalation_queue_mapping_arg, max_backoff=1)
+    def do_work():
+        nonlocal incoming_queues
+        msg = CurrentMessage.get_current_message()
+        incoming_queues.append(msg.queue_name)
+        raise RuntimeError("Failure")
+
+    rabbitmq_broker.declare_actor(do_work)
+
+    do_work.send()
+
+    rabbitmq_broker.join(do_work.queue_name, min_successes=40)
+    rabbitmq_worker.join()
+
+    # queue should stay the same
+    assert incoming_queues == ["default"] * 5
+
+
 def test_rabbitmq_actors_retry_with_priority_elevation_on_failure(rabbitmq_broker, rabbitmq_worker):
     incoming_priorities = []
 

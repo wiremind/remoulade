@@ -64,7 +64,8 @@ class RabbitmqBroker(Broker):
       delivery_mode(int): 2 (persistent) to wait for message to be flushed to disk for confirmation (safer)
         or 1 (transient) which don't (faster)
       group_transaction(bool): If true, use transactions by default when running group and pipelines
-
+      is_quorum(bool): This will mark all declared queues as quorum. Make sure existing
+        queues have no incompatible args. Default is False.
     """
 
     def __init__(
@@ -78,6 +79,7 @@ class RabbitmqBroker(Broker):
         dead_queue_max_length: Optional[int] = None,
         delivery_mode: int = 2,
         group_transaction: bool = False,
+        is_quorum: bool = False,
     ):
         super().__init__(middleware=middleware)
 
@@ -109,6 +111,7 @@ class RabbitmqBroker(Broker):
         # we need a Lock on self._connection as it can be modified by multiple threads
         self.lock = Lock()
         self.group_transaction = group_transaction
+        self.is_quorum = is_quorum
         self.delivery_mode = delivery_mode
         self.actor_options.add("confirm_delivery")
 
@@ -223,7 +226,11 @@ class RabbitmqBroker(Broker):
             "x-dead-letter-routing-key": xq_name(queue_name),
         }
         if self.max_priority:
+            if self.is_quorum:
+                raise ValueError("max priority is not supported when using quorum queues")
             arguments["x-max-priority"] = self.max_priority
+        if self.is_quorum:
+            arguments["x-queue-type"] = "quorum"
 
         return arguments
 

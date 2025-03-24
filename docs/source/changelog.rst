@@ -4,6 +4,13 @@ Changelog
 =========
 
 All notable changes to this project will be documented in this file.
+`3.3.0`_ -- 2025-03-18
+----------------------
+Feat
+^^^^
+* Add support for quorum queue types
+* Add queue change on retry
+
 `3.2.4`_ -- 2025-02-17
 ----------------------
 Feat
