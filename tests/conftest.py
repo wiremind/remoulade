@@ -9,6 +9,7 @@ from unittest.mock import Mock
 import pytest
 import redis
 from freezegun import freeze_time
+from pydantic import BaseModel
 from sqlalchemy.engine import create_engine
 from sqlalchemy.inspection import inspect
 from sqlalchemy.orm.session import sessionmaker
@@ -375,6 +376,31 @@ def pickle_encoder():
     remoulade.set_encoder(new_encoder)
     yield new_encoder
     remoulade.set_encoder(old_encoder)
+
+
+@pytest.fixture
+def pydantic_encoder():
+    old_encoder = remoulade.get_encoder()
+    new_encoder = remoulade.PydanticEncoder()
+    remoulade.set_encoder(new_encoder)
+    yield new_encoder
+    remoulade.set_encoder(old_encoder)
+
+
+class SimpleStructure(BaseModel):
+    data: str
+
+
+@pytest.fixture
+def actor_with_pydantic_args_kwargs():
+    broker = remoulade.get_broker()
+
+    @remoulade.actor()
+    def actor_with_pydantic_args_kwargs(input_data: SimpleStructure) -> SimpleStructure:
+        return SimpleStructure(data=input_data.data + " processed")
+
+    broker.declare_actor(actor_with_pydantic_args_kwargs)
+    return actor_with_pydantic_args_kwargs
 
 
 def mock_func(func):

@@ -19,7 +19,7 @@ from .actor import Actor, actor
 from .broker import Broker, Consumer, MessageProxy, change_broker, declare_actors, get_broker, set_broker
 from .collection_results import CollectionResults
 from .composition import group, pipeline
-from .encoder import Encoder, JSONEncoder, PickleEncoder
+from .encoder import Encoder, JSONEncoder, PickleEncoder, PydanticEncoder
 from .errors import (
     ActorNotFound,
     BrokerError,
@@ -62,6 +62,7 @@ __all__ = [
     "Encoder",
     "JSONEncoder",
     "PickleEncoder",
+    "PydanticEncoder",
     # Errors
     "RemouladeError",
     "BrokerError",
