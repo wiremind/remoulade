@@ -4,6 +4,13 @@ Changelog
 =========
 
 All notable changes to this project will be documented in this file.
+`3.3.1`_ -- 2025-03-28
+----------------------
+Fix
+^^^
+* Result: catch error in after_enqueue_pipe_target
+
+
 `3.3.0`_ -- 2025-03-18
 ----------------------
 Feat

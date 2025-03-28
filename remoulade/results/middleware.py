@@ -19,7 +19,7 @@ from typing import Any, Set
 from ..logging import get_logger
 from ..middleware import Middleware
 from .backend import BackendResult
-from .errors import ParentFailed
+from .errors import ParentFailed, MessageIdsMissing
 
 #: The maximum amount of milliseconds results are allowed to exist in
 #: the backend.
@@ -139,8 +139,12 @@ class Results(Middleware):
     def after_enqueue_pipe_target(self, _, group_info):
         """After a pipe target has been enqueued, we need to forget the result of the group (if it's a group)"""
         if group_info:
-            message_ids = self.backend.get_group_message_ids(group_info.group_id)
-            self.backend.forget_results(message_ids, self.result_ttl)
+            try:
+                message_ids = self.backend.get_group_message_ids(group_info.group_id)
+                self.backend.forget_results(message_ids, self.result_ttl)
+            except MessageIdsMissing:
+                pass # if it's already missing it should be because the data expired
+
             self.backend.delete_group_message_ids(group_info.group_id)
             self.backend.delete_group_completion(group_info.group_id)
 
