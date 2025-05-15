@@ -4,16 +4,10 @@ import time
 
 import remoulade
 from remoulade.brokers.stub import StubBroker
+from tests.common import remove
 
 broker = StubBroker()
 remoulade.set_broker(broker)
-
-
-def remove(filename):
-    try:
-        os.remove(filename)
-    except OSError:
-        pass
 
 
 def test_cli_scrubs_stale_pid_files(start_cli):

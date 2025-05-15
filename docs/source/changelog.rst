@@ -4,6 +4,12 @@ Changelog
 =========
 
 All notable changes to this project will be documented in this file.
+`3.4.0`_ -- 2025-05-15
+----------------------
+Feat
+^^^^
+* Add support for queue consumption weight
+
 `3.3.0`_ -- 2025-03-18
 ----------------------
 Feat

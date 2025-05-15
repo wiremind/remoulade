@@ -59,13 +59,24 @@ class Worker:
       queues(Set[str]): An optional subset of queues to listen on.  By
         default, if this is not provided, the worker will listen on
         all declared queues.
+      weights(Dict[str, float]): An optional dict of queues with their associated weights.
+        It will have an impact on the number of prefetched messages per consumer
       worker_timeout(int): The number of milliseconds workers should
         wake up after if the queue is idle.
       worker_threads(int): The number of worker threads to spawn.
       prefetch_multiplier(int): The number of message to prefetch at a time, to be multiplied with the number of threads
     """
 
-    def __init__(self, broker, *, queues=None, worker_timeout=1000, worker_threads=8, prefetch_multiplier=2):
+    def __init__(
+        self,
+        broker,
+        *,
+        queues=None,
+        weights=None,
+        worker_timeout=1000,
+        worker_threads=8,
+        prefetch_multiplier=2,
+    ):
         self.logger = get_logger(__name__, type(self))
         self.broker = broker
         if broker.local:
@@ -90,6 +101,10 @@ class Worker:
         self.work_queue = PriorityQueue()  # type: PriorityQueue
         self.worker_timeout = worker_timeout
         self.worker_threads = worker_threads
+        self.weights = weights if weights else {}
+
+        for queue, weight in self.weights.items():
+            self.logger.info(f"  - {queue}: {weight}")
 
     def start(self):
         """Initialize the worker boot sequence and start up all the
@@ -193,10 +208,14 @@ class Worker:
             self.logger.debug("Dropping consumer for queue %r: not whitelisted.", queue_name)
             return
 
+        weight = self.weights[canonical_name] if canonical_name in self.weights else 1.0
+        queue_prefetch = self.delay_prefetch if delay else self.queue_prefetch
+        prefetch = max(int(queue_prefetch * weight), 1)
+
         consumer = self.consumers[queue_name] = _ConsumerThread(
             broker=self.broker,
             queue_name=queue_name,
-            prefetch=self.delay_prefetch if delay else self.queue_prefetch,
+            prefetch=prefetch,
             work_queue=self.work_queue,
             worker_timeout=self.worker_timeout,
         )

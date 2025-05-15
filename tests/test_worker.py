@@ -4,6 +4,17 @@ from remoulade.worker import build_extra
 from .common import get_logs, worker
 
 
+def test_workers_queue_weight(stub_broker):
+    with worker(
+        stub_broker, queues={"a", "b"}, weights={"a": 0.7, "b": 0.3}, prefetch_multiplier=10, worker_threads=1
+    ) as stub_worker:
+        stub_broker.declare_queue("a")
+        stub_broker.declare_queue("b")
+
+        assert stub_worker.consumers["a"].prefetch == 7
+        assert stub_worker.consumers["b"].prefetch == 3
+
+
 def test_workers_dont_register_queues_that_arent_whitelisted(stub_broker):
     # Given that I have a worker object with a restricted set of queues
     with worker(stub_broker, queues={"a", "b"}) as stub_worker:

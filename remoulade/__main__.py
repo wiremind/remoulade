@@ -95,6 +95,13 @@ def parse_arguments():
         "--queues", "-Q", nargs="*", type=str, help="listen to a subset of queues (default: all queues)"
     )
     parser.add_argument(
+        "--weights",
+        "-W",
+        nargs="+",
+        metavar="QUEUE=WEIGHT",
+        help="Assign relative weights to queues, e.g. --weights queue-high=0.7 queue-medium=0.2 queue-low=0.1",
+    )
+    parser.add_argument(
         "--pid-file", type=str, help="write the PID of the master process to a file (default: no pid file)"
     )
     parser.add_argument(
@@ -111,6 +118,27 @@ def parse_arguments():
     parser.add_argument("--version", action="version", version=__version__)
     parser.add_argument("--verbose", "-v", action="count", default=0, help="turn on verbose log output")
     return parser.parse_args()
+
+
+def parse_weights_arguments(weight_args):
+    if not weight_args:
+        return {}
+
+    weights = {}
+    for weight_arg in weight_args:
+        if "=" not in weight_arg:
+            raise ValueError(f"Invalid weight format: '{weight_arg}'. Expected format: queue=weight")
+        queue, value = weight_arg.split("=", 1)
+        if queue in weights:
+            raise ValueError(f"Queue '{queue}' is defined more than once.")
+        weight = float(value)
+        weights[queue] = weight
+
+    total = sum(weights.values())
+    if not 0.99 <= total <= 1.01:
+        raise ValueError(f"Total weight must sum to 1.0, but got {total:.2f}")
+
+    return weights
 
 
 def setup_pidfile(filename):
@@ -165,6 +193,8 @@ def setup_logging(args, *, stream=sys.stderr):
 
 
 def start_worker(args, logger):
+    weights = parse_weights_arguments(args.weights)
+
     try:
         for module in args.modules:
             importlib.import_module(module)
@@ -173,7 +203,11 @@ def start_worker(args, logger):
         broker.emit_after("process_boot")
 
         worker = Worker(
-            broker, queues=args.queues, worker_threads=args.threads, prefetch_multiplier=args.prefetch_multiplier
+            broker,
+            queues=args.queues,
+            weights=weights,
+            worker_threads=args.threads,
+            prefetch_multiplier=args.prefetch_multiplier,
         )
         worker.start()
     except ImportError:

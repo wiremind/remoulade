@@ -1,3 +1,4 @@
+import os
 from contextlib import contextmanager
 
 from remoulade import Worker
@@ -19,3 +20,10 @@ def get_logs(caplog, msg):
         if msg in record.message:
             records.append(record)
     return records
+
+
+def remove(filename):
+    try:
+        os.remove(filename)
+    except OSError:
+        pass

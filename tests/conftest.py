@@ -147,9 +147,11 @@ def info_logging():
 def start_cli():
     proc = None
 
-    def run(broker_module, *, extra_args=None, **kwargs):
+    def run(broker_module, extra_cli_args=None, *, extra_args=None, **kwargs):
         nonlocal proc
         args = [sys.executable, "-m", "remoulade", broker_module]
+        if extra_cli_args:
+            args.extend(extra_cli_args)
         proc = subprocess.Popen(args + (extra_args or []), **kwargs)
         return proc
 
