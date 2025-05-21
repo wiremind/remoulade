@@ -48,11 +48,13 @@ class TimeLimit(Middleware):
     Parameters:
       time_limit(int): The maximum number of milliseconds actors may run for.
       interval(int): The interval (in milliseconds) with which to check for actors that have exceeded the limit.
-      exit_delay(int): The delay (in milliseconds) after with we stop (SystemExit) to the worker if the exception failed
-       to stop the message (ie. system calls). None to disable, disabled by default.
+      exit_delay(int): The delay (in milliseconds) after which a ``SystemExit`` is
+       raised in the worker if the interrupt failed to stop the message (for
+       example while in a system call). ``None`` disables this behaviour.  The
+       default is ``60000`` (60 seconds).
     """
 
-    def __init__(self, *, time_limit: int = 1800000, interval: int = 1000, exit_delay: Optional[int] = None) -> None:
+    def __init__(self, *, time_limit: int = 1800000, interval: int = 1000, exit_delay: Optional[int] = 60000) -> None:
         self.logger = get_logger(__name__, type(self))
         self.time_limit = time_limit
         self.interval = interval

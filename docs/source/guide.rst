@@ -288,10 +288,10 @@ specifying the ``time_limit`` (in milliseconds) of each one::
    For more information, see the section on :ref:`message-interrupts`.
 
 .. note::
-   If time limit fail to stop the execution via |TimeLimitExceeded| (see warning),
-   a SIGKILL will be sent to the worker after 10 seconds (by default).
-   This delay can be set with the ``sigkill_delay`` of |TimeLimit|,
-   or feature can be disabled by setting ``sigkill_delay`` to ``None``.
+   If a time limit fails to stop the execution via |TimeLimitExceeded| (see
+   warning), the worker will exit after 60 seconds by default.  This delay can be
+   adjusted with the ``exit_delay`` option of |TimeLimit| or disabled entirely by
+   setting ``exit_delay`` to ``None``.
 
 
 Handling Time Limits
