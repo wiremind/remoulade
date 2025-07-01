@@ -4,6 +4,12 @@ Changelog
 =========
 
 All notable changes to this project will be documented in this file.
+`3.4.0`_ -- 2025-07-01
+----------------------
+Feat
+^^^^
+* Allow disabling dead queue
+
 `3.3.0`_ -- 2025-03-18
 ----------------------
 Feat

@@ -27,7 +27,7 @@ dependencies = ["prometheus-client>=0.2", "pytz", "python-dateutil>=2.8.0", "typ
 extra_dependencies = {
     "rabbitmq": ["amqpstorm>=2.6,<3"],
     "redis": ["redis~=5.0"],
-    "server": ["flask>=1.1,~=2.3.3", "marshmallow>=3", "flask-apispec"],
+    "server": ["flask>=1.1,~=2.3.3", "marshmallow>=3,<4", "flask-apispec"],
     "postgres": ["sqlalchemy>=1.4.29,<2", "psycopg2==2.9.5"],
     "pydantic": ["pydantic>=2.0", "simplejson"],
 }
@@ -51,6 +51,8 @@ extra_dependencies["dev"] = extra_dependencies["all"] + [
     "sqlalchemy[mypy]",
     "types-redis",
     "types-python-dateutil",
+    "types-simplejson",
+    "types-pytz",
     # Misc
     "pre-commit",
     "bumpversion",
@@ -62,7 +64,6 @@ extra_dependencies["dev"] = extra_dependencies["all"] + [
     "pytest-cov",
     "pytest-timeout",
     "pytest-asyncio",
-    "tox",
     "freezegun",
 ]
 
