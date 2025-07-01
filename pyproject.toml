@@ -1,6 +1,6 @@
 [tool.black]
 line-length = 120
-target-version = ['py38']
+target-version = ['py39']
 include = '\.pyi?$'
 exclude = '''
 /(
@@ -9,7 +9,6 @@ exclude = '''
   | \.hg
   | \.mypy_cache
   | \.pytest_cache
-  | \.tox
   | \.venv
   | _build
   | remoulade.egg-info

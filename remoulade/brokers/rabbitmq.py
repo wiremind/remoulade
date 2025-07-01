@@ -20,7 +20,7 @@ from contextlib import contextmanager
 from functools import partial
 from queue import Empty, Full, LifoQueue
 from threading import Lock, local
-from typing import TYPE_CHECKING, Callable, Final, List, Optional
+from typing import TYPE_CHECKING, Any, Callable, Dict, Final, List, Optional
 
 from amqpstorm import AMQPChannelError, AMQPConnectionError, AMQPError, Channel, UriConnection
 
@@ -60,7 +60,7 @@ class RabbitmqBroker(Broker):
       max_priority(int): Configure the queues with x-max-priority to
         support priority queue in RabbitMQ itself
       channel_pool_size(int): Size of the channel pool
-      dead_queue_max_length(int|None): Max size of the dead queue. If None, no max size.
+      dead_queue_max_length(int|None): Max size of the dead queue. If None, no max size, if 0 disable dead queue.
       delivery_mode(int): 2 (persistent) to wait for message to be flushed to disk for confirmation (safer)
         or 1 (transient) which don't (faster)
       group_transaction(bool): If true, use transactions by default when running group and pipelines
@@ -86,8 +86,8 @@ class RabbitmqBroker(Broker):
         if max_priority is not None and not (0 < max_priority <= 255):
             raise ValueError("max_priority must be a value between 0 and 255")
 
-        if dead_queue_max_length is not None and dead_queue_max_length <= 0:
-            raise ValueError("dead_queue_max_length must be strictly above 0")
+        if dead_queue_max_length is not None and dead_queue_max_length < 0:
+            raise ValueError("dead_queue_max_length must be above or equal to 0")
 
         if delivery_mode not in {1, 2}:
             raise ValueError("Invalid value for delivery_mode, should be 1 for non-persistent 2, for persistent")
@@ -114,6 +114,10 @@ class RabbitmqBroker(Broker):
         self.is_quorum = is_quorum
         self.delivery_mode = delivery_mode
         self.actor_options.add("confirm_delivery")
+
+    @property
+    def dead_queue_enabled(self):
+        return self.dead_queue_max_length != 0
 
     @property
     def connection(self):
@@ -221,10 +225,10 @@ class RabbitmqBroker(Broker):
             self.emit_after("declare_delay_queue", delayed_name)
 
     def _build_queue_arguments(self, queue_name):
-        arguments = {
-            "x-dead-letter-exchange": "",
-            "x-dead-letter-routing-key": xq_name(queue_name),
-        }
+        arguments: Dict[str, Any] = {}
+        if self.dead_queue_enabled:
+            arguments["x-dead-letter-exchange"] = ""
+            arguments["x-dead-letter-routing-key"] = xq_name(queue_name)
         if self.max_priority:
             if self.is_quorum:
                 raise ValueError("max priority is not supported when using quorum queues")
@@ -243,6 +247,8 @@ class RabbitmqBroker(Broker):
         return channel.queue.declare(queue=dq_name(queue_name), durable=True, arguments=arguments)
 
     def _declare_xq_queue(self, channel, queue_name):
+        if not self.dead_queue_enabled:
+            return {"message_count": 0}
         arguments = {
             # This HAS to be a static value since messages are expired
             # in order inside of RabbitMQ (head-first).
@@ -369,7 +375,10 @@ class RabbitmqBroker(Broker):
         Parameters:
           queue_name(str): The queue to flush.
         """
-        for name in (queue_name, dq_name(queue_name), xq_name(queue_name)):
+        queues = [queue_name, dq_name(queue_name)]
+        if self.dead_queue_enabled:
+            queues.append(xq_name(queue_name))
+        for name in queues:
             with self.default_channel_pool.acquire() as channel:
                 channel.queue.purge(name)
 
