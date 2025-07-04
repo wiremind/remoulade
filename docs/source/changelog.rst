@@ -4,6 +4,12 @@ Changelog
 =========
 
 All notable changes to this project will be documented in this file.
+`3.4.1`_ -- 2025-07-21
+----------------------
+Fix
+^^^^
+* Allow setting the dead queue as a quorum queue.
+
 `3.4.0`_ -- 2025-07-01
 ----------------------
 Feat

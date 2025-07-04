@@ -249,13 +249,15 @@ class RabbitmqBroker(Broker):
     def _declare_xq_queue(self, channel, queue_name):
         if not self.dead_queue_enabled:
             return {"message_count": 0}
-        arguments = {
+        arguments: dict[str, Any] = {
             # This HAS to be a static value since messages are expired
             # in order inside of RabbitMQ (head-first).
             "x-message-ttl": DEAD_MESSAGE_TTL,
         }
         if self.dead_queue_max_length:
             arguments["x-max-length"] = self.dead_queue_max_length
+        if self.is_quorum:
+            arguments["x-queue-type"] = "quorum"
         return channel.queue.declare(queue=xq_name(queue_name), durable=True, arguments=arguments)
 
     def _apply_delay(self, message: "Message", delay: Optional[int] = None) -> "Message":
