@@ -4,6 +4,13 @@ Changelog
 =========
 
 All notable changes to this project will be documented in this file.
+
+`3.4.2`_ -- 2025-08-01
+-----------------------
+Added
+^^^^^
+* middleware/pipeline: reverted "propagate trace context (if any) to the next element in pipe_target"
+
 `3.4.1`_ -- 2025-07-21
 ----------------------
 Fix
@@ -106,7 +113,7 @@ Fix
 Breaking changes
 ^^^^^^^^^^^^^^^^
 * The only runtime breaking change is that `Message` and `Result` are no longer named tuples, but attrs frozen classes. Other breaking changes only concern the typing system.
-* `Actor` is no longer a generic of the function it wraps, but it uses PEP 612 parameter specification variables. 
+* `Actor` is no longer a generic of the function it wraps, but it uses PEP 612 parameter specification variables.
 
 .. code-block:: python
 
@@ -157,7 +164,7 @@ The changes presented above allow us to have various enhancements in the type sy
 
    add(1, "2")  # this is now an error
 
-* Type checkers can now infer the type of the result of a single message, a group or a pipeline. 
+* Type checkers can now infer the type of the result of a single message, a group or a pipeline.
 
 .. code-block:: python
 
