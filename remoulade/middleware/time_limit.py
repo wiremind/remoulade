@@ -14,6 +14,7 @@
 #
 # You should have received a copy of the GNU Lesser General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
+import os
 import threading
 import time
 import warnings
@@ -52,23 +53,36 @@ class TimeLimit(Middleware):
        to stop the message (ie. system calls). None to disable, disabled by default.
     """
 
-    def __init__(self, *, time_limit: int = 1800000, interval: int = 1000, exit_delay: Optional[int] = None) -> None:
+    def __init__(self, *, time_limit: int = 1800_000, interval: int = 1000, exit_delay: int = 300_000) -> None:
         self.logger = get_logger(__name__, type(self))
         self.time_limit = time_limit
         self.interval = interval
-        self.deadlines: "Dict[int, Optional[Tuple[float, bool, Message]]]" = {}
+        self.deadlines: "Dict[int, Optional[Tuple[float, Message, bool]]]" = {}
         self.exit_delay = exit_delay
         self.lock = threading.Lock()
 
-    def _handle(self, *_) -> None:
+    def soft_kill_handle(self, *_) -> None:
         with self.lock:
             current_time = time.monotonic()
             for thread_id, row in self.deadlines.items():
                 if row is None:
                     continue
 
-                deadline, exception_raised, message = row
-                if exception_raised and self.exit_delay and current_time >= deadline + self.exit_delay / 1000:
+                deadline, message, exception_sent = row
+                if current_time >= deadline:
+                    self.logger.error("Time limit exceeded. Raising exception in worker thread %r.", thread_id)
+                    self.deadlines[thread_id] = deadline, message, True
+                    raise_thread_exception(thread_id, TimeLimitExceeded)
+
+    def hard_kill_handle(self, *_) -> None:
+        with self.lock:
+            current_time = time.monotonic()
+            for thread_id, row in self.deadlines.items():
+                if row is None:
+                    continue
+
+                deadline, message, exception_sent = row
+                if current_time >= deadline + self.exit_delay / 1000:
                     self.deadlines[thread_id] = None
                     try:
                         message.cancel()
@@ -77,25 +91,29 @@ class TimeLimit(Middleware):
                             "cancel message and exit the worker",
                             message.message_id,
                         )
-                        raise SystemExit(1)
                     except NoCancelBackend:
                         # Sending SIGKILL would requeue the message via RabbitMQ
-                        self.logger.error(
-                            "Could not stop message %s execution with TimeLimitExceeded, "
-                            "but do not stop the worker as the message would be requeue",
-                            message.message_id,
-                        )
-                elif not exception_raised and current_time >= deadline:
-                    self.logger.warning("Time limit exceeded. Raising exception in worker thread %r.", thread_id)
-                    self.deadlines[thread_id] = deadline, True, message
-                    raise_thread_exception(thread_id, TimeLimitExceeded)
+                        self.logger.error("Could not cancel message %s while exiting the worker", message.message_id)
+                    finally:
+                        os._exit(1)  # we are in a thread, we want to kill the whole process
 
-    def _timer(self):
+    def soft_kill_timer(self):
         while True:
             try:
-                self._handle()
-            except:  # noqa
-                self.logger.exception("Unhandled error while running the time limit handler.", exc_info=True)
+                self.soft_kill_handle()
+            except (SystemExit, KeyboardInterrupt):
+                raise
+            except Exception:
+                self.logger.exception("Unhandled error while running soft_kill_handle", exc_info=True)
+
+            time.sleep(self.interval / 1000)
+
+    def hard_kill_timer(self):
+        while True:
+            try:
+                self.hard_kill_handle()
+            except Exception:
+                self.logger.exception("Unhandled error while running hard_kill_handle", exc_info=True)
 
             time.sleep(self.interval / 1000)
 
@@ -105,8 +123,8 @@ class TimeLimit(Middleware):
 
     def after_process_boot(self, _) -> None:
         if current_platform in supported_platforms:
-            thread = threading.Thread(target=self._timer, daemon=True)
-            thread.start()
+            threading.Thread(target=self.soft_kill_timer, daemon=True).start()
+            threading.Thread(target=self.hard_kill_timer, daemon=True).start()
         else:
             msg = f"TimeLimit cannot kill threads on your current platform {current_platform}."
             warnings.warn(msg, category=RuntimeWarning, stacklevel=2)
@@ -115,7 +133,7 @@ class TimeLimit(Middleware):
         limit = self.get_option("time_limit", broker=broker, message=message)
         deadline = time.monotonic() + limit / 1000
         with self.lock:
-            self.deadlines[threading.get_ident()] = deadline, False, message
+            self.deadlines[threading.get_ident()] = deadline, message, False
 
     def after_process_message(self, broker: "Broker", message: "Message", *, result=None, exception=None) -> None:
         with self.lock:

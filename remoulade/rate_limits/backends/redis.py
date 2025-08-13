@@ -36,8 +36,8 @@ class RedisBackend(RateLimiterBackend):
     .. _redis: https://redis.io
     """
 
-    def __init__(self, *, client=None, url=None, **parameters):
-        self.client = client or redis_client(url=url, **parameters)
+    def __init__(self, *, client=None, url=None, socket_timeout=5.0, **parameters):
+        self.client = client or redis_client(url=url, socket_timeout=socket_timeout, **parameters)
 
     def add(self, key: str, value: int, ttl: int) -> bool:
         return bool(self.client.set(key, value, px=ttl, nx=True))
