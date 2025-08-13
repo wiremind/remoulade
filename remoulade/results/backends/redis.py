@@ -53,6 +53,7 @@ class RedisBackend(ResultBackend):
         async_client=None,
         url=None,
         default_timeout=None,
+        socket_timeout=5.0,
         max_retries=3,
         min_backoff=500,
         max_backoff=5000,
@@ -62,8 +63,8 @@ class RedisBackend(ResultBackend):
         super().__init__(namespace=namespace, encoder=encoder, default_timeout=default_timeout)
 
         url = url or os.getenv("REMOULADE_REDIS_URL")
-        self.client = client or redis_client(url=url, **parameters)
-        self.async_client = async_client or async_redis_client(url=url, **parameters)
+        self.client = client or redis_client(url=url, socket_timeout=socket_timeout, **parameters)
+        self.async_client = async_client or async_redis_client(url=url, socket_timeout=socket_timeout, **parameters)
         self.max_retries = max_retries
         self.min_backoff = min_backoff
         self.max_backoff = max_backoff

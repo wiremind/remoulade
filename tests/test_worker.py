@@ -1,3 +1,6 @@
+import os
+import time
+
 import remoulade
 from remoulade.worker import build_extra
 
@@ -94,3 +97,18 @@ def test_logging_metadata_logs(stub_broker, stub_worker, caplog):
     assert len(records) == 1
     assert records[0].levelname == "INFO"
     assert records[0].__dict__["id"] == "1"
+
+
+def test_heartbeats(stub_broker, stub_worker, do_work):
+    running_consumers = list(stub_worker.consumers.values())
+    for _w in running_consumers:
+        assert os.path.exists(_w.heartbeat_file) is True
+        with open(_w.heartbeat_file) as f:
+            assert float(f.read()) > time.monotonic() - _w.heartbeat_interval
+
+        _w.pause()
+        assert os.path.exists(_w.heartbeat_file) is True
+
+    stub_worker.stop()
+    for _w in running_consumers:
+        assert os.path.exists(_w.heartbeat_file) is False
