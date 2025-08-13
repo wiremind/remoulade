@@ -52,11 +52,12 @@ class RedisBackend(CancelBackend):
         key: str = "remoulade-cancellations",
         client: Optional[redis.Redis] = None,
         url: Optional[str] = None,
+        socket_timeout: float = 5.0,
         **parameters,
     ) -> None:
         super().__init__(cancellation_ttl=cancellation_ttl)
 
-        self.client = client or redis_client(url=url, **parameters)
+        self.client = client or redis_client(url=url, socket_timeout=socket_timeout, **parameters)
         self.key = key
 
     def is_canceled(self, message_id: str, composition_id: Optional[str]) -> bool:

@@ -23,6 +23,7 @@ from threading import Lock, local
 from typing import TYPE_CHECKING, Any, Callable, Dict, Final, List, Optional
 
 from amqpstorm import AMQPChannelError, AMQPConnectionError, AMQPError, Channel, UriConnection
+from amqpstorm.compatibility import urlparse
 
 from ..broker import Broker, Consumer, MessageProxy
 from ..common import current_millis
@@ -66,6 +67,10 @@ class RabbitmqBroker(Broker):
       group_transaction(bool): If true, use transactions by default when running group and pipelines
       is_quorum(bool): This will mark all declared queues as quorum. Make sure existing
         queues have no incompatible args. Default is False.
+      socket_timeout(float): Socket timeout in seconds for network operations. Default is 30.0.
+        This prevents hanging sockets on network failures.
+      heartbeat(int): RabbitMQ heartbeat interval in seconds. Default is 60.
+        Used to detect broken connections.
     """
 
     def __init__(
@@ -80,6 +85,8 @@ class RabbitmqBroker(Broker):
         delivery_mode: int = 2,
         group_transaction: bool = False,
         is_quorum: bool = False,
+        socket_timeout: int = 30,
+        heartbeat: int = 60,
     ):
         super().__init__(middleware=middleware)
 
@@ -99,6 +106,8 @@ class RabbitmqBroker(Broker):
         self._connection = None
         self.queues = {}
         self.state = local()
+        self.socket_timeout = socket_timeout
+        self.heartbeat = heartbeat
         self.channel_pools = {
             "confirm_delivery": ChannelPool(
                 channel_factory=partial(self.channel_factory, confirm_delivery=True), pool_size=channel_pool_size
@@ -126,7 +135,22 @@ class RabbitmqBroker(Broker):
         """
         with self.lock:
             if self._connection is None or self._connection.is_closed:
-                self._connection = UriConnection(self.url)
+                parsed_uri = urlparse.urlparse(self.url)
+                if parsed_uri.params != "":
+                    raise ValueError(
+                        "We expect an URL with empty query string, like 'amqp://guest:guest@localhost:5784'"
+                    )
+                uri_with_timeout = urlparse.urlunparse(
+                    urlparse.ParseResult(
+                        parsed_uri.scheme,
+                        parsed_uri.netloc,
+                        parsed_uri.path,
+                        parsed_uri.params,
+                        f"timeout={self.socket_timeout}&heartbeat={self.heartbeat}",
+                        parsed_uri.fragment,
+                    )
+                )
+                self._connection = UriConnection(uri_with_timeout)
             return self._connection
 
     @connection.deleter
@@ -165,7 +189,7 @@ class RabbitmqBroker(Broker):
         try:
             del self.connection
         except Exception:  # pragma: no cover
-            self.logger.debug("Encountered an error while connection.", exc_info=True)
+            self.logger.error("Encountered an error while connection.", exc_info=True)
         self._connection = None
         self.clear_channel_pools()
         self.logger.debug("Channels and connections closed.")
@@ -333,7 +357,7 @@ class RabbitmqBroker(Broker):
                 if self._has_transaction or attempts > MAX_ENQUEUE_ATTEMPTS:
                     raise
                 time.sleep(0.1)  # wait a bit and retry
-                self.logger.debug("Retrying enqueue on message not delivered. [%d/%d]", attempts, MAX_ENQUEUE_ATTEMPTS)
+                self.logger.info("Retrying enqueue on message not delivered. [%d/%d]", attempts, MAX_ENQUEUE_ATTEMPTS)
 
             except (AMQPConnectionError, AMQPChannelError) as e:
                 # Delete the channel (and the connection if needed) so that the
@@ -347,7 +371,7 @@ class RabbitmqBroker(Broker):
                 if self._has_transaction or attempts > MAX_ENQUEUE_ATTEMPTS:
                     raise ConnectionClosed(e) from None
 
-                self.logger.debug("Retrying enqueue due to closed connection. [%d/%d]", attempts, MAX_ENQUEUE_ATTEMPTS)
+                self.logger.info("Retrying enqueue due to closed connection. [%d/%d]", attempts, MAX_ENQUEUE_ATTEMPTS)
 
     def get_queue_message_counts(self, queue_name: str):
         """Get the number of messages in a queue.  This method is only
@@ -442,7 +466,7 @@ class _RabbitmqConsumer(Consumer):
         except (AMQPConnectionError, AMQPChannelError) as e:
             raise ConnectionClosed(e) from None
         except Exception:  # pragma: no cover
-            self.logger.warning("Failed to ack message.", exc_info=True)
+            self.logger.error("Failed to ack message.", exc_info=True)
 
     def nack(self, message):
         try:
@@ -450,7 +474,7 @@ class _RabbitmqConsumer(Consumer):
         except (AMQPConnectionError, AMQPChannelError) as e:
             raise ConnectionClosed(e) from None
         except Exception:  # pragma: no cover
-            self.logger.warning("Failed to nack message.", exc_info=True)
+            self.logger.error("Failed to nack message.", exc_info=True)
 
     def requeue(self, messages):
         """RabbitMQ automatically re-enqueues unacked messages when
@@ -527,7 +551,7 @@ class ChannelPool:
     def acquire(self, timeout=None):
         """
         Parameters:
-          timeout(int): The max number of second to wait when fetching a channel from the pool. If None, it will wait
+          timeout(int): The max number of seconds to wait when fetching a channel from the pool. If None, it will wait
             indefinitely to get a channel. Default None.
 
         Raises:

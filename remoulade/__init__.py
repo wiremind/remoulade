@@ -89,5 +89,3 @@ __all__ = [
     "get_scheduler",
     "set_scheduler",
 ]
-
-__version__ = "3.4.4"

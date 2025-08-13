@@ -21,8 +21,9 @@ import remoulade
 from remoulade.middleware import TimeLimit, TimeLimitExceeded
 
 
+@mock.patch("os._exit")
 @mock.patch("remoulade.middleware.time_limit.raise_thread_exception")
-def test_time_limit(raise_thread_exception, stub_broker, stub_worker, do_work):
+def test_time_limit_soft(raise_thread_exception, exit, stub_broker, stub_worker, do_work):
     @remoulade.actor(time_limit=1)
     def do_work():
         time.sleep(1)
@@ -35,6 +36,7 @@ def test_time_limit(raise_thread_exception, stub_broker, stub_worker, do_work):
             # That emit a signal every ms and stop after 15ms
             middleware.interval = 1
             middleware.time_limit = 15
+            middleware.exit_delay = 0
 
     # When I send it a message
     do_work.send()
@@ -45,3 +47,4 @@ def test_time_limit(raise_thread_exception, stub_broker, stub_worker, do_work):
 
     assert raise_thread_exception.called
     assert raise_thread_exception.call_args[0][1] == TimeLimitExceeded
+    assert exit.called
