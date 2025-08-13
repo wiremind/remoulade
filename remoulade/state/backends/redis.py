@@ -22,9 +22,11 @@ class RedisBackend(StateBackend):
     .. _redis: https://redis.io
     """
 
-    def __init__(self, *, namespace="remoulade-state", encoder=None, client=None, url=None, **parameters):
+    def __init__(
+        self, *, namespace="remoulade-state", encoder=None, client=None, url=None, socket_timeout=5.0, **parameters
+    ):
         super().__init__(namespace=namespace, encoder=encoder)
-        self.client = client or redis_client(url=url, **parameters)
+        self.client = client or redis_client(url=url, socket_timeout=socket_timeout, **parameters)
 
     def get_state(self, message_id):
         key = self._build_message_key(message_id)

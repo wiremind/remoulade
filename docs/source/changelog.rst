@@ -5,6 +5,19 @@ Changelog
 
 All notable changes to this project will be documented in this file.
 
+`3.5.0`_ -- 2025-08-01
+-----------------------
+Fix
+^^^^^
+* add a socket timeout for all redis connection
+* explicit timeout for rabbitmq broker
+
+Feat
+^^^^^
+- more agressive approach in case TimeLimit middleware is fired
+- consumer write heartbeat in a file in order to implement
+  kube healthcheck
+
 `3.4.3`_ -- 2025-08-19
 ----------------------
 Fix

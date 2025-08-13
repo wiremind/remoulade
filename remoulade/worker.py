@@ -15,6 +15,7 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 import os
+import tempfile
 import time
 from collections import defaultdict
 from itertools import chain
@@ -22,6 +23,7 @@ from queue import Empty, PriorityQueue
 from threading import Event, Thread
 from typing import TYPE_CHECKING, DefaultDict, Dict, List
 
+from .broker import Consumer
 from .cancel import MessageCanceled
 from .common import current_millis
 from .errors import ActorNotFound, ConnectionError, RemouladeError
@@ -225,19 +227,21 @@ class _WorkerMiddleware(Middleware):
 
 
 class _ConsumerThread(Thread):
-    def __init__(self, *, broker, queue_name, prefetch, work_queue, worker_timeout):
+    def __init__(self, *, broker, queue_name, prefetch, work_queue, worker_timeout, heartbeat_interval: int = 60_000):
         super().__init__(daemon=True)
 
         self.logger = get_logger(__name__, "ConsumerThread(%s)" % queue_name)
         self.running = False
         self.paused = False
         self.paused_event = Event()
-        self.consumer = None
+        self.consumer: Consumer = None
         self.broker = broker
         self.prefetch = prefetch
         self.queue_name = queue_name
         self.work_queue = work_queue
         self.worker_timeout = worker_timeout
+        self.heartbeat_interval = heartbeat_interval
+        self.heartbeat_file = os.path.join(tempfile.gettempdir(), f"remoulade_heartbeat_{id(self)}")
         self.delay_queue = PriorityQueue()  # type: PriorityQueue
 
     def run(self):
@@ -246,7 +250,14 @@ class _ConsumerThread(Thread):
         restart_consumer = CONSUMER_RESTART_MAX_RETRIES > 0
         attempts = 0
 
+        last_heartbeat = None
         while self.running:
+            heartbeat = time.monotonic() * 1000
+            if last_heartbeat is None or last_heartbeat + self.heartbeat_interval < heartbeat:
+                with open(self.heartbeat_file, "w") as f:
+                    f.write(f"{heartbeat / 1000}")
+                last_heartbeat = heartbeat
+
             if self.paused:
                 self.logger.debug("Consumer is paused. Sleeping for %.02fms...", self.worker_timeout)
                 self.paused_event.set()
@@ -388,6 +399,11 @@ class _ConsumerThread(Thread):
                 self.consumer.close()
         except ConnectionError:
             pass
+        finally:
+            try:
+                os.remove(self.heartbeat_file)
+            except FileNotFoundError:
+                pass  # Ignore if file does not exist
 
 
 class _WorkerThread(Thread):
@@ -401,7 +417,7 @@ class _WorkerThread(Thread):
       worker_timeout(int)
     """
 
-    def __init__(self, *, broker, consumers, work_queue, worker_timeout):
+    def __init__(self, *, broker, consumers, work_queue, worker_timeout, heartbeat_interval: int = 60_000):
         super().__init__(daemon=True)
 
         self.logger = get_logger(__name__, "WorkerThread")
@@ -416,6 +432,7 @@ class _WorkerThread(Thread):
     def run(self):
         self.logger.debug("Running worker thread...")
         self.running = True
+
         while self.running:
             if self.paused:
                 self.logger.debug("Worker is paused. Sleeping for %.02f...", self.timeout)
