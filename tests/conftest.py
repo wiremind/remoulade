@@ -377,6 +377,15 @@ def pickle_encoder():
     remoulade.set_encoder(old_encoder)
 
 
+@pytest.fixture
+def pydantic_encoder():
+    old_encoder = remoulade.get_encoder()
+    new_encoder = remoulade.encoder.PydanticEncoder()
+    remoulade.set_encoder(new_encoder)
+    yield new_encoder
+    remoulade.set_encoder(old_encoder)
+
+
 def mock_func(func):
     event = threading.Event()
 

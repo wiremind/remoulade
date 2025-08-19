@@ -5,6 +5,7 @@ import time
 
 import pytest
 import pytz
+from pydantic import BaseModel
 
 import remoulade
 from remoulade.scheduler import ScheduledJob
@@ -396,3 +397,38 @@ def test_tz_aware_last_queued(scheduler, api_client, do_work):
     )
 
     assert res.status_code == 400
+
+
+class InputArg(BaseModel):
+    data: str
+
+
+class InputKwarg(BaseModel):
+    data: str
+
+
+class TestSchedulerPyanticEncoder:
+    @pytest.fixture
+    def job(self, stub_broker):
+        @remoulade.actor
+        def do_work(input_arg: InputArg, *, input_kwarg: InputKwarg):
+            ...
+
+        stub_broker.declare_actor(do_work)
+
+        return ScheduledJob(
+            actor_name="do_work",
+            args=[InputArg(data="test")],
+            kwargs={"input_kwarg": InputKwarg(data="test")},
+        )
+
+    def test_get_hash(self, pydantic_encoder, job):
+        assert job.get_hash() == "22c1fbd36f1f3eb8395520bc6d78fd27c3905f82"
+
+    def test_add_job_and_deserialize(self, scheduler, pydantic_encoder, job):
+        scheduler.add_job(job)
+        jobs = scheduler.get_redis_schedule()
+        assert len(jobs) == 1
+        deserialized_job = jobs[job.get_hash()]
+        assert deserialized_job.args == [InputArg(data="test")]
+        assert deserialized_job.kwargs == {"input_kwarg": InputKwarg(data="test")}
