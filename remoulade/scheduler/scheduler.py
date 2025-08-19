@@ -1,7 +1,7 @@
 import datetime
 import hashlib
-import json
 import time
+from operator import itemgetter
 from typing import Dict, List, Union
 
 import pytz
@@ -63,17 +63,24 @@ class ScheduledJob:
         self.kwargs = kwargs if kwargs is not None else {}
 
     def get_hash(self) -> str:
-        args = json.dumps(self.args)
-        kwargs = json.dumps(sorted(list(self.kwargs.items()), key=lambda x: x[0]))
-
-        path = [
-            str(getattr(self, k)) for k in ("actor_name", "interval", "daily_time", "iso_weekday", "enabled", "tz")
-        ] + [
-            args,
-            kwargs,
-        ]
-
-        return hashlib.sha1("".join(path).encode("utf-8")).hexdigest()
+        encoder = get_encoder()
+        return hashlib.sha1(
+            "".join(
+                [
+                    self.actor_name,
+                    str(self.interval),
+                    str(self.daily_time),
+                    str(self.iso_weekday),
+                    str(self.enabled),
+                    self.tz,
+                    *(encoder.encode(arg).decode() for arg in self.args),
+                    *(
+                        f"{name}: {encoder.encode(arg).decode()}"
+                        for name, arg in sorted(self.kwargs.items(), key=itemgetter(0))
+                    ),
+                ]
+            ).encode("utf-8")
+        ).hexdigest()
 
     def as_dict(self, encode: bool = False) -> Dict:
         job_dict = {
