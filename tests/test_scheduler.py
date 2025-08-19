@@ -2,13 +2,14 @@ import datetime
 import json
 import threading
 import time
+from unittest.mock import ANY
 
 import pytest
 import pytz
 
 import remoulade
 from remoulade.scheduler import ScheduledJob
-from tests.conftest import check_redis, mock_func, new_scheduler
+from tests.conftest import check_redis, mock_func, new_scheduler, SimpleStructure
 
 
 def test_simple_interval_scheduler(stub_broker, stub_worker, scheduler, scheduler_thread, mul, add):
@@ -396,3 +397,30 @@ def test_tz_aware_last_queued(scheduler, api_client, do_work):
     )
 
     assert res.status_code == 400
+
+
+def test_scheduled_job_with_pydantic_encoder_correct_hashing(
+    pydantic_encoder, scheduler, actor_with_pydantic_args_kwargs
+):
+    scheduler.schedule = [
+        job := ScheduledJob(
+            actor_name="actor_with_pydantic_args_kwargs",
+            kwargs={"input_data": SimpleStructure(data="data")},
+            iso_weekday=1,
+            daily_time=datetime.time(3, 0, 0),
+        )
+    ]
+    scheduler.sync_config()
+    scheduled_job_by_job_hash = scheduler.get_redis_schedule()
+    assert scheduled_job_by_job_hash[job.get_hash()].as_dict() == {
+        "actor_name": "actor_with_pydantic_args_kwargs",
+        "args": [],
+        "daily_time": datetime.time(3, 0),
+        "enabled": True,
+        "hash": job.get_hash(),
+        "interval": 86400,
+        "iso_weekday": 1,
+        "kwargs": {"input_data": {"data": "data"}},
+        "last_queued": ANY,
+        "tz": "UTC",
+    }
