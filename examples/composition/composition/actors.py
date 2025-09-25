@@ -21,7 +21,7 @@ remoulade.get_broker().add_middleware(MessageState(backend=PostgresBackend()))
 
 @remoulade.actor(store_results=True)
 def request(uri):
-    return requests.get(uri).text
+    return requests.get(uri).text  # noqa: S113
 
 
 @remoulade.actor(store_results=True)

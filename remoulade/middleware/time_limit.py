@@ -17,7 +17,7 @@
 import threading
 import time
 import warnings
-from typing import TYPE_CHECKING, Dict, Optional, Set, Tuple
+from typing import TYPE_CHECKING
 
 from ..errors import NoCancelBackend
 from ..logging import get_logger
@@ -52,11 +52,11 @@ class TimeLimit(Middleware):
        to stop the message (ie. system calls). None to disable, disabled by default.
     """
 
-    def __init__(self, *, time_limit: int = 1800000, interval: int = 1000, exit_delay: Optional[int] = None) -> None:
+    def __init__(self, *, time_limit: int = 1800000, interval: int = 1000, exit_delay: int | None = None) -> None:
         self.logger = get_logger(__name__, type(self))
         self.time_limit = time_limit
         self.interval = interval
-        self.deadlines: "Dict[int, Optional[Tuple[float, bool, Message]]]" = {}
+        self.deadlines: dict[int, tuple[float, bool, Message] | None] = {}
         self.exit_delay = exit_delay
         self.lock = threading.Lock()
 
@@ -100,7 +100,7 @@ class TimeLimit(Middleware):
             time.sleep(self.interval / 1000)
 
     @property
-    def actor_options(self) -> Set[str]:
+    def actor_options(self) -> set[str]:
         return {"time_limit"}
 
     def after_process_boot(self, _) -> None:

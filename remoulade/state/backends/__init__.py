@@ -4,7 +4,7 @@ except ImportError:  # pragma: no cover
     import warnings
 
     warnings.warn(
-        "PostgresBackend is not available.  Run `pip install remoulade[postgres]` " "to add support for that backend.",
+        "PostgresBackend is not available.  Run `pip install remoulade[postgres]` to add support for that backend.",
         ImportWarning,
         stacklevel=2,
     )
@@ -16,7 +16,7 @@ except ImportError:  # pragma: no cover
     import warnings
 
     warnings.warn(
-        "RedisBackend is not available.  Run `pip install remoulade[redis]` " "to add support for that backend.",
+        "RedisBackend is not available.  Run `pip install remoulade[redis]` to add support for that backend.",
         ImportWarning,
         stacklevel=2,
     )

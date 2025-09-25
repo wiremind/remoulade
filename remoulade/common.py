@@ -15,10 +15,9 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 import uuid
-from collections.abc import Iterable
+from collections.abc import Iterable, Iterator
 from itertools import islice
 from time import time
-from typing import Iterator, List
 
 
 def current_millis():
@@ -40,7 +39,7 @@ def flatten(iterable):
             yield el
 
 
-def chunk(iterable: Iterable, size: int) -> Iterator[List]:
+def chunk(iterable: Iterable, size: int) -> Iterator[list]:
     """Returns an iterator of a list of length size"""
     i = iter(iterable)
     piece = list(islice(i, size))

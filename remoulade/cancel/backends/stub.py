@@ -15,7 +15,7 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 import time
-from typing import Dict, Iterable, Optional
+from collections.abc import Iterable
 
 from ..backend import CancelBackend
 
@@ -28,9 +28,9 @@ class StubBackend(CancelBackend):
         should be kept in the backend.
     """
 
-    def __init__(self, *, cancellation_ttl: Optional[int] = None) -> None:
+    def __init__(self, *, cancellation_ttl: int | None = None) -> None:
         super().__init__(cancellation_ttl=cancellation_ttl)
-        self.cancellations: Dict[str, float] = {}
+        self.cancellations: dict[str, float] = {}
 
     def is_canceled(self, message_id: str, composition_id: str) -> bool:
         return any(

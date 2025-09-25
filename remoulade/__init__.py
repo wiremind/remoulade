@@ -25,7 +25,7 @@ from .errors import (
     BrokerError,
     ChannelPoolTimeout,
     ConnectionClosed,
-    ConnectionError,
+    ConnectionError,  # noqa: A004
     ConnectionFailed,
     NoResultBackend,
     QueueJoinTimeout,
@@ -44,49 +44,49 @@ from .worker import Worker
 __all__ = [
     # Actors
     "Actor",
-    "GenericActor",
-    "actor",
+    "ActorNotFound",
     # Brokers
     "Broker",
+    "BrokerError",
+    "ChannelPoolTimeout",
+    "CollectionResults",
+    "ConnectionClosed",
+    "ConnectionError",
+    "ConnectionFailed",
     "Consumer",
+    # Encoding
+    "Encoder",
+    "GenericActor",
+    "JSONEncoder",
+    # Messages
+    "Message",
     "MessageProxy",
-    "get_broker",
-    "set_broker",
+    # Middleware
+    "Middleware",
+    "NoResultBackend",
+    "PickleEncoder",
+    "QueueJoinTimeout",
+    "QueueNotFound",
+    "RateLimitExceeded",
+    # Errors
+    "RemouladeError",
+    "Result",
+    # Workers
+    "Worker",
+    "actor",
     "change_broker",
     "declare_actors",
+    "get_broker",
+    "get_encoder",
+    # Logging
+    "get_logger",
+    # Scheduler
+    "get_scheduler",
     # Composition
     "group",
     "pipeline",
-    "CollectionResults",
-    # Encoding
-    "Encoder",
-    "JSONEncoder",
-    "PickleEncoder",
-    # Errors
-    "RemouladeError",
-    "BrokerError",
-    "ActorNotFound",
-    "QueueNotFound",
-    "QueueJoinTimeout",
-    "ConnectionError",
-    "ConnectionClosed",
-    "ConnectionFailed",
-    "RateLimitExceeded",
-    "NoResultBackend",
-    "ChannelPoolTimeout",
-    # Logging
-    "get_logger",
-    # Messages
-    "Message",
-    "get_encoder",
+    "set_broker",
     "set_encoder",
-    "Result",
-    # Middleware
-    "Middleware",
-    # Workers
-    "Worker",
-    # Scheduler
-    "get_scheduler",
     "set_scheduler",
 ]
 

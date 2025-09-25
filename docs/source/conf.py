@@ -17,7 +17,7 @@ import sys
 
 import alabaster  # noqa
 
-import remoulade  # noqa
+import remoulade
 
 sys.path.insert(0, os.path.abspath("../.."))
 sys.path.insert(0, os.path.abspath("./"))
@@ -66,7 +66,7 @@ master_doc = "index"
 
 # General information about the project.
 project = "Remoulade"
-copyright = "2017, CLEARTYPE SRL, WIREMIND SAS"
+copyright = "2017, CLEARTYPE SRL, WIREMIND SAS"  # noqa: A001
 author = "CLEARTYPE SRL, WIREMIND SAS"
 
 # The version info for the project you're documenting, acts as replacement for

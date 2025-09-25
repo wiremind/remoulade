@@ -14,7 +14,6 @@
 #
 # You should have received a copy of the GNU Lesser General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
-from typing import Optional
 
 from ..broker import Broker, MessageProxy
 from ..common import current_millis
@@ -59,13 +58,13 @@ class LocalBroker(Broker):
         self.queues[queue_name] = None
         self.emit_after("declare_queue", queue_name)
 
-    def _apply_delay(self, message, delay: Optional[int] = None):
+    def _apply_delay(self, message, delay: int | None = None):
         if delay is not None:
             message_eta = current_millis() + delay
             message = message.copy(options={"eta": message_eta})
         return message
 
-    def enqueue(self, message: "Message", *, delay: Optional[int] = None) -> "Message":  # pragma: no cover
+    def enqueue(self, message: "Message", *, delay: int | None = None) -> "Message":  # pragma: no cover
         """Enqueue a message on this broker.
 
         Parameters:
@@ -122,5 +121,5 @@ class LocalBroker(Broker):
     def flush_all(self):
         pass
 
-    def join(self, *_):
+    def join(self, queue_name: str, *, timeout: int | None = None):
         return

@@ -1,3 +1,4 @@
+import contextlib
 import os
 import signal
 import time
@@ -10,10 +11,8 @@ remoulade.set_broker(broker)
 
 
 def remove(filename):
-    try:
+    with contextlib.suppress(OSError):
         os.remove(filename)
-    except OSError:
-        pass
 
 
 def test_cli_scrubs_stale_pid_files(start_cli):

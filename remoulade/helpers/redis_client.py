@@ -1,12 +1,11 @@
 import os
-from typing import Optional
 from urllib.parse import urlparse
 
 import redis
 import redis.asyncio as redis_async
 
 
-def redis_client(url: Optional[str], **parameters):
+def redis_client(url: str | None, **parameters):
     """"""
     if url:
         url_parsed = urlparse(url)
@@ -23,7 +22,7 @@ def redis_client(url: Optional[str], **parameters):
             return redis.Redis(**parameters)
 
 
-def async_redis_client(url: Optional[str], **parameters):
+def async_redis_client(url: str | None, **parameters):
     """"""
     if url:
         url_parsed = urlparse(url)
