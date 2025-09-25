@@ -29,9 +29,14 @@ def main():
     parser.add_argument("count", type=int, help="the number of messages to enqueue")
     args = parser.parse_args()
 
-    messages = []
-    for _ in range(args.count):
-        messages.append(sleep_then_add.send(random.randint(1, 5), random.randint(0, 1000), random.randint(0, 1000)))
+    messages = [
+        sleep_then_add.send(
+            random.randint(1, 5),
+            random.randint(0, 1000),
+            random.randint(0, 1000),
+        )
+        for _ in range(args.count)
+    ]
 
     for message in messages:
         print(message.result.get(block=True))

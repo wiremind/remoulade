@@ -17,7 +17,7 @@
 import asyncio
 import os
 import time
-from typing import Iterable, List
+from collections.abc import Iterable
 
 import redis
 
@@ -72,10 +72,10 @@ class RedisBackend(ResultBackend):
 
     def get_results(
         self,
-        message_ids: List[str],
+        message_ids: list[str],
         *,
         block: bool = False,
-        timeout: int = None,
+        timeout: int | None = None,
         forget: bool = False,
         raise_on_error: bool = True,
     ) -> Iterable[BackendResult]:
@@ -132,7 +132,7 @@ class RedisBackend(ResultBackend):
         self,
         message_id: str,
         *,
-        timeout: int = None,
+        timeout: int | None = None,
         forget: bool = False,
         raise_on_error: bool = True,
     ) -> BackendResult:
@@ -160,7 +160,7 @@ class RedisBackend(ResultBackend):
                     forget_delay = self.check_timeout(attempts, end_time, message_id)
                     attempts += 1
                     await asyncio.sleep(forget_delay)
-            except (redis.ConnectionError, redis.TimeoutError, ResultTimeout):
+            except (redis.ConnectionError, redis.TimeoutError, ResultTimeout):  # noqa: PERF203
                 if data is not None:
                     break
                 if retry_count >= self.max_retries:
@@ -233,7 +233,7 @@ class RedisBackend(ResultBackend):
                     else:
                         raise ResultMissing(message_id)
 
-            except (redis.ConnectionError, redis.TimeoutError):
+            except (redis.ConnectionError, redis.TimeoutError):  # noqa: PERF203
                 # if data is not None, it means the second step of block+forget has failed, we can live without a forget
                 if data is not None:
                     break
@@ -256,17 +256,14 @@ class RedisBackend(ResultBackend):
 
     def _store(self, message_keys, results, ttl):
         with self.client.pipeline() as pipe:
-            for message_key, result in zip(message_keys, results):
+            for message_key, result in zip(message_keys, results, strict=False):
                 pipe.delete(message_key)
                 pipe.lpush(message_key, self.encoder.encode(result))
                 pipe.pexpire(message_key, ttl)
             pipe.execute()
 
     def _get(self, key, forget=False):
-        if forget:
-            data = self.client.rpop(key)
-        else:
-            data = self.client.rpoplpush(key, key)
+        data = self.client.rpop(key) if forget else self.client.rpoplpush(key, key)
         if data:
             return self.encoder.decode(data)
         return Missing
@@ -284,7 +281,7 @@ class RedisBackend(ResultBackend):
 
         return group_completion
 
-    def get_status(self, message_ids: List[str]) -> int:  # type: ignore
+    def get_status(self, message_ids: list[str]) -> int:  # type: ignore
         if not message_ids:
             return 0
         return self.client.exists(*[self.build_message_key(message_id) for message_id in message_ids])

@@ -137,7 +137,7 @@ def main(args):
             else:
                 subprocess_args = ["remoulade", "bench", "-p", "8"]
 
-        proc = subprocess.Popen(subprocess_args)
+        proc = subprocess.Popen(subprocess_args)  # noqa: S603
         processed = 0
         while processed < args.count:
             processed = client.get(counter_key)

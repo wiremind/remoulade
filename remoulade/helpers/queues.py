@@ -1,5 +1,3 @@
-from queue import Empty
-
 from remoulade import QueueJoinTimeout
 from remoulade.common import current_millis
 
@@ -14,11 +12,8 @@ def iter_queue(queue):
     Returns:
       generator[object]: The iterator.
     """
-    while True:
-        try:
-            yield queue.get_nowait()
-        except Empty:
-            break
+    while not queue.empty():
+        yield queue.get_nowait()
 
 
 def join_queue(queue, timeout=None):
@@ -37,7 +32,7 @@ def join_queue(queue, timeout=None):
         while queue.unfinished_tasks:
             finished_in_time = queue.all_tasks_done.wait(timeout=timeout)
             if not finished_in_time:
-                raise QueueJoinTimeout("timed out after %.02f seconds" % timeout)
+                raise QueueJoinTimeout(f"timed out after {timeout:.2f} seconds")
 
 
 def join_all(joinables, timeout):

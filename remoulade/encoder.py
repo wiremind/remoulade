@@ -19,9 +19,7 @@ import abc
 import json
 import pickle
 import warnings
-from typing import Any, Dict, Optional, get_type_hints
-
-from typing_extensions import Annotated
+from typing import Annotated, Any, get_type_hints
 
 try:
     from pydantic import BaseModel, TypeAdapter, WithJsonSchema
@@ -36,7 +34,7 @@ except ImportError:  # pragma: no cover
 
 
 #: Represents the contents of a Message object as a dict.
-MessageData = Dict[str, Any]
+MessageData = dict[str, Any]
 
 
 class Encoder(abc.ABC):
@@ -91,7 +89,7 @@ class PydanticEncoder(Encoder):
         return MyActorOutputSchema()
     """
 
-    def __init__(self, fallback_encoder: Optional[Encoder] = None):
+    def __init__(self, fallback_encoder: Encoder | None = None):
         self.fallback_encoder = fallback_encoder
         self.json_encoder = _JSONEncoder(default=self.default)
         self.json_decoder = JSONDecoder()
@@ -101,7 +99,7 @@ class PydanticEncoder(Encoder):
         if isinstance(o, BaseModel):
             # keep dict otherwise it will be serialized as a string (see Pydantic .json())
             return json.loads(o.model_dump_json())
-        raise TypeError("Object of type %s is not JSON serializable" % o.__class__.__name__)
+        raise TypeError(f"Object of type {o.__class__.__name__} is not JSON serializable")
 
     def encode(self, data: MessageData) -> bytes:
         try:
@@ -121,7 +119,7 @@ class PydanticEncoder(Encoder):
             actor_fn = get_broker().get_actor(actor_name).fn
 
             # Retrieve the Pydantic schemas from typing
-            schemas_by_param_name: Dict[str, "TypeAdapter"] = {}
+            schemas_by_param_name: dict[str, TypeAdapter] = {}
             for param_name, type_hint in get_type_hints(actor_fn).items():
                 schemas_by_param_name[param_name] = TypeAdapter(
                     Annotated[
@@ -133,16 +131,18 @@ class PydanticEncoder(Encoder):
                 )
 
             # Override message_data with Pydantic schema when it matches
-            parsed_message: Dict[str, Any] = {}
+            parsed_message: dict[str, Any] = {}
             for key, values in raw_message.items():
                 if key == "kwargs":
-                    assert isinstance(values, dict)
+                    if not isinstance(values, dict):
+                        raise TypeError(f"Expected `values` to be a dict, got {type(values).__name__}")
                     parsed_message[key] = {
                         param_name: schemas_by_param_name[param_name].validate_python(raw_value)
                         for param_name, raw_value in values.items()
                     }
                 elif key == "args":
-                    assert isinstance(values, list)
+                    if not isinstance(values, list):
+                        raise TypeError(f"Expected `values` to be a list, got {type(values).__name__}")
                     schemas = list(schemas_by_param_name.values())
                     parsed_message[key] = [
                         schemas[order].validate_python(raw_value) for order, raw_value in enumerate(values)

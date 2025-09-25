@@ -20,11 +20,11 @@ from collections import defaultdict
 from itertools import chain
 from queue import Empty, PriorityQueue
 from threading import Event, Thread
-from typing import TYPE_CHECKING, DefaultDict, Dict, List
+from typing import TYPE_CHECKING
 
 from .cancel import MessageCanceled
 from .common import current_millis
-from .errors import ActorNotFound, ConnectionError, RemouladeError
+from .errors import ActorNotFound, ConnectionError, RemouladeError  # noqa: A004
 from .helpers import compute_backoff
 from .helpers.queues import iter_queue, join_all, q_name
 from .logging import get_logger
@@ -35,10 +35,10 @@ if TYPE_CHECKING:
 
 #: The number of try to restart consumers (with exponential backoff) after a connection error
 #: 0 to disable consumer restart and exit with an error
-CONSUMER_RESTART_MAX_RETRIES = int(os.getenv("remoulade_restart_max_retries", 10))
+CONSUMER_RESTART_MAX_RETRIES = int(os.getenv("remoulade_restart_max_retries", 10))  # noqa: SIM112
 
 
-def build_extra(message, max_input_size: int = None):
+def build_extra(message, max_input_size: int | None = None):
     return {
         **message.options.get("logging_metadata", {}),
         "message_id": message.message_id,
@@ -71,7 +71,7 @@ class Worker:
         if broker.local:
             raise RemouladeError("LocalBroker is not destined to be used with a Worker")
 
-        self.consumers: Dict[str, _ConsumerThread] = {}
+        self.consumers: dict[str, _ConsumerThread] = {}
         if queues is None or len(queues) != 1:
             self.logger.warning(
                 "You are listening on multiple queues, RMQ is adapted to single queue consuming only. "
@@ -86,7 +86,7 @@ class Worker:
         # workers as those messages could have far-future etas.
         self.delay_prefetch = min(worker_threads * 1000, 65535)
 
-        self.workers = []  # type: List
+        self.workers = []
         self.work_queue = PriorityQueue()  # type: PriorityQueue
         self.worker_timeout = worker_timeout
         self.worker_threads = worker_threads
@@ -135,15 +135,15 @@ class Worker:
         self.logger.debug("Consumers and workers stopped.")
 
         self.logger.debug("Requeueing in-memory messages...")
-        messages_by_queue: "DefaultDict[str, List[Message]]" = defaultdict(list)
+        messages_by_queue: defaultdict[str, list[Message]] = defaultdict(list)
         for _, message in iter_queue(self.work_queue):
             messages_by_queue[message.queue_name].append(message)
 
         for queue_name, messages in messages_by_queue.items():
             try:
                 self.consumers[queue_name].requeue_messages(messages)
-            except ConnectionError:
-                self.logger.warning("Failed to requeue messages on queue %r.", queue_name, exc_info=True)
+            except ConnectionError:  # noqa: PERF203
+                self.logger.warning(f"Failed to requeue messages on queue {queue_name}.", exc_info=True)
         self.logger.debug("Done requeueing in-progress messages.")
 
         self.logger.debug("Closing consumers...")
@@ -228,7 +228,7 @@ class _ConsumerThread(Thread):
     def __init__(self, *, broker, queue_name, prefetch, work_queue, worker_timeout):
         super().__init__(daemon=True)
 
-        self.logger = get_logger(__name__, "ConsumerThread(%s)" % queue_name)
+        self.logger = get_logger(__name__, f"ConsumerThread({queue_name})")
         self.running = False
         self.paused = False
         self.paused_event = Event()

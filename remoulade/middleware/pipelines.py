@@ -105,7 +105,7 @@ class Pipelines(Middleware):
             if not pipe_ignore:
                 if group_info:
                     result = self._group_results(group_info, broker, raise_on_error)
-                next_message = next_message.copy(args=next_message.args + (result,))
+                next_message = next_message.copy(args=(*next_message.args, result))
 
             broker.enqueue(next_message)
 
@@ -140,7 +140,7 @@ class Pipelines(Middleware):
         except NoResultBackend as e:
             raise NoResultBackend("Pipeline with groups are ony supported with a result backend") from e
 
-        group_completion = 0  # noqa
+        group_completion = 0
         with results.backend.retry(broker, message, self.logger):
             ttl = results.get_option("result_ttl", broker=broker, message=message)
             group_completion = results.backend.increment_group_completion(group_info.group_id, message.message_id, ttl)

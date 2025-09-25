@@ -14,8 +14,4 @@ def worker(*args, **kwargs):
 
 
 def get_logs(caplog, msg):
-    records = []
-    for record in caplog.records:
-        if msg in record.message:
-            records.append(record)
-    return records
+    return [record for record in caplog.records if msg in record.message]

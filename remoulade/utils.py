@@ -14,14 +14,14 @@
 #
 # You should have received a copy of the GNU Lesser General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING
 
 from .errors import NoScheduler
 
 if TYPE_CHECKING:
     from .scheduler import Scheduler
 
-global_scheduler: "Optional[Scheduler]" = None
+global_scheduler: "Scheduler | None" = None
 
 
 def get_scheduler() -> "Scheduler":

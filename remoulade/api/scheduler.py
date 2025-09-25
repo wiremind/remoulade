@@ -39,7 +39,7 @@ class ScheduledJobSchema(Schema):
     @validates_schema
     def validate_actor_name(self, data, **kwargs):
         actor_name = data.get("actor_name")
-        if actor_name not in remoulade.get_broker().actors.keys():
+        if actor_name not in remoulade.get_broker().actors:
             raise ValidationError(f"No actor named {actor_name} exists")
 
     @validates_schema

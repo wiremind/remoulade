@@ -14,7 +14,7 @@
 #
 # You should have received a copy of the GNU Lesser General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
-from typing import Callable, List
+from collections.abc import Callable
 
 
 class RateLimiterBackend:
@@ -62,7 +62,7 @@ class RateLimiterBackend:
         raise NotImplementedError
 
     def incr_and_sum(
-        self, key: str, keys: Callable[[], List[str]], amount: int, maximum: int, ttl: int
+        self, key: str, keys: Callable[[], list[str]], amount: int, maximum: int, ttl: int
     ):  # pragma: no cover
         """Atomically increment a key unless the sum of keys is greater than the given maximum.
 

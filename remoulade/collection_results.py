@@ -18,9 +18,8 @@ from __future__ import annotations
 
 import time
 from collections import deque
-from typing import Any, Generator, Generic, Iterable, TypeVar, Union, cast, overload
-
-from typing_extensions import Literal
+from collections.abc import Generator, Iterable
+from typing import Any, Generic, Literal, TypeVar, Union, cast, overload
 
 from remoulade.results.errors import ErrorStored
 
@@ -53,10 +52,7 @@ class CollectionResults(Generic[ResultT]):
             if isinstance(message_id, list):
                 last = message_id[-1]
                 # it's a group
-                if isinstance(last, list):
-                    child = cls.from_message_ids(last)
-                else:
-                    child = Result(message_id=last)
+                child = cls.from_message_ids(last) if isinstance(last, list) else Result(message_id=last)
             else:
                 child = Result[Any](message_id=message_id)
             children.append(child)
@@ -115,8 +111,7 @@ class CollectionResults(Generic[ResultT]):
         timeout: int | None = None,
         raise_on_error: Literal[True] = True,
         forget: bool = False,
-    ) -> Generator[R, None, None]:
-        ...
+    ) -> Generator[R, None, None]: ...
 
     @overload
     def get(
@@ -126,14 +121,12 @@ class CollectionResults(Generic[ResultT]):
         timeout: int | None = None,
         raise_on_error: bool = True,
         forget: bool = False,
-    ) -> Generator[R | ErrorStored, None, None]:
-        ...
+    ) -> Generator[R | ErrorStored, None, None]: ...
 
     @overload
     def get(
         self, *, block: bool = False, timeout: int | None = None, raise_on_error: bool = True, forget: bool = False
-    ) -> Generator[Any, None, None]:
-        ...
+    ) -> Generator[Any, None, None]: ...
 
     def get(
         self, *, block: bool = False, timeout: int | None = None, raise_on_error: bool = True, forget: bool = False

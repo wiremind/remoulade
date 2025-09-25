@@ -2,7 +2,6 @@ import datetime
 import hashlib
 import time
 from operator import itemgetter
-from typing import Dict, List, Union
 
 import pytz
 import redis
@@ -24,14 +23,14 @@ class ScheduledJob:
     def __init__(
         self,
         actor_name: str,
-        args: List = None,
-        kwargs: Dict = None,
-        interval: int = None,
-        daily_time: datetime.time = None,
-        iso_weekday: int = None,
-        enabled: bool = None,
-        last_queued: datetime.datetime = None,
-        tz: str = None,
+        args: list | None = None,
+        kwargs: dict | None = None,
+        interval: int | None = None,
+        daily_time: datetime.time | None = None,
+        iso_weekday: int | None = None,
+        enabled: bool | None = None,
+        last_queued: datetime.datetime | None = None,
+        tz: str | None = None,
     ) -> None:
         """
         Describes a job that should be run through the scheduler
@@ -64,7 +63,7 @@ class ScheduledJob:
 
     def get_hash(self) -> str:
         encoder = get_encoder()
-        return hashlib.sha1(
+        return hashlib.sha1(  # noqa: S324
             "".join(
                 [
                     self.actor_name,
@@ -82,7 +81,7 @@ class ScheduledJob:
             ).encode("utf-8")
         ).hexdigest()
 
-    def as_dict(self, encode: bool = False) -> Dict:
+    def as_dict(self, encode: bool = False) -> dict:
         job_dict = {
             "hash": self.get_hash(),
             "actor_name": self.actor_name,
@@ -131,13 +130,13 @@ class Scheduler:
     def __init__(
         self,
         broker: Broker,
-        schedule: List[ScheduledJob],
+        schedule: list[ScheduledJob],
         *,
-        namespace: str = None,
-        lock_key: str = None,
-        period: Union[int, float] = None,
+        namespace: str | None = None,
+        lock_key: str | None = None,
+        period: int | float | None = None,
         client: redis.Redis = None,
-        url: str = None,
+        url: str | None = None,
         **redis_parameters,
     ) -> None:
         """
@@ -163,7 +162,7 @@ class Scheduler:
     def flush(self, job: ScheduledJob) -> None:
         self.client.hset(self.namespace, job.get_hash().encode("utf-8"), job.encode())
 
-    def get_redis_schedule(self) -> Dict[str, ScheduledJob]:
+    def get_redis_schedule(self) -> dict[str, ScheduledJob]:
         r = {}
         for json_schedule in self.client.hgetall(self.namespace).values():
             job = ScheduledJob.decode(json_schedule)
@@ -184,7 +183,7 @@ class Scheduler:
             config_schedule = {job.get_hash(): job for job in self.schedule}
 
             # loop over redis schedule
-            for job_hash in redis_schedule.keys():
+            for job_hash in redis_schedule:
                 # if job is no longer in configured schedule, remove it
                 if job_hash not in config_schedule:
                     self.logger.info("Dropping %s because it's no longer in the config", job_hash)
@@ -201,7 +200,7 @@ class Scheduler:
                         self.logger.info(
                             "Will not run %s today, because daily time has already passed. Wait for tomorrow", job_hash
                         )
-                        job.last_queued = datetime.datetime.utcnow()
+                        job.last_queued = datetime.datetime.now(datetime.timezone.utc)
                     # Add to redis
                     self.logger.info("Adding new job %s to schedule", job_hash)
                     self.flush(job)
@@ -219,7 +218,7 @@ class Scheduler:
                 schedule = self.get_redis_schedule()
                 for job_hash, job in schedule.items():
                     now = datetime.datetime.now(pytz.timezone(job.tz))
-                    now_utc = datetime.datetime.utcnow()
+                    now_utc = datetime.datetime.now(datetime.timezone.utc)
                     curr_isodow = now.isoweekday()
 
                     if not job.enabled:
@@ -255,7 +254,7 @@ class Scheduler:
 
                     self.broker.actors[job.actor_name].send(*job.args, **job.kwargs)
 
-                    job.last_queued = datetime.datetime.utcnow()
+                    job.last_queued = datetime.datetime.now(datetime.timezone.utc)
                     self.flush(job)
 
             if self.stopped:

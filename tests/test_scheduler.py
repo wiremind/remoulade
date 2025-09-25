@@ -178,7 +178,7 @@ def test_scheduler_new_daily_time(stub_broker, stub_worker, scheduler, scheduler
     scheduler.schedule = [
         ScheduledJob(
             actor_name="write_loaded_at",
-            daily_time=(datetime.datetime.utcnow() - datetime.timedelta(seconds=1)).time(),
+            daily_time=(datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(seconds=1)).time(),
         )
     ]
     scheduler.get_redis_schedule, event = mock_func(scheduler.get_redis_schedule)
@@ -411,8 +411,7 @@ class TestSchedulerPyanticEncoder:
     @pytest.fixture
     def job(self, stub_broker):
         @remoulade.actor
-        def do_work(input_arg: InputArg, *, input_kwarg: InputKwarg):
-            ...
+        def do_work(input_arg: InputArg, *, input_kwarg: InputKwarg): ...
 
         stub_broker.declare_actor(do_work)
 

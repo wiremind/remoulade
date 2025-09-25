@@ -28,15 +28,15 @@ def test_reduce_messages(stub_broker, stub_worker, result_backend):
 
     result = merged_message.result.get(block=True)
 
-    assert 10 == result
+    assert result == 10
 
 
 def test_actor_arguments():
     @remoulade.actor
-    def do_work(a: int = None):
+    def do_work(a: int | None = None):
         return 1
 
-    assert get_actor_arguments(do_work) == [{"default": "", "name": "a", "type": "int"}]
+    assert get_actor_arguments(do_work) == [{"default": "", "name": "a", "type": "int | None"}]
 
 
 def test_compute_backoff_exponential():

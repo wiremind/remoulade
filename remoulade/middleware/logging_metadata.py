@@ -1,4 +1,4 @@
-from typing import Callable, Dict, Optional
+from collections.abc import Callable
 
 from ..logging import get_logger
 from .middleware import Middleware
@@ -13,7 +13,7 @@ class LoggingMetadata(Middleware):
     """
 
     def __init__(
-        self, *, logging_metadata: Optional[Dict] = None, logging_metadata_getter: Optional[Callable[[], Dict]] = None
+        self, *, logging_metadata: dict | None = None, logging_metadata_getter: Callable[[], dict] | None = None
     ):
         self.logger = get_logger(__name__, type(self))
         self.logging_metadata = logging_metadata

@@ -14,7 +14,7 @@
 #
 # You should have received a copy of the GNU Lesser General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
-from typing import Any, Set
+from typing import Any
 
 from ..logging import get_logger
 from ..middleware import Middleware
@@ -99,13 +99,15 @@ class Results(Middleware):
                 result=None, error=self._serialize_exception(exception), actor_name=message.actor_name
             )
 
-            for message_id in self._get_children_message_ids(
-                broker, self.get_option("pipe_target", broker=broker, message=message)
-            ):
-                results.append((message_id, children_result))
+            results.extend(
+                (message_id, children_result)
+                for message_id in self._get_children_message_ids(
+                    broker, self.get_option("pipe_target", broker=broker, message=message)
+                )
+            )
 
         if results:
-            message_ids, _results = zip(*results)
+            message_ids, _results = zip(*results, strict=False)
             with self.backend.retry(broker, message, self.logger):
                 self.backend.store_results(message_ids, _results, result_ttl)
 
@@ -120,7 +122,7 @@ class Results(Middleware):
         """Get the ids of all the following messages in the pipeline which have store_results"""
         from ..message import Message
 
-        message_ids: Set[str] = set()
+        message_ids: set[str] = set()
 
         if isinstance(pipe_target, list):
             for message_data in pipe_target:

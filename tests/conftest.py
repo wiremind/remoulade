@@ -22,11 +22,15 @@ from remoulade.brokers.rabbitmq import RabbitmqBroker
 from remoulade.brokers.stub import StubBroker
 from remoulade.cancel import backends as cl_backends
 from remoulade.rate_limits import backends as rl_backends
-from remoulade.results import Results
-from remoulade.results import backends as res_backends
+from remoulade.results import (
+    Results,
+    backends as res_backends,
+)
 from remoulade.scheduler import Scheduler
-from remoulade.state import MessageState
-from remoulade.state import backends as st_backends
+from remoulade.state import (
+    MessageState,
+    backends as st_backends,
+)
 from remoulade.state.backends.postgres import DB_VERSION, StateVersion
 
 logfmt = "[%(asctime)s] [%(threadName)s] [%(name)s] [%(levelname)s] %(message)s"
@@ -45,7 +49,7 @@ def api_client(state_middleware):
 
 def check_rabbitmq(broker):
     try:
-        broker.connection
+        _ = broker.connection
     except Exception as e:
         raise e from e if CI else pytest.skip("No connection to RabbmitMQ server.")
 
