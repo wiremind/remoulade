@@ -1,6 +1,6 @@
 [tool.black]
 line-length = 120
-target-version = ['py39']
+target-version = ['py310']
 include = '\.pyi?$'
 exclude = '''
 /(
@@ -32,3 +32,49 @@ filterwarnings = [
 [build-system]
 requires = ["setuptools"]
 build-backend = "setuptools.build_meta"
+
+[tool.ruff]
+target-version = "py310"
+line-length = 120
+exclude = [
+    ".git",
+    "tests/mypy",
+]
+
+[tool.ruff.lint]
+# https://docs.astral.sh/ruff/rules/
+select = [
+    "S",    # flake8-bandit
+    "B",    # flake8-bugbear
+    "A",    # flake8-builtins
+    "C4",   # flake8-comprehensions
+    "ISC",  # flake8-implicit-str-concat
+    "Q",    # flake8-quotes
+    "SIM",  # flake8-simplify-sim
+    "I",    # isort
+    "N",    # pep8-naming
+    "PERF", # perflint-perf
+    "E",    # error
+    "W",    # warning
+    "F",    # pyflakes
+    "UP",   # pyupgrade
+    "RUF",  # ruff-specific-rules
+]
+ignore = [
+    "N801", # historic, un changement neccesiterais un breaking change
+    "N818",
+    "S311", # remoulade n'a pas besoin de fonction cryptographiquement sur
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**/*.py" = [
+    "S101",
+    "S603",
+]
+
+[tool.ruff.lint.isort]
+combine-as-imports = true
+force-wrap-aliases = true
+known-first-party = [
+    "remoulade",
+]

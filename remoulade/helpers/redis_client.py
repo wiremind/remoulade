@@ -1,12 +1,11 @@
 import os
-from typing import Optional
 from urllib.parse import urlparse
 
 import redis
 import redis.asyncio as redis_async
 
 
-def redis_client(url: Optional[str], socket_timeout: Optional[float] = None, **parameters):
+def redis_client(url: str | None, socket_timeout: float | None = None, **parameters):
     socket_parameters = {}
     if socket_timeout is not None:
         socket_parameters = {
@@ -29,7 +28,7 @@ def redis_client(url: Optional[str], socket_timeout: Optional[float] = None, **p
             return redis.Redis(**parameters)
 
 
-def async_redis_client(url: Optional[str], socket_timeout: Optional[float] = None, **parameters):
+def async_redis_client(url: str | None, socket_timeout: float | None = None, **parameters):
     socket_parameters = {}
     if socket_timeout is not None:
         socket_parameters = {

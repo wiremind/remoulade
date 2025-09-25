@@ -22,10 +22,10 @@ from .rate_limiter import RateLimiter, RateLimitExceeded
 from .window import WindowRateLimiter
 
 __all__ = [
-    "RateLimiterBackend",
-    "RateLimiter",
-    "RateLimitExceeded",
     "BucketRateLimiter",
     "ConcurrentRateLimiter",
+    "RateLimitExceeded",
+    "RateLimiter",
+    "RateLimiterBackend",
     "WindowRateLimiter",
 ]

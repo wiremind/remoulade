@@ -16,9 +16,10 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 import re
-from typing import TYPE_CHECKING, Any, Callable, Dict, Generic, List, Optional, Tuple, TypeVar, Union, overload
+from collections.abc import Callable
+from typing import TYPE_CHECKING, Any, Generic, Literal, TypeVar, overload
 
-from typing_extensions import Literal, ParamSpec, TypedDict
+from typing_extensions import ParamSpec, TypedDict
 
 from .helpers.actor_arguments import get_actor_arguments
 from .logging import get_logger
@@ -39,7 +40,7 @@ R = TypeVar("R")
 class ActorDict(TypedDict):
     name: str
     queue_name: str
-    alternative_queues: Optional[List[str]]
+    alternative_queues: list[str] | None
     priority: int
     args: list
 
@@ -48,37 +49,35 @@ class ActorDict(TypedDict):
 def actor(
     fn: Literal[None] = None,
     *,
-    actor_name: Optional[str] = None,
+    actor_name: str | None = None,
     queue_name: str = "default",
-    alternative_queues: Optional[List[str]] = None,
+    alternative_queues: list[str] | None = None,
     priority: int = 0,
     **options: Any,
-) -> "Callable[[Callable[P, R]], Actor[P, R]]":
-    ...
+) -> "Callable[[Callable[P, R]], Actor[P, R]]": ...
 
 
 @overload
 def actor(
     fn: Callable[P, R],
     *,
-    actor_name: Optional[str] = None,
+    actor_name: str | None = None,
     queue_name: str = "default",
-    alternative_queues: Optional[List[str]] = None,
+    alternative_queues: list[str] | None = None,
     priority: int = 0,
     **options: Any,
-) -> "Actor[P, R]":
-    ...
+) -> "Actor[P, R]": ...
 
 
 def actor(
-    fn: Optional[Callable[..., Any]] = None,
+    fn: Callable[..., Any] | None = None,
     *,
-    actor_name: Optional[str] = None,
+    actor_name: str | None = None,
     queue_name: str = "default",
-    alternative_queues: Optional[List[str]] = None,
+    alternative_queues: list[str] | None = None,
     priority: int = 0,
     **options: Any,
-) -> "Union[Actor[..., Any], Callable[..., Actor[..., Any]]]":
+) -> "Actor[..., Any] | Callable[..., Actor[..., Any]]":
     """Declare an actor.
 
     Examples:
@@ -171,13 +170,13 @@ class Actor(Generic[P, R]):
         *,
         actor_name: str,
         queue_name: str,
-        alternative_queues: Optional[List[str]],
+        alternative_queues: list[str] | None,
         priority: int,
         options: Any,
     ) -> None:
         self.logger = get_logger(fn.__module__, actor_name)
         self.fn = fn
-        self.broker: "Optional[Broker]" = None
+        self.broker: Broker | None = None
         self.actor_name = actor_name
         self.queue_name = queue_name
         self.alternative_queues = alternative_queues
@@ -188,7 +187,7 @@ class Actor(Generic[P, R]):
         invalid_options = set(self.options) - broker.actor_options
         if invalid_options:
             invalid_options_list = ", ".join(invalid_options)
-            message = "The following actor options are undefined: %s. " % invalid_options_list
+            message = f"The following actor options are undefined: {invalid_options_list}. "
             message += "Did you forget to add a middleware to your Broker?"
             raise ValueError(message)
         self.broker = broker
@@ -218,9 +217,9 @@ class Actor(Generic[P, R]):
     def message_with_options(
         self,
         *,
-        args: Optional[Tuple[Any, ...]] = None,
-        kwargs: Optional[Dict[str, Any]] = None,
-        queue_name: Optional[str] = None,
+        args: tuple[Any, ...] | None = None,
+        kwargs: dict[str, Any] | None = None,
+        queue_name: str | None = None,
         **options: Any,
     ) -> Message[Result[R]]:
         """Build a message with an arbitrary set of processing options.
@@ -269,10 +268,10 @@ class Actor(Generic[P, R]):
     def send_with_options(
         self,
         *,
-        args: Optional[Tuple[Any, ...]] = None,
-        kwargs: Optional[Dict[str, Any]] = None,
-        queue_name: Optional[str] = None,
-        delay: Optional[int] = None,
+        args: tuple[Any, ...] | None = None,
+        kwargs: dict[str, Any] | None = None,
+        queue_name: str | None = None,
+        delay: int | None = None,
         **options: Any,
     ) -> Message[Result[R]]:
         """Asynchronously send a message to this actor, along with an
@@ -318,7 +317,7 @@ class Actor(Generic[P, R]):
         return self.fn(*args, **kwargs)
 
     def __repr__(self) -> str:
-        return f"Actor({repr(self.fn)}, queue_name={repr(self.queue_name)}, actor_name={repr(self.actor_name)})"
+        return f"Actor({self.fn!r}, queue_name={self.queue_name!r}, actor_name={self.actor_name!r})"
 
     def __str__(self) -> str:
         return f"Actor({self.actor_name})"

@@ -17,8 +17,9 @@
 import asyncio
 import time
 from collections import namedtuple
+from collections.abc import Iterable
 from contextlib import contextmanager
-from typing import Any, Dict, Iterable, List, Type, Union
+from typing import Any
 
 from ..encoder import Encoder
 from ..helpers import compute_backoff
@@ -58,7 +59,9 @@ class ResultBackend:
         result data.  Defaults to :class:`.JSONEncoder`.
     """
 
-    def __init__(self, *, namespace: str = "remoulade-results", encoder: Encoder = None, default_timeout: int = None):
+    def __init__(
+        self, *, namespace: str = "remoulade-results", encoder: Encoder = None, default_timeout: int | None = None
+    ):
         from ..message import get_encoder
 
         self.namespace = namespace
@@ -67,10 +70,10 @@ class ResultBackend:
 
     def get_results(
         self,
-        message_ids: List[str],
+        message_ids: list[str],
         *,
         block: bool = False,
-        timeout: int = None,
+        timeout: int | None = None,
         forget: bool = False,
         raise_on_error: bool = True,
     ) -> Iterable[BackendResult]:
@@ -91,7 +94,7 @@ class ResultBackend:
         message_id: str,
         *,
         block: bool = False,
-        timeout: int = None,
+        timeout: int | None = None,
         forget: bool = False,
         raise_on_error: bool = True,
     ) -> Any:
@@ -132,7 +135,7 @@ class ResultBackend:
         self,
         message_id: str,
         *,
-        timeout: int = None,
+        timeout: int | None = None,
         forget: bool = False,
         raise_on_error: bool = True,
     ) -> BackendResult:
@@ -199,7 +202,7 @@ class ResultBackend:
         message_keys = [self.build_message_key(message_id) for message_id in message_ids]
         return self._store(message_keys, [r._asdict() for r in results], ttl)
 
-    def forget_results(self, message_ids: List[str], ttl: int):
+    def forget_results(self, message_ids: list[str], ttl: int):
         """Forget the results associated to the given message_id"""
         result = ForgottenResult.asdict()
         message_keys = [self.build_message_key(message_id) for message_id in message_ids]
@@ -246,7 +249,7 @@ class ResultBackend:
         key = self.build_group_completion_key(group_id)
         self._delete(key)
 
-    def _get(self, message_key: str, forget: bool = False) -> Union[Type[Missing], Dict]:  # pragma: no cover
+    def _get(self, message_key: str, forget: bool = False) -> type[Missing] | dict:  # pragma: no cover
         """Get a result from the backend.  Subclasses may implement
         this method if they want to use the default, polling,
         implementation of get_result.

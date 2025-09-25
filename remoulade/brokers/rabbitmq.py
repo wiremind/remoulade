@@ -16,11 +16,12 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 import os
 import time
-from contextlib import contextmanager
+from collections.abc import Callable
+from contextlib import contextmanager, suppress
 from functools import partial
 from queue import Empty, Full, LifoQueue
 from threading import Lock, local
-from typing import TYPE_CHECKING, Any, Callable, Dict, Final, List, Optional
+from typing import TYPE_CHECKING, Any, Final
 
 from amqpstorm import AMQPChannelError, AMQPConnectionError, AMQPError, Channel, UriConnection
 from amqpstorm.compatibility import urlparse
@@ -33,7 +34,7 @@ from ..logging import get_logger
 from ..message import Message
 
 if TYPE_CHECKING:
-    from ..middleware import Middleware  # noqa
+    from ..middleware import Middleware
 
 #: The maximum amount of time a message can be in the dead queue.
 DEAD_MESSAGE_TTL: Final[int] = 86400000 * 7
@@ -77,11 +78,11 @@ class RabbitmqBroker(Broker):
         self,
         *,
         confirm_delivery: bool = False,
-        url: Optional[str] = None,
-        middleware: Optional[List["Middleware"]] = None,
-        max_priority: Optional[int] = None,
+        url: str | None = None,
+        middleware: list["Middleware"] | None = None,
+        max_priority: int | None = None,
         channel_pool_size: int = 200,
-        dead_queue_max_length: Optional[int] = None,
+        dead_queue_max_length: int | None = None,
         delivery_mode: int = 2,
         group_transaction: bool = False,
         is_quorum: bool = False,
@@ -157,10 +158,8 @@ class RabbitmqBroker(Broker):
     def connection(self):
         with self.lock:
             if self._connection is not None:
-                try:
+                with suppress(AMQPError):
                     self._connection.close()
-                except AMQPError:
-                    pass
             self._connection = None
 
     def channel_factory(self, confirm_delivery):
@@ -249,7 +248,7 @@ class RabbitmqBroker(Broker):
             self.emit_after("declare_delay_queue", delayed_name)
 
     def _build_queue_arguments(self, queue_name):
-        arguments: Dict[str, Any] = {}
+        arguments: dict[str, Any] = {}
         if self.dead_queue_enabled:
             arguments["x-dead-letter-exchange"] = ""
             arguments["x-dead-letter-routing-key"] = xq_name(queue_name)
@@ -284,7 +283,7 @@ class RabbitmqBroker(Broker):
             arguments["x-queue-type"] = "quorum"
         return channel.queue.declare(queue=xq_name(queue_name), durable=True, arguments=arguments)
 
-    def _apply_delay(self, message: "Message", delay: Optional[int] = None) -> "Message":
+    def _apply_delay(self, message: "Message", delay: int | None = None) -> "Message":
         if delay is not None:
             message_eta = current_millis() + delay
             queue_name = message.queue_name if delay is None else dq_name(message.queue_name)
@@ -294,13 +293,12 @@ class RabbitmqBroker(Broker):
 
     @contextmanager
     def tx(self):
-        with self.get_channel_pool(confirm_delivery=False).acquire() as channel:
-            with channel.tx:
-                self.state.channel_with_transaction = channel
-                try:
-                    yield
-                finally:
-                    self.state.channel_with_transaction = None
+        with self.get_channel_pool(confirm_delivery=False).acquire() as channel, channel.tx:
+            self.state.channel_with_transaction = channel
+            try:
+                yield
+            finally:
+                self.state.channel_with_transaction = None
 
     @property
     def _has_transaction(self) -> bool:
@@ -314,7 +312,7 @@ class RabbitmqBroker(Broker):
             with self.get_channel_pool(confirm_delivery).acquire() as channel:
                 yield channel
 
-    def _enqueue(self, message: "Message", *, delay: Optional[int] = None) -> "Message":
+    def _enqueue(self, message: "Message", *, delay: int | None = None) -> "Message":
         """Enqueue a message.
 
         Parameters:
@@ -352,7 +350,7 @@ class RabbitmqBroker(Broker):
                         raise MessageNotDelivered("Message could not be delivered")
                 return message
 
-            except MessageNotDelivered:
+            except MessageNotDelivered:  # noqa: PERF203
                 attempts += 1
                 if self._has_transaction or attempts > MAX_ENQUEUE_ATTEMPTS:
                     raise
@@ -414,7 +412,7 @@ class RabbitmqBroker(Broker):
             self.flush(queue_name)
 
     def join(
-        self, queue_name: str, min_successes: int = 10, idle_time: int = 100, *, timeout: Optional[int] = None
+        self, queue_name: str, min_successes: int = 10, idle_time: int = 100, *, timeout: int | None = None
     ) -> None:
         """Wait for all the messages on the given queue to be
         processed.  This method is only meant to be used in tests to
@@ -489,7 +487,7 @@ class _RabbitmqConsumer(Consumer):
             while message is None and time.monotonic() < deadline:
                 try:
                     message = next(self.channel.build_inbound_messages(auto_decode=False, break_on_empty=True))
-                except StopIteration:
+                except StopIteration:  # noqa: PERF203
                     time.sleep(0.1)
 
             return _RabbitmqMessage(message) if message else None
@@ -497,10 +495,8 @@ class _RabbitmqConsumer(Consumer):
             raise ConnectionClosed(e) from None
 
     def close(self):
-        try:
+        with suppress(AMQPConnectionError, AMQPChannelError):
             self.channel.close()
-        except (AMQPConnectionError, AMQPChannelError):
-            pass
 
 
 class _RabbitmqMessage(MessageProxy):
@@ -592,10 +588,8 @@ class ChannelPool:
         while len(self) > 0:
             channel = self._pool.get_nowait()
             if channel is not None:
-                try:
+                with suppress(AMQPError):
                     channel.close()
-                except AMQPError:
-                    pass
 
         for _ in range(self._pool_size):
             self.put(None)

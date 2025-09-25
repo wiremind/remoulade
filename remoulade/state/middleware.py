@@ -5,7 +5,6 @@ from .backend import State, StateStatusesEnum
 
 
 class MessageState(Middleware):
-
     """Middleware use to storage and update the state
     of the messages.
     Parameters

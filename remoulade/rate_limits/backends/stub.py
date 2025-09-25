@@ -16,8 +16,8 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 import time
+from collections.abc import Callable
 from threading import Lock
-from typing import Callable, Dict, List, Optional, Tuple
 
 from ..backend import RateLimiterBackend
 
@@ -27,7 +27,7 @@ class StubBackend(RateLimiterBackend):
 
     def __init__(self):
         self.mutex = Lock()
-        self.db: Dict[str, Tuple[int, float]] = {}
+        self.db: dict[str, tuple[int, float]] = {}
 
     def add(self, key: str, value: int, ttl: int) -> bool:
         with self.mutex:
@@ -53,7 +53,7 @@ class StubBackend(RateLimiterBackend):
 
             return self._put(key, value, ttl)
 
-    def incr_and_sum(self, key: str, keys: Callable[[], List[str]], amount: int, maximum: int, ttl: int) -> bool:
+    def incr_and_sum(self, key: str, keys: Callable[[], list[str]], amount: int, maximum: int, ttl: int) -> bool:
         self.add(key, 0, ttl)
         with self.mutex:
             value = self._get(key, default=0) + amount
@@ -69,7 +69,7 @@ class StubBackend(RateLimiterBackend):
 
             return self._put(key, value, ttl)
 
-    def _get(self, key: str, *, default: Optional[int] = None) -> Optional[int]:
+    def _get(self, key: str, *, default: int | None = None) -> int | None:
         value, expiration = self.db.get(key, (None, None))
         if expiration and time.monotonic() < expiration:
             return value

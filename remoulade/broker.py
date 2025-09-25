@@ -14,9 +14,10 @@
 #
 # You should have received a copy of the GNU Lesser General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
-from contextlib import contextmanager
+from collections.abc import Iterable
+from contextlib import contextmanager, suppress
 from queue import Queue
-from typing import TYPE_CHECKING, Any, Dict, Iterable, List, Optional, Set, Type, TypeVar, Union
+from typing import TYPE_CHECKING, Any, TypeVar
 
 from .cancel import Cancel, CancelBackend
 from .errors import ActorNotFound, NoCancelBackend, NoResultBackend, NoStateBackend
@@ -41,15 +42,15 @@ from .state import MessageState, StateBackend
 
 if TYPE_CHECKING:
     from .actor import Actor
-    from .message import Message  # noqa
+    from .message import Message
     from .middleware import Middleware
 
     M = TypeVar("M", bound=Middleware)
 #: The global broker instance.
-global_broker: "Optional[Broker]" = None
+global_broker: "Broker | None" = None
 
 #: A list of extra middleware that will be added to every new instance of Broker
-extra_default_middleware: "List[Middleware]" = []
+extra_default_middleware: "list[Middleware]" = []
 
 
 def _get_middleware_order():
@@ -130,13 +131,11 @@ def add_extra_default_middleware(middleware: "Middleware") -> None:
     global extra_default_middleware
     extra_default_middleware.append(middleware)
 
-    try:
+    with suppress(ValueError):
         get_broker().add_middleware(middleware)
-    except ValueError:
-        pass
 
 
-def remove_extra_default_middleware(middleware_class: "Type[Middleware]") -> None:
+def remove_extra_default_middleware(middleware_class: "type[Middleware]") -> None:
     """Remove an extra default middleware so that it won't be added to new Broker instances.
     It will also be removed from the current global_broker, if it exists.
 
@@ -146,10 +145,8 @@ def remove_extra_default_middleware(middleware_class: "Type[Middleware]") -> Non
     global extra_default_middleware
     extra_default_middleware = [m for m in extra_default_middleware if not isinstance(m, middleware_class)]
 
-    try:
+    with suppress(ValueError):
         get_broker().remove_middleware(middleware_class)
-    except ValueError:
-        pass
 
 
 def declare_actors(actors: "Iterable[Actor]") -> None:
@@ -177,14 +174,14 @@ class Broker:
         overwrite when they are declared.
     """
 
-    def __init__(self, middleware: "Optional[Iterable[Middleware]]" = None):
+    def __init__(self, middleware: "Iterable[Middleware] | None" = None):
         self.logger = get_logger(__name__, type(self))
-        self.actors: "Dict[str, Actor]" = {}
-        self.queues: Dict[str, Optional[Queue]] = {}
-        self.delay_queues: Set[str] = set()
+        self.actors: dict[str, Actor] = {}
+        self.queues: dict[str, Queue | None] = {}
+        self.delay_queues: set[str] = set()
 
-        self.actor_options: Set[str] = set()
-        self.middleware: "List[Middleware]" = []
+        self.actor_options: set[str] = set()
+        self.middleware: list[Middleware] = []
         self.group_transaction = False
 
         if middleware is None:
@@ -208,7 +205,7 @@ class Broker:
         for middleware in self.middleware:
             try:
                 getattr(middleware, "before_" + signal)(self, *args, **kwargs)
-            except MiddlewareError:
+            except MiddlewareError:  # noqa: PERF203
                 raise
             except Exception:
                 self.logger.critical("Unexpected failure in before_%s.", signal, exc_info=True)
@@ -217,7 +214,7 @@ class Broker:
         for middleware in reversed(self.middleware):
             try:
                 getattr(middleware, "after_" + signal)(self, *args, **kwargs)
-            except Exception:
+            except Exception:  # noqa: PERF203
                 self.logger.critical("Unexpected failure in after_%s.", signal, exc_info=True)
 
     def get_result_backend(self) -> ResultBackend:
@@ -263,7 +260,7 @@ class Broker:
         }
         try:
             middleware_class, exception = backends[name]
-            middleware: Optional[Union[Results, Cancel, MessageState]] = self.get_middleware(middleware_class)
+            middleware: Results | Cancel | MessageState | None = self.get_middleware(middleware_class)
             if middleware is not None:
                 return middleware.backend
             else:
@@ -308,13 +305,13 @@ class Broker:
         for queue_name in self.get_declared_delay_queues():
             middleware.after_declare_delay_queue(self, queue_name)
 
-    def get_middleware(self, middleware_class: "Type[M]") -> "Optional[M]":
+    def get_middleware(self, middleware_class: "type[M]") -> "M | None":
         for middleware in self.middleware:
             if isinstance(middleware, middleware_class):
                 return middleware
         return None
 
-    def remove_middleware(self, middleware_class: "Type[Middleware]"):
+    def remove_middleware(self, middleware_class: "type[Middleware]"):
         """Removes a middleware object from this broker.
 
 
@@ -365,13 +362,13 @@ class Broker:
         """
         raise NotImplementedError
 
-    def _apply_delay(self, message: "Message", delay: Optional[int] = None) -> "Message":
+    def _apply_delay(self, message: "Message", delay: int | None = None) -> "Message":
         raise NotImplementedError
 
-    def _enqueue(self, message: "Message", *, delay: Optional[int] = None) -> "Message":
+    def _enqueue(self, message: "Message", *, delay: int | None = None) -> "Message":
         raise NotImplementedError
 
-    def enqueue(self, message: "Message[Any]", *, delay: Optional[int] = None) -> "Message[Any]":  # pragma: no cover
+    def enqueue(self, message: "Message[Any]", *, delay: int | None = None) -> "Message[Any]":  # pragma: no cover
         """Enqueue a message on this broker.
 
         Parameters:
@@ -411,7 +408,7 @@ class Broker:
         except KeyError:
             raise ActorNotFound(actor_name) from None
 
-    def get_declared_actors(self) -> Set[str]:  # pragma: no cover
+    def get_declared_actors(self) -> set[str]:  # pragma: no cover
         """Get all declared actors.
 
         Returns:
@@ -420,7 +417,7 @@ class Broker:
         """
         return set(self.actors.keys())
 
-    def get_declared_queues(self) -> Set[str]:  # pragma: no cover
+    def get_declared_queues(self) -> set[str]:  # pragma: no cover
         """Get all declared queues.
 
         Returns:
@@ -429,7 +426,7 @@ class Broker:
         """
         return set(self.queues.keys())
 
-    def get_declared_delay_queues(self) -> Set[str]:  # pragma: no cover
+    def get_declared_delay_queues(self) -> set[str]:  # pragma: no cover
         """Get all declared delay queues.
 
         Returns:
@@ -450,7 +447,7 @@ class Broker:
         """Drop all messages from all declared queues."""
         raise NotImplementedError()
 
-    def join(self, queue_name: str, *, timeout: Optional[int] = None) -> None:  # pragma: no cover
+    def join(self, queue_name: str, *, timeout: int | None = None) -> None:  # pragma: no cover
         """Wait for all the messages on the given queue to be processed.
         This method is only meant to be used in tests to wait for all the messages in a queue to be processed."""
         raise NotImplementedError()
