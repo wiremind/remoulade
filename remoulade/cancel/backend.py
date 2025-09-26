@@ -14,7 +14,7 @@
 #
 # You should have received a copy of the GNU Lesser General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
-from typing import Iterable, Optional
+from collections.abc import Iterable
 
 DEFAULT_CANCELLATION_TTL = 3600
 
@@ -27,10 +27,10 @@ class CancelBackend:
         should be kept in the backend (default 1h).
     """
 
-    def __init__(self, *, cancellation_ttl: Optional[int] = None) -> None:
+    def __init__(self, *, cancellation_ttl: int | None = None) -> None:
         self.cancellation_ttl = cancellation_ttl or DEFAULT_CANCELLATION_TTL
 
-    def is_canceled(self, message_id: str, composition_id: Optional[str]) -> bool:
+    def is_canceled(self, message_id: str, composition_id: str | None) -> bool:
         """Return true if the message has been canceled"""
         raise NotImplementedError(f"{type(self).__name__!r} does not implement is_canceled")
 

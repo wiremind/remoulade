@@ -37,29 +37,29 @@ if CURRENT_OS != "Windows":
     from .prometheus import Prometheus  # noqa: F401
 
 __all__ = [
-    # Basics
-    "Middleware",
-    "MiddlewareError",
-    "SkipMessage",
-    # Threading
-    "Interrupt",
-    "raise_thread_exception",
     # Middlewares
     "AgeLimit",
     "AgeLimitException",
     "CatchError",
     "CurrentMessage",
-    "default_middleware",
+    # Threading
+    "Interrupt",
     "LoggingMetadata",
+    "MaxMemory",
+    "MaxTasks",
+    # Basics
+    "Middleware",
+    "MiddlewareError",
     "Pipelines",
     "Retries",
     "Shutdown",
     "ShutdownNotifications",
+    "SkipMessage",
     "TimeLimit",
     "TimeLimitExceeded",
-    "MaxMemory",
-    "MaxTasks",
     "WorkerThreadLogging",
+    "default_middleware",
+    "raise_thread_exception",
 ]
 
 if CURRENT_OS != "Windows":

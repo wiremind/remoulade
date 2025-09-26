@@ -14,7 +14,7 @@
 #
 # You should have received a copy of the GNU Lesser General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
-from typing import Callable, List
+from collections.abc import Callable
 
 from redis import WatchError
 
@@ -56,7 +56,7 @@ class RedisBackend(RateLimiterBackend):
                     pipe.set(key, value, px=ttl)
                     pipe.execute()
                     return True
-                except WatchError:
+                except WatchError:  # noqa: PERF203
                     continue
 
     def decr(self, key: str, amount: int, minimum: int, ttl: int) -> bool:
@@ -73,10 +73,10 @@ class RedisBackend(RateLimiterBackend):
                     pipe.set(key, value, px=ttl)
                     pipe.execute()
                     return True
-                except WatchError:
+                except WatchError:  # noqa: PERF203
                     continue
 
-    def incr_and_sum(self, key: str, keys: Callable[[], List[str]], amount: int, maximum: int, ttl: int) -> bool:
+    def incr_and_sum(self, key: str, keys: Callable[[], list[str]], amount: int, maximum: int, ttl: int) -> bool:
         with self.client.pipeline() as pipe:
             while True:
                 try:
@@ -98,5 +98,5 @@ class RedisBackend(RateLimiterBackend):
                     pipe.set(key, value, px=ttl)
                     pipe.execute()
                     return True
-                except WatchError:
+                except WatchError:  # noqa: PERF203
                     continue

@@ -31,5 +31,5 @@ of those changes to CLEARTYPE SRL.
 | [@fregogui](https://github.com/fregogui)           | Guillaume Fregosi      |
 | [@pgitips](https://github.com/pgitips)             | Pierre Giraud          |
 | [@williampollet](https://github.com/williampollet) | William Pollet         |
-| [@mehdithez](https://github.com/mehdithez)    | Zeroual Mehdi          |
-
+| [@mehdithez](https://github.com/mehdithez)         | Zeroual Mehdi          |
+| [@alisterd51](https://github.com/alisterd51)       | Antoine Clarman        |

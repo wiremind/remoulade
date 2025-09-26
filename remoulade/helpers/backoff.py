@@ -1,6 +1,5 @@
 from random import uniform
-
-from typing_extensions import Literal
+from typing import Literal
 
 from remoulade.errors import UnknownStrategy
 
