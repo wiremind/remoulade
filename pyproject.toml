@@ -1,24 +1,97 @@
-[tool.black]
-line-length = 120
-target-version = ['py310']
-include = '\.pyi?$'
-exclude = '''
-/(
-    \.eggs
-  | \.git
-  | \.hg
-  | \.mypy_cache
-  | \.pytest_cache
-  | \.venv
-  | _build
-  | remoulade.egg-info
-  | buck-out
-  | build
-  | dist
-)/
-'''
+[project]
+dynamic = ["version"]
+name = "remoulade"
+description = "Background Processing for Python 3."
+readme = "README.md"
+requires-python = ">=3.10"
+license = "LGPL-3.0-or-later"
+authors = [
+    { name = "Wiremind", email = "dev@wiremind.io" }
+]
+dependencies = [
+    "prometheus-client>=0.2",
+    "pytz",
+    "python-dateutil>=2.8.0",
+    "typing-extensions>=3.8",
+    "attrs>=19.2.0"
+]
+classifiers = [
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3 :: Only",
+    "Topic :: System :: Distributed Computing",
+]
+
+[project.optional-dependencies]
+rabbitmq = ["amqpstorm>=2.6,<3"]
+redis = ["redis~=5.0"]
+server = ["flask~=2.3.3", "marshmallow>=3,<4", "flask-apispec"]
+postgres = ["sqlalchemy>=1.4.29,<2", "psycopg2==2.9.10"]
+pydantic = ["pydantic>=2.0", "simplejson"]
+
+dev = [
+    "remoulade[rabbitmq,redis,server,postgres,pydantic]",
+    # Docs
+    "alabaster",
+    "sphinx==4.1.1",
+    "sphinxcontrib-napoleon",
+    "sphinxcontrib-versioning",
+    "sphinx-copybutton",
+    # Linting
+    "ruff",
+    "mypy~=1.18.2",
+    "sqlalchemy[mypy]>=1.4.29,<2",
+    "types-redis",
+    "types-python-dateutil",
+    "types-simplejson",
+    "types-pytz",
+    # Misc
+    "pre-commit",
+    "bumpversion",
+    "hiredis",
+    "twine",
+    # Testing
+    "pytest",
+    "pytest-benchmark[histogram]",
+    "pytest-cov",
+    "pytest-timeout",
+    "pytest-asyncio",
+    "freezegun"
+]
+
+[project.urls]
+Homepage = "https://github.com/wiremind/remoulade"
+Documentation = "https://remoulade.readthedocs.io/"
+Source = "https://github.com/wiremind/remoulade"
+Tracker = "https://github.com/wiremind/remoulade/issues"
+
+[project.scripts]
+remoulade = "remoulade.__main__:main"
+remoulade-ls = "remoulade.cli.remoulade_ls:main"
+remoulade-run = "remoulade.cli.remoulade_run:main"
+remoulade-scheduler = "remoulade.cli.remoulade_scheduler:main"
+
+[build-system]
+requires = ["setuptools>=80.9", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+script-files = ["bin/remoulade-gevent"]
+
+[tool.setuptools.package-data]
+remoulade = ["py.typed"]
+
+[tool.setuptools.dynamic]
+version = { attr = "remoulade.__version__" }
+
+[tool.setuptools.packages.find]
+include = ["remoulade*"]
+exclude = ["tests"]
 
 [tool.pytest.ini_options]
+testpaths = ["tests"]
 asyncio_mode = "auto"
 markers = [
     "confirm_delivery",
@@ -28,10 +101,6 @@ filterwarnings = [
     "error::sqlalchemy.exc.RemovedIn20Warning",
     "error::sqlalchemy.exc.MovedIn20Warning",
 ]
-
-[build-system]
-requires = ["setuptools"]
-build-backend = "setuptools.build_meta"
 
 [tool.ruff]
 target-version = "py310"
@@ -61,9 +130,9 @@ select = [
     "RUF",  # ruff-specific-rules
 ]
 ignore = [
-    "N801", # historic, un changement neccesiterais un breaking change
+    "N801",
     "N818",
-    "S311", # remoulade n'a pas besoin de fonction cryptographiquement sur
+    "S311",
 ]
 
 [tool.ruff.lint.per-file-ignores]
@@ -78,3 +147,24 @@ force-wrap-aliases = true
 known-first-party = [
     "remoulade",
 ]
+
+[tool.mypy]
+python_version = "3.10"
+ignore_missing_imports = true
+check_untyped_defs = true
+warn_unused_ignores = true
+strict_optional = false
+plugins = ["sqlalchemy.ext.mypy.plugin"]
+files = ["remoulade/**/*.py", "tests/**/*.py"]
+
+[[tool.mypy.overrides]]
+module = ["remoulade.scheduler.*"]
+ignore_errors = true
+
+[[tool.mypy.overrides]]
+module = ["benchmarks.*"]
+ignore_errors = true
+
+[[tool.mypy.overrides]]
+module = ["tests.*"]
+ignore_errors = true
