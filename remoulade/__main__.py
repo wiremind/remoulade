@@ -24,7 +24,7 @@ import signal
 import sys
 import time
 
-from remoulade import Worker, get_broker, get_logger
+from remoulade import Worker, __version__, get_broker, get_logger
 
 #: The exit codes that the master process returns.
 RET_OK = 0  # The process terminated successfully.
@@ -108,6 +108,7 @@ def parse_arguments():
         help="The number of seconds to wait for everything to shut down (default: 10 min)",
         default=600,
     )
+    parser.add_argument("--version", action="version", version=__version__)
     parser.add_argument("--verbose", "-v", action="count", default=0, help="turn on verbose log output")
     return parser.parse_args()
 
@@ -226,7 +227,7 @@ def main():  # noqa
         return RET_PIDFILE
 
     logger = setup_logging(args, stream=args.log_file or sys.stderr)
-    logger.info("Remoulade is booting up.")
+    logger.info("Remoulade %r is booting up." % __version__)
     if args.pid_file:
         atexit.register(remove_pidfile, args.pid_file, logger)
 
