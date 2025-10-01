@@ -10,6 +10,18 @@ def rel(*xs):
 with open(rel("README.md")) as f:
     long_description = f.read()
 
+
+with open(rel("remoulade", "__init__.py")) as f:
+    version_marker = "__version__ = "
+    for line in f:
+        if line.startswith(version_marker):
+            _, version = line.split(version_marker)
+            version = version.strip().strip('"')
+            break
+    else:
+        raise RuntimeError("Version marker not found.")
+
+
 dependencies = ["prometheus-client>=0.2", "pytz", "python-dateutil>=2.8.0", "typing-extensions>=3.8", "attrs>=19.2.0"]
 
 extra_dependencies = {
@@ -57,7 +69,7 @@ extra_dependencies["dev"] = extra_dependencies["all"] + [
 
 setup(
     name="remoulade",
-    version="1.0.0",
+    version=version,
     author="Wiremind",
     author_email="dev@wiremind.io",
     description="Background Processing for Python 3.",
