@@ -1,9 +1,5 @@
 # This file is a part of Remoulade.
-#
-# Copyright (C) 2017,2018 CLEARTYPE SRL <bogdan@cleartype.io>
-#
-# Remoulade is free software; you can redistribute it and/or modify it
-# under the terms of the GNU Lesser General Public License as published by
+# Copyright (C) 2017,2018 CLEARTYPE SRL <bogdan@cleartype.io> Remoulade is free software; you can redistribute it and/or modify it under the terms of the GNU Lesser General Public License as published by
 # the Free Software Foundation, either version 3 of the License, or (at
 # your option) any later version.
 #
@@ -129,6 +125,12 @@ class Middleware:
     def after_worker_boot(self, broker, worker):
         """Called after the worker process has started up."""
 
+    def after_consumer_thread_boot(self, broker, thread):
+        """Called after a consumer thread starts."""
+
+    def after_worker_thread_boot(self, broker, thread):
+        """Called after a worker thread starts."""
+
     def before_worker_shutdown(self, broker, worker):
         """Called before the worker process shuts down."""
 
@@ -139,8 +141,6 @@ class Middleware:
         """Called before a consumer thread shuts down.  This may be
         used to clean up thread-local resources (such as Django
         database connections).
-
-        There is no ``after_consumer_thread_boot``.
         """
 
     def before_worker_thread_shutdown(self, broker, thread):
