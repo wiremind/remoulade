@@ -42,7 +42,10 @@ def build_extra(message, max_input_size: int = None):
     return {
         **message.options.get("logging_metadata", {}),
         "message_id": message.message_id,
-        "input": {"args": str(message.args)[:max_input_size], "kwargs": str(message.kwargs)[:max_input_size]},
+        "input": {
+            "args": str(message.args)[:max_input_size],
+            "kwargs": str(message.kwargs)[:max_input_size],
+        },
     }
 
 
@@ -65,7 +68,15 @@ class Worker:
       prefetch_multiplier(int): The number of message to prefetch at a time, to be multiplied with the number of threads
     """
 
-    def __init__(self, broker, *, queues=None, worker_timeout=1000, worker_threads=8, prefetch_multiplier=2):
+    def __init__(
+        self,
+        broker,
+        *,
+        queues=None,
+        worker_timeout=1000,
+        worker_threads=8,
+        prefetch_multiplier=2,
+    ):
         self.logger = get_logger(__name__, type(self))
         self.broker = broker
         if broker.local:
@@ -86,7 +97,7 @@ class Worker:
         # workers as those messages could have far-future etas.
         self.delay_prefetch = min(worker_threads * 1000, 65535)
 
-        self.workers = []  # type: List
+        self.workers = []
         self.work_queue = PriorityQueue()  # type: PriorityQueue
         self.worker_timeout = worker_timeout
         self.worker_threads = worker_threads
@@ -204,7 +215,10 @@ class Worker:
 
     def _add_worker(self):
         worker = _WorkerThread(
-            broker=self.broker, consumers=self.consumers, work_queue=self.work_queue, worker_timeout=self.worker_timeout
+            broker=self.broker,
+            consumers=self.consumers,
+            work_queue=self.work_queue,
+            worker_timeout=self.worker_timeout,
         )
         worker.start()
         self.workers.append(worker)
@@ -242,6 +256,7 @@ class _ConsumerThread(Thread):
 
     def run(self):
         self.logger.debug("Running consumer thread...")
+        self.broker.emit_after("consumer_thread_boot", self)
         self.running = True
         restart_consumer = CONSUMER_RESTART_MAX_RETRIES > 0
         attempts = 0
@@ -255,7 +270,9 @@ class _ConsumerThread(Thread):
 
             try:
                 self.consumer = self.broker.consume(
-                    queue_name=self.queue_name, prefetch=self.prefetch, timeout=self.worker_timeout
+                    queue_name=self.queue_name,
+                    prefetch=self.prefetch,
+                    timeout=self.worker_timeout,
                 )
                 attempts = 0
 
@@ -415,6 +432,7 @@ class _WorkerThread(Thread):
 
     def run(self):
         self.logger.debug("Running worker thread...")
+        self.broker.emit_after("worker_thread_boot", self)
         self.running = True
         while self.running:
             if self.paused:
@@ -442,7 +460,12 @@ class _WorkerThread(Thread):
         """
         try:
             extra = build_extra(message, 1000)
-            self.logger.debug("Received message %s with id %r.", message, message.message_id, extra=extra)
+            self.logger.debug(
+                "Received message %s with id %r.",
+                message,
+                message.message_id,
+                extra=extra,
+            )
             self.broker.emit_before("process_message", message)
 
             res = None
