@@ -17,6 +17,7 @@
 from __future__ import annotations
 
 from collections import namedtuple
+from collections.abc import Iterator
 from contextlib import nullcontext
 from typing import TYPE_CHECKING, Any, Generic, Iterable, TypeVar, Union, cast, overload
 
@@ -147,7 +148,7 @@ class pipeline(Generic[ResultsT]):
             options["cancel_on_error"] = cancel_on_error
 
             if isinstance(child, group):
-                next_child = child.build(options)
+                next_child = list(child.build(options))
             else:
                 next_child = [child.build(options)]
 
@@ -258,7 +259,7 @@ class group(Generic[ResultsT]):
     def __str__(self) -> str:  # pragma: no cover
         return f"group({', '.join(str(child) for child in self.children)})"
 
-    def build(self, options=None) -> list[Message]:
+    def build(self, options=None) -> Iterator[Message]:
         """Build group for pipeline"""
         if options is None:
             options = {}
@@ -273,15 +274,13 @@ class group(Generic[ResultsT]):
             "cancel_on_error": self.cancel_on_error,
             **options,
         }
-        messages: list[Message] = []
         for group_child in self.children:
             if isinstance(group_child, pipeline):
-                messages += group_child.build(
+                yield from group_child.build(
                     last_options=options, composition_id=composition_id, cancel_on_error=cancel_on_error
                 )
             else:
-                messages += [group_child.build(options)]
-        return messages
+                yield group_child.build(options)
 
     @property
     def info(self) -> GroupInfo:
