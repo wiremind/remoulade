@@ -1,0 +1,57 @@
+name: Python test in kind cluster
+
+on: pull_request
+
+jobs:
+  sentinel-cluster:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4.1.1
+        with:
+          fetch-depth: 0
+      - name: Set up Helm
+        uses: azure/setup-helm@v3.5
+        with:
+          version: v3.12.3
+      - name: Create k8s Kind Cluster
+        uses: helm/kind-action@v1.8.0
+      - name: Install Charts
+        run: |
+          helm repo add bitnami https://charts.bitnami.com/bitnami
+          helm repo add elastic https://helm.elastic.co
+          helm repo update
+          helm install my-postgresql bitnami/postgresql \
+            --version 13.2.30 \
+            --set global.postgresql.auth.username=test \
+            --set global.postgresql.auth.password=password \
+            --set global.postgresql.auth.database=test
+          helm install my-redis bitnami/redis \
+            --version 18.8.0 \
+            --set sentinel.enabled=true \
+            --set global.redis.password=password \
+            --set master.disableCommands={} \
+            --set replica.disableCommands={} \
+            --set master.serviceAccount.create=false \
+            --set master.serviceAccount.automountServiceAccountToken=true \
+            --set replica.serviceAccount.create=false \
+            --set replica.serviceAccount.automountServiceAccountToken=true
+          helm install my-elasticsearch elastic/elasticsearch \
+            --version 7.17.3 \
+            --set replicas=1 \
+            --set minimumMasterNodes=1
+          kubectl rollout status statefulset my-postgresql \
+            --timeout=5m
+          kubectl rollout status statefulset elasticsearch-master \
+            --timeout=5m
+          kubectl rollout status statefulset my-redis-node \
+            --timeout=20m
+      - name: build and test
+        run: |
+          docker build . -t remoulade -f tests/Dockerfile \
+            --build-arg="CONFIGURATION=tests/configuration.sentinel.kubernetes.yaml"
+          kind load docker-image remoulade
+          kubectl apply -f tests/remoulade.yaml
+          kubectl wait \
+            --for=condition=complete \
+            --timeout=2m job/remoulade
