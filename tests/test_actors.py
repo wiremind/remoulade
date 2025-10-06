@@ -738,9 +738,9 @@ def test_as_dict_typing(stub_broker):
     res = do_work.as_dict()
     assert res == {
         "args": [
-            {"name": "a", "type": "list"},
-            {"name": "b", "type": "dict"},
-            {"name": "c", "type": "dict"},
+            {"name": "a", "type": "list[int]"},
+            {"name": "b", "type": "dict[str, bool]"},
+            {"name": "c", "type": "dict[str, list[float]]"},
         ],
         "name": "do_work",
         "priority": 0,

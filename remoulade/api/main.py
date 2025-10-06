@@ -1,12 +1,11 @@
 """This file describe the API to get the state of messages"""
 
 import sys
-from typing import Any
+from typing import Any, TypedDict
 
 from flask import Flask
 from flask_apispec import marshal_with
 from marshmallow import Schema, ValidationError, fields, validate, validates_schema
-from typing_extensions import TypedDict
 from werkzeug.exceptions import HTTPException
 
 import remoulade

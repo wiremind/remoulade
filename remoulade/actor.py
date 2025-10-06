@@ -17,9 +17,7 @@
 
 import re
 from collections.abc import Callable
-from typing import TYPE_CHECKING, Any, Generic, Literal, TypeVar, overload
-
-from typing_extensions import ParamSpec, TypedDict
+from typing import TYPE_CHECKING, Any, Generic, Literal, ParamSpec, TypedDict, TypeVar, overload
 
 from .helpers.actor_arguments import get_actor_arguments
 from .logging import get_logger

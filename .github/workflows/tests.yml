@@ -24,7 +24,7 @@ jobs:
         ports:
           - 6481:6379
       rabbitmq:
-        image: rabbitmq:3.12
+        image: rabbitmq:4.1
         ports:
           - 5784:5672
       postgres:

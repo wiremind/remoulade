@@ -2,8 +2,8 @@ import datetime
 import hashlib
 import time
 from operator import itemgetter
+from zoneinfo import ZoneInfo
 
-import pytz
 import redis
 
 from remoulade import Broker, get_encoder, get_logger
@@ -193,14 +193,11 @@ class Scheduler:
             for job_hash, job in config_schedule.items():
                 if job_hash not in redis_schedule:
                     # Do not queue task if daily time is already passed
-                    if (
-                        job.daily_time is not None
-                        and job.daily_time < datetime.datetime.now(pytz.timezone(job.tz)).time()
-                    ):
+                    if job.daily_time is not None and job.daily_time < datetime.datetime.now(ZoneInfo(job.tz)).time():
                         self.logger.info(
                             "Will not run %s today, because daily time has already passed. Wait for tomorrow", job_hash
                         )
-                        job.last_queued = datetime.datetime.now(datetime.timezone.utc)
+                        job.last_queued = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
                     # Add to redis
                     self.logger.info("Adding new job %s to schedule", job_hash)
                     self.flush(job)
@@ -217,7 +214,7 @@ class Scheduler:
             with self.client.lock(self.lock_key, timeout=10, blocking_timeout=20):
                 schedule = self.get_redis_schedule()
                 for job_hash, job in schedule.items():
-                    now = datetime.datetime.now(pytz.timezone(job.tz))
+                    now = datetime.datetime.now(ZoneInfo(job.tz))
                     now_utc = datetime.datetime.now(datetime.timezone.utc)
                     curr_isodow = now.isoweekday()
 
@@ -235,15 +232,18 @@ class Scheduler:
                         if job.last_queued is not None:
                             # if task already ran today, skip it
                             last_queued_date = (
-                                job.last_queued.replace(tzinfo=pytz.UTC).astimezone(pytz.timezone(job.tz)).date()
+                                job.last_queued.replace(tzinfo=datetime.timezone.utc)
+                                .astimezone(ZoneInfo(job.tz))
+                                .date()
                             )
                             if now.date() == last_queued_date:
                                 continue
                     # Task that should run each X seconds
                     else:
+                        last_queued_aware = job.last_queued.replace(tzinfo=datetime.timezone.utc)
                         if job.last_queued is not None and (
                             datetime.timedelta(seconds=0)
-                            < now_utc - job.last_queued
+                            < now_utc - last_queued_aware
                             < datetime.timedelta(seconds=job.interval)
                         ):
                             continue
@@ -254,7 +254,7 @@ class Scheduler:
 
                     self.broker.actors[job.actor_name].send(*job.args, **job.kwargs)
 
-                    job.last_queued = datetime.datetime.now(datetime.timezone.utc)
+                    job.last_queued = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
                     self.flush(job)
 
             if self.stopped:
