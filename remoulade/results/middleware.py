@@ -83,12 +83,18 @@ class Results(Middleware):
         if store_results:
             if exception is None:
                 results.append(
-                    (message.message_id, BackendResult(result=result, error=None, actor_name=message.actor_name))
+                    (
+                        message.message_id,
+                        BackendResult(result=result, error=None, actor_name=message.actor_name),
+                    )
                 )
             elif message_failed:
                 error_str = self._serialize_exception(exception)
                 results.append(
-                    (message.message_id, BackendResult(result=None, error=error_str, actor_name=message.actor_name))
+                    (
+                        message.message_id,
+                        BackendResult(result=None, error=error_str, actor_name=message.actor_name),
+                    )
                 )
 
         # even if the actor do not have store_results, we need to invalidate the messages in the pipeline that has it
@@ -107,9 +113,9 @@ class Results(Middleware):
             )
 
         if results:
-            message_ids, _results = zip(*results, strict=False)
+            message_ids, results_ = zip(*results, strict=False)
             with self.backend.retry(broker, message, self.logger):
-                self.backend.store_results(message_ids, _results, result_ttl)
+                self.backend.store_results(message_ids, results_, result_ttl)
 
     @staticmethod
     def _serialize_exception(exception):

@@ -1,6 +1,6 @@
 from functools import update_wrapper
+from zoneinfo import available_timezones
 
-import pytz
 from flask import Blueprint
 from flask_apispec import doc, marshal_with
 from marshmallow import Schema, ValidationError, fields, validates_schema
@@ -29,7 +29,7 @@ class ScheduledJobSchema(Schema):
     iso_weekday = fields.Int(allow_none=True)
     enabled = fields.Bool(allow_none=True)
     last_queued = fields.DateTime(allow_none=True)
-    tz = fields.Str(allow_none=True, validate=OneOf(pytz.all_timezones))
+    tz = fields.Str(allow_none=True, validate=OneOf(available_timezones()))
 
     @validates_schema
     def validate_sort(self, data, **kwargs):

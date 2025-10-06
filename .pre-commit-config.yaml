@@ -6,7 +6,7 @@ repos:
     rev: v0.910
     hooks:
       - id: mypy
-        additional_dependencies: ["sqlalchemy[mypy]", "types-redis", "types-python-dateutil", "types-pytz"]
+        additional_dependencies: ["sqlalchemy[mypy]", "types-redis", "types-python-dateutil"]
   - repo: https://github.com/astral-sh/ruff-pre-commit
     rev: v0.13.2
     hooks:

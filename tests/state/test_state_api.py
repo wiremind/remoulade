@@ -5,9 +5,9 @@ from operator import itemgetter
 from random import choice
 from unittest import mock
 from unittest.mock import MagicMock
+from zoneinfo import ZoneInfo
 
 import pytest
-import pytz
 from dateutil.parser import parse
 
 import remoulade
@@ -88,7 +88,7 @@ class TestMessageStateAPI:
         assert res.status_code == 400
 
     def test_scheduled_jobs(self, scheduler, api_client, do_work, frozen_datetime):
-        timezone = pytz.timezone("Europe/Paris")
+        timezone = ZoneInfo("Europe/Paris")
         scheduler.schedule = [
             ScheduledJob(
                 actor_name=do_work.actor_name, daily_time=(datetime.datetime.now(timezone)).time(), tz="Europe/Paris"
@@ -336,8 +336,10 @@ class TestMessageStateAPI:
 
     def test_clean_max_age(self, stub_broker, postgres_state_middleware):
         backend = postgres_state_middleware.backend
-        backend.set_state(State("id0", end_datetime=datetime.datetime.now(pytz.utc)))
-        backend.set_state(State("id1", end_datetime=datetime.datetime.now(pytz.utc) - datetime.timedelta(minutes=50)))
+        backend.set_state(State("id0", end_datetime=datetime.datetime.now(datetime.timezone.utc)))
+        backend.set_state(
+            State("id1", end_datetime=datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(minutes=50))
+        )
 
         assert len(backend.get_states()) == 2
         backend.clean(max_age=25)
@@ -347,7 +349,7 @@ class TestMessageStateAPI:
 
     def test_clean_not_started(self, stub_broker, postgres_state_middleware):
         backend = postgres_state_middleware.backend
-        backend.set_state(State("id0", started_datetime=datetime.datetime.now(pytz.utc)))
+        backend.set_state(State("id0", started_datetime=datetime.datetime.now(datetime.timezone.utc)))
         backend.set_state(State("id1"))
 
         assert len(backend.get_states()) == 2

@@ -10,9 +10,8 @@ authors = [
 ]
 dependencies = [
     "prometheus-client>=0.2",
-    "pytz",
     "python-dateutil>=2.8.0",
-    "typing-extensions>=3.8",
+    "typing-extensions>=3.8", # TODO: Remove when dropping Python 3.10 support (needed for Self/Unpack).
     "attrs>=19.2.0"
 ]
 classifiers = [
@@ -20,6 +19,7 @@ classifiers = [
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
     "Programming Language :: Python :: 3 :: Only",
     "Topic :: System :: Distributed Computing",
 ]
@@ -29,10 +29,18 @@ rabbitmq = ["amqpstorm>=2.6,<3"]
 redis = ["redis~=5.0"]
 server = ["flask~=2.3.3", "marshmallow>=3,<4", "flask-apispec"]
 postgres = ["sqlalchemy>=1.4.29,<2", "psycopg2==2.9.10"]
-pydantic = ["pydantic>=2.0", "simplejson"]
+pydantic = ["pydantic>=2.12", "simplejson"]
 
 dev = [
-    "remoulade[rabbitmq,redis,server,postgres,pydantic]",
+    "amqpstorm>=2.6,<3",
+    "redis~=5.0",
+    "flask~=2.3.3",
+    "marshmallow>=3,<4",
+    "flask-apispec",
+    "sqlalchemy>=1.4.29,<2",
+    "psycopg2==2.9.10",
+    "pydantic>=2.12",
+    "simplejson",
     # Docs
     "alabaster",
     "sphinx==4.1.1",
@@ -46,7 +54,6 @@ dev = [
     "types-redis",
     "types-python-dateutil",
     "types-simplejson",
-    "types-pytz",
     # Misc
     "pre-commit",
     "bumpversion",

@@ -17,14 +17,14 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: ['3.10', '3.11', '3.12', '3.13']
+        python-version: ['3.10', '3.11', '3.12', '3.13', '3.14']
     services:
       redis:
         image: redis:7
         ports:
           - 6481:6379
       rabbitmq:
-        image: rabbitmq:3.12
+        image: rabbitmq:4.1
         ports:
           - 5784:5672
       postgres:

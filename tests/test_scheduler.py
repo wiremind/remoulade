@@ -2,9 +2,9 @@ import datetime
 import json
 import threading
 import time
+from zoneinfo import ZoneInfo
 
 import pytest
-import pytz
 from pydantic import BaseModel
 
 import remoulade
@@ -132,9 +132,7 @@ def test_scheduler_daily_time(stub_broker, stub_worker, scheduler, scheduler_thr
     scheduler.schedule = [
         ScheduledJob(
             actor_name="write_loaded_at",
-            daily_time=(
-                datetime.datetime.now(pytz.timezone(tz) if tz else None) + datetime.timedelta(seconds=1)
-            ).time(),
+            daily_time=(datetime.datetime.now(ZoneInfo(tz) if tz else None) + datetime.timedelta(seconds=1)).time(),
             tz=tz,
         )
     ]

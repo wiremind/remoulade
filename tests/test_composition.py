@@ -587,7 +587,11 @@ def test_multiple_groups_pipelines(stub_broker, stub_worker, result_backend):
     stub_broker.declare_actor(do_sum)
 
     pipe = pipeline(
-        [group([do_work.message(), do_work.message()]), group([do_sum.message(), do_sum.message()]), do_sum.message()]
+        [
+            group([do_work.message(), do_work.message()]),
+            group([do_sum.message(), do_sum.message()]),
+            do_sum.message(),
+        ]
     ).run()
 
     result = pipe.result.get(block=True)

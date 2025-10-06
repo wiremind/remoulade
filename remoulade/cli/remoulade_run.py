@@ -31,7 +31,7 @@ def main():
         print(f"{args.actor_name} is not an available actor")
         return
 
-    _args = args.args or []
-    kwargs = args.kwargs or {}
+    args_ = args.args or []
+    kwargs_ = args.kwargs or {}
 
-    print(get_broker().actors[args.actor_name](*_args, **kwargs))
+    print(get_broker().actors[args.actor_name](*args_, **kwargs_))

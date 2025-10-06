@@ -19,9 +19,9 @@ from __future__ import annotations
 from collections import namedtuple
 from collections.abc import Iterable
 from contextlib import nullcontext
-from typing import TYPE_CHECKING, Any, Generic, TypeVar, cast, overload
+from typing import TYPE_CHECKING, Any, Generic, TypedDict, TypeVar, cast, overload
 
-from typing_extensions import Self, TypedDict, Unpack
+from typing_extensions import Self, Unpack
 
 from .broker import get_broker
 from .collection_results import CollectionResults
