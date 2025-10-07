@@ -100,6 +100,9 @@ class Middleware:
     def after_process_message(self, broker, message, *, result=None, exception=None):
         """Called after a message has been processed."""
 
+    def after_worker_thread_empty(self, broker, thread):
+        """Called when a worker thread found an empty queue."""
+
     def after_worker_thread_process_message(self, broker, thread):
         """Called after a worker thread has finished processing a message"""
 
