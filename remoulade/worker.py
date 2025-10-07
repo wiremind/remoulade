@@ -446,6 +446,7 @@ class _WorkerThread(Thread):
                 self.process_message(message)
                 self.broker.emit_after("worker_thread_process_message", self)
             except Empty:
+                self.broker.emit_after("worker_thread_empty", self)
                 continue
 
         self.broker.emit_before("worker_thread_shutdown", self)
