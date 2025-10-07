@@ -16,15 +16,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 from .actor import Actor, actor
-from .broker import (
-    Broker,
-    Consumer,
-    MessageProxy,
-    change_broker,
-    declare_actors,
-    get_broker,
-    set_broker,
-)
+from .broker import Broker, Consumer, MessageProxy, change_broker, declare_actors, get_broker, set_broker
 from .collection_results import CollectionResults
 from .composition import group, pipeline
 from .encoder import Encoder, JSONEncoder, PickleEncoder

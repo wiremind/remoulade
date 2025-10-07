@@ -48,7 +48,7 @@ class Heartbeat(Middleware):
 
     def after_process_boot(self, broker):
         if not self.basedir:
-            self.basedir = tempfile.gettempdir() + "remouladebeat"
+            self.basedir = tempfile.gettempdir() + "/remouladebeat"
         os.makedirs(self.basedir, exist_ok=True)
         self.log.debug("Created directory %s", self.basedir)
 
@@ -61,12 +61,18 @@ class Heartbeat(Middleware):
         fd, self.files[thread.ident] = tempfile.mkstemp(dir=self.subdirs[os.getpid()], prefix=f"th-{thread.ident}-")
         os.close(fd)
 
-    def before_process_message(self, broker, message):
+    def heartbeat(self):
         ident = threading.get_ident()
-        if self.beats.get(ident, 0) + self.interval < (beat := time.monotonic()):
+        if self.beats.get(ident, 0) + self.interval < (beat := time.time()):
             with open(self.files[ident], "w") as f:
                 f.write(f"{beat}")
             self.beats[ident] = beat
+
+    def before_process_message(self, broker, message):
+        self.heartbeat()
+
+    def after_worker_thread_empty(self, broker, thread):
+        self.heartbeat()
 
     def before_worker_thread_shutdown(self, broker, thread):
         try:
