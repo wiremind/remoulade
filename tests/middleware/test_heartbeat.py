@@ -54,7 +54,12 @@ def test_heartbeat(stub_broker: StubBroker, do_work, tmp_path: Path):
     do_work.send()
     stub_broker.join(do_work.queue_name)
     worker.join()
-    assert float(beatfile.read_text()) > beat
+    assert (beat2 := float(beatfile.read_text())) > beat
+
+    # Test it beats even if the queue is empty
+    # Flaky due to lack of sync, but should not actually fail
+    time.sleep(2)
+    assert float(beatfile.read_text()) > beat2
 
     worker.workers[0].stop()
     worker.workers[0].join()
