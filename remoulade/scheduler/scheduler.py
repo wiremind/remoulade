@@ -192,13 +192,12 @@ class Scheduler:
             # add newly configured jobs
             for job_hash, job in config_schedule.items():
                 if job_hash not in redis_schedule:
-                    # Do not queue task if daily time is already passed
                     if job.daily_time is not None and job.daily_time < datetime.datetime.now(ZoneInfo(job.tz)).time():
                         self.logger.info(
-                            "Will not run %s today, because daily time has already passed. Wait for tomorrow", job_hash
+                            "Will not run %s today, because daily time has already passed. Wait for tomorrow",
+                            job_hash,
                         )
                         job.last_queued = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
-                    # Add to redis
                     self.logger.info("Adding new job %s to schedule", job_hash)
                     self.flush(job)
 

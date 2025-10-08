@@ -17,7 +17,7 @@ By the end of this tutorial, you will be able to do the following:
 Prerequisites
 -------------
 
-To follow this guide, you will need Python_ >= 3.10.
+To follow this guide, you will need Python_ >= 3.12.
 
 You will also need RabbitMQ_ as a broker. If you don't have it installed, you can use Docker_ to run a RabbitMQ image::
 

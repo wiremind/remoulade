@@ -18,7 +18,7 @@ Feat
 -----------------------
 Changed
 ^^^^^^^
-* Add for Python 3.14
+* Add support for Python 3.14
 * Drop support for Python older than 3.12
 
 `3.5.2`_ -- 2025-10-10
