@@ -1,6 +1,5 @@
 import platform
 import time
-from typing import Dict, List
 from unittest.mock import patch
 
 import pytest
@@ -136,7 +135,7 @@ def test_actors_can_perform_work(stub_broker, stub_worker):
 
     # If I send that actor many async messages
     for i in range(100):
-        assert put.send("key-%s" % i, i)
+        assert put.send(f"key-{i}", i)
 
     # Then join on the queue
     stub_broker.join(put.queue_name)
@@ -675,7 +674,7 @@ def test_can_call_repr_on_actors():
 
     # When I call repr on it
     # Then I should get back its representation
-    assert repr(test) == "Actor(%(fn)r, queue_name='default', actor_name='test')" % vars(test)
+    assert repr(test) == "Actor({fn!r}, queue_name='default', actor_name='test')".format(**vars(test))
 
 
 def test_workers_log_rate_limit_exceeded_errors_differently(stub_broker, stub_worker):
@@ -733,15 +732,15 @@ def test_as_dict_default(stub_broker):
 
 def test_as_dict_typing(stub_broker):
     @remoulade.actor
-    def do_work(a: List[int], b: Dict[str, bool], c: Dict[str, List[float]]):
+    def do_work(a: list[int], b: dict[str, bool], c: dict[str, list[float]]):
         return 1
 
     res = do_work.as_dict()
     assert res == {
         "args": [
-            {"name": "a", "type": "typing.List[int]"},
-            {"name": "b", "type": "typing.Dict[str, bool]"},
-            {"name": "c", "type": "typing.Dict[str, typing.List[float]]"},
+            {"name": "a", "type": "list[int]"},
+            {"name": "b", "type": "dict[str, bool]"},
+            {"name": "c", "type": "dict[str, list[float]]"},
         ],
         "name": "do_work",
         "priority": 0,

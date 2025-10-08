@@ -24,9 +24,7 @@ def test_window_rate_limiter_limits_per_window(rate_limiter_backend):
 
     # If I run that function multiple times concurrently
     with ThreadPoolExecutor(max_workers=8) as e:
-        futures = []
-        for _ in range(8):
-            futures.append(e.submit(work))
+        futures = [e.submit(work) for _ in range(8)]
 
         for future in futures:
             future.result()

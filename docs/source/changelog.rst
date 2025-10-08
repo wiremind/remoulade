@@ -5,6 +5,16 @@ Changelog
 
 All notable changes to this project will be documented in this file.
 
+`3.6.0`_ -- 2025-10-08
+-----------------------
+Feat
+^^^^
+* Replace pip with uv
+* Replace flake8, isort, black, and pyupgrade with ruff
+* Improve typing (mypy)
+* Drop support for Python 3.9, add support for Python 3.13 and 3.14
+* Replace setup.py with pyproject.toml
+
 `3.5.0`_ -- 2025-08-01
 -----------------------
 Fix

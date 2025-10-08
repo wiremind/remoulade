@@ -1,5 +1,4 @@
 import datetime
-from typing import List, Optional
 
 from remoulade.common import chunk
 
@@ -46,26 +45,24 @@ class RedisBackend(StateBackend):
     def get_states(
         self,
         *,
-        size: Optional[int] = None,
+        size: int | None = None,
         offset: int = 0,
-        selected_actors: Optional[List[str]] = None,
-        selected_statuses: Optional[List[str]] = None,
-        selected_message_ids: Optional[List[str]] = None,
-        selected_composition_ids: Optional[List[str]] = None,
-        start_datetime: Optional[datetime.datetime] = None,
-        end_datetime: Optional[datetime.datetime] = None,
-        sort_column: Optional[str] = None,
-        sort_direction: Optional[str] = None,
+        selected_actors: list[str] | None = None,
+        selected_statuses: list[str] | None = None,
+        selected_message_ids: list[str] | None = None,
+        selected_composition_ids: list[str] | None = None,
+        start_datetime: datetime.datetime | None = None,
+        end_datetime: datetime.datetime | None = None,
+        sort_column: str | None = None,
+        sort_direction: str | None = None,
     ):
-        states = []
+        states: list[State] = []
         for keys in chunk(self.client.scan_iter(match=f"{StateBackend.namespace}*", count=size), size):
             with self.client.pipeline() as pipe:
                 for key in keys:
                     pipe.hgetall(key)
                 data = pipe.execute()
-                for state_dict in data:
-                    if state_dict:
-                        states.append(self._parse_state(state_dict))
+                states.extend(self._parse_state(state_dict) for state_dict in data if state_dict)
 
         if size is None:
             return states[offset:]
@@ -75,12 +72,12 @@ class RedisBackend(StateBackend):
     def get_states_count(
         self,
         *,
-        selected_actors: Optional[List[str]] = None,
-        selected_statuses: Optional[List[str]] = None,
-        selected_messages_ids: Optional[List[str]] = None,
-        selected_composition_ids: Optional[List[str]] = None,
-        start_datetime: Optional[datetime.datetime] = None,
-        end_datetime: Optional[datetime.datetime] = None,
+        selected_actors: list[str] | None = None,
+        selected_statuses: list[str] | None = None,
+        selected_messages_ids: list[str] | None = None,
+        selected_composition_ids: list[str] | None = None,
+        start_datetime: datetime.datetime | None = None,
+        end_datetime: datetime.datetime | None = None,
         **kwargs,
     ) -> int:
         return len(list(self.client.scan_iter(match=f"{StateBackend.namespace}*")))

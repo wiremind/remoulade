@@ -145,10 +145,7 @@ def test_cancel_pipeline_or_groups(stub_broker, stub_worker, cancel_backend, wit
     # And this actor is declared
     stub_broker.declare_actor(do_work)
 
-    if with_pipeline:
-        g = pipeline(do_work.message() for _ in range(4))
-    else:
-        g = group(do_work.message() for _ in range(4))
+    g = pipeline(do_work.message() for _ in range(4)) if with_pipeline else group(do_work.message() for _ in range(4))
 
     g.cancel()
     g.run()
