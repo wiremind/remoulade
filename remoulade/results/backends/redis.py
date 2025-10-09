@@ -100,6 +100,34 @@ class RedisBackend(ResultBackend):
                     raise ResultMissing(message_id)
                 yield self.process_result(BackendResult(**self.encoder.decode(row)), raise_on_error)
 
+    def _brpoplpush_with_timeout(self, src, dst, timeout: int):
+        """
+        By default, brpoplpush timeout using the min between the redis socket_timeout
+        and the brpoplpush. This version of brpoplpush respect the timeout
+        """
+        deadline = time.monotonic() + timeout
+        while True:
+            try:
+                return self.client.brpoplpush(src, dst, timeout=timeout)
+            except redis.exceptions.TimeoutError as e:
+                timeout = int(deadline - time.monotonic())
+                if timeout <= 0:
+                    raise e
+
+    async def _async_brpoplpush_with_timeout(self, src, dst, timeout: int):
+        """
+        By default, brpoplpush timeout using the min between the redis socket_timeout
+        and the brpoplpush. This version of brpoplpush respect the timeout
+        """
+        deadline = time.monotonic() + timeout
+        while True:
+            try:
+                return await self.async_client.brpoplpush(src, dst, timeout=timeout)
+            except redis.exceptions.TimeoutError as e:
+                timeout = int(deadline - time.monotonic())
+                if timeout <= 0:
+                    raise e
+
     async def async_get_result(
         self,
         message_id: str,
@@ -127,7 +155,7 @@ class RedisBackend(ResultBackend):
                             pipe_exec = await pipe.execute()
                             data = pipe_exec[1]
                     else:
-                        data = await self.async_client.brpoplpush(message_key, message_key, timeout=timeout)
+                        data = await self._async_brpoplpush_with_timeout(message_key, message_key, timeout=timeout)
                 if data is None:
                     forget_delay = self.check_timeout(attempts, end_time, message_id)
                     attempts += 1
@@ -183,7 +211,7 @@ class RedisBackend(ResultBackend):
         while data is None:
             try:
                 if block and timeout > 0:
-                    data = self.client.brpoplpush(message_key, message_key, timeout=timeout)
+                    data = self._brpoplpush_with_timeout(message_key, message_key, timeout=timeout)
                     if forget and data is not None:
                         with self.client.pipeline() as pipe:
                             pipe.lpushx(message_key, self.encoder.encode(ForgottenResult.asdict()))
