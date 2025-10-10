@@ -5,6 +5,12 @@ Changelog
 
 All notable changes to this project will be documented in this file.
 
+`3.5.2`_ -- 2025-10-10
+-----------------------
+Fix
+^^^^^
+* Honor the get_result timeout when getting result from Redis
+
 `3.5.0`_ -- 2025-08-01
 -----------------------
 Fix
