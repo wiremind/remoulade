@@ -534,7 +534,7 @@ def test_redis_get_result_with_block_timeout_larger_than_socket_timeout(redis_re
             redis.TimeoutError(),
             redis.TimeoutError(),
             redis.TimeoutError(),
-            redis_result_backend.encoder.encode(ForgottenResult.asdict())
+            redis_result_backend.encoder.encode(ForgottenResult.asdict()),
         ]
         redis_result_backend.max_retries = 1
         redis_result_backend.get_result("message-id", block=True, forget=False, timeout=60 * 1000)
@@ -604,6 +604,7 @@ async def test_redis_async_get_results_with_forget_timeout(
     with pytest.raises(ResultTimeout):
         await message.result.async_get(forget=forget, timeout=1)
 
+
 async def test_redis_async_get_result_with_block_timeout_larger_than_socket_timeout(redis_result_backend):
     with patch.object(redis_result_backend, "async_client") as mock_client:
         # Simulate multiple Redis socket timeouts that occur before the overall
@@ -612,7 +613,7 @@ async def test_redis_async_get_result_with_block_timeout_larger_than_socket_time
             redis.TimeoutError(),
             redis.TimeoutError(),
             redis.TimeoutError(),
-            redis_result_backend.encoder.encode(ForgottenResult.asdict())
+            redis_result_backend.encoder.encode(ForgottenResult.asdict()),
         ]
         redis_result_backend.max_retries = 1
         await redis_result_backend.async_get_result("message-id", forget=False, timeout=60 * 1000)
