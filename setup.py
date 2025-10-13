@@ -26,9 +26,9 @@ dependencies = ["prometheus-client>=0.2", "pytz", "python-dateutil>=2.8.0", "typ
 
 extra_dependencies = {
     "rabbitmq": ["amqpstorm>=2.6,<3"],
-    "redis": ["redis~=5.0"],
+    "redis": ["redis~=6.0"],
     "server": ["flask>=1.1,~=2.3.3", "marshmallow>=3,<4", "flask-apispec"],
-    "postgres": ["sqlalchemy>=1.4.29,<2", "psycopg2==2.9.5"],
+    "postgres": ["sqlalchemy>=1.4.29,<2", "psycopg2>=2.9.11"],
     "pydantic": ["pydantic>=2.0", "simplejson"],
 }
 
@@ -95,7 +95,7 @@ setup(
     package_data={"remoulade": ["py.typed"]},
     include_package_data=True,
     install_requires=dependencies,
-    python_requires=">=3.8",
+    python_requires=">=3.12",
     extras_require=extra_dependencies,
     entry_points={
         "console_scripts": [
@@ -107,11 +107,9 @@ setup(
     },
     scripts=["bin/remoulade-gevent"],
     classifiers=[
-        "Programming Language :: Python :: 3.8",
-        "Programming Language :: Python :: 3.9",
-        "Programming Language :: Python :: 3.10",
-        "Programming Language :: Python :: 3.11",
         "Programming Language :: Python :: 3.12",
+        "Programming Language :: Python :: 3.13",
+        "Programming Language :: Python :: 3.14",
         "Programming Language :: Python :: 3 :: Only",
         "Topic :: System :: Distributed Computing",
         "License :: OSI Approved :: GNU Lesser General Public License v3 or later (LGPLv3+)",
