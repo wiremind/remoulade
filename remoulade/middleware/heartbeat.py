@@ -35,6 +35,12 @@ class Heartbeat(Middleware):
     (default to your temporary directory+/remouladebeat).
     """
 
+    # This implementation is rather simple and naive.
+    # There is nothing to ensure the actual state of the filesystem corresponds
+    # to what we think about it here.
+    # In particular, if something is killed unexpectedly, some files may be left
+    # and you could think that a thread is stuck because a file is not updated anymore.
+
     def __init__(self, dir: Union[str, None] = None, interval: int = 60):
         super().__init__()
         self.basedir = dir
