@@ -3,18 +3,15 @@ dynamic = ["version"]
 name = "remoulade"
 description = "Background Processing for Python 3."
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.12"
 license = "LGPL-3.0-or-later"
 authors = [{ name = "Wiremind", email = "dev@wiremind.io" }]
 dependencies = [
   "prometheus-client>=0.2",
   "python-dateutil>=2.8.0",
-  "typing-extensions>=3.8", # TODO: Remove when dropping Python 3.10 support (needed for Self/Unpack).
   "attrs>=19.2.0",
 ]
 classifiers = [
-  "Programming Language :: Python :: 3.10",
-  "Programming Language :: Python :: 3.11",
   "Programming Language :: Python :: 3.12",
   "Programming Language :: Python :: 3.13",
   "Programming Language :: Python :: 3.14",
@@ -106,7 +103,7 @@ filterwarnings = [
 ]
 
 [tool.ruff]
-target-version = "py310"
+target-version = "py312"
 line-length = 120
 exclude = [".git", "tests/mypy"]
 
@@ -140,7 +137,7 @@ force-wrap-aliases = true
 known-first-party = ["remoulade"]
 
 [tool.mypy]
-python_version = "3.10"
+python_version = "3.12"
 ignore_missing_imports = true
 check_untyped_defs = true
 warn_unused_ignores = true
