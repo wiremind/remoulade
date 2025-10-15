@@ -21,9 +21,9 @@ classifiers = [
 
 [project.optional-dependencies]
 rabbitmq = ["amqpstorm>=2.6,<3"]
-redis = ["redis~=5.0"]
+redis = ["redis~=6.0"]
 server = ["flask~=2.3.3", "marshmallow>=3,<4", "flask-apispec"]
-postgres = ["sqlalchemy>=1.4.29,<2", "psycopg2==2.9.10"]
+postgres = ["sqlalchemy>=1.4.29,<2", "psycopg2>=2.9.11"]
 pydantic = ["pydantic>=2.12", "simplejson"]
 
 dev = [
