@@ -106,14 +106,14 @@ def test_multiple_schedulers(stub_broker, stub_worker):
     stub_broker.join(write_loaded_at.queue_name)
     stub_worker.join()
 
+    # slow task should run exactly once, even if we launched 2 schedulers
+    assert result == 1
+
     for scheduler in scheduler_list:
         scheduler.stop()
 
     for thread in thread_list:
         thread.join(10)
-
-    # slow task should run exactly once, even if we launched 2 schedulers
-    assert result == 1
 
 
 @pytest.mark.parametrize("tz", [None, "Europe/Paris"])

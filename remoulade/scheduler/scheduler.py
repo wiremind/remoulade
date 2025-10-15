@@ -239,10 +239,9 @@ class Scheduler:
                                 continue
                     # Task that should run each X seconds
                     else:
-                        last_queued_aware = job.last_queued.replace(tzinfo=datetime.timezone.utc)
                         if job.last_queued is not None and (
                             datetime.timedelta(seconds=0)
-                            < now_utc - last_queued_aware
+                            < now_utc - job.last_queued.replace(tzinfo=datetime.timezone.utc)
                             < datetime.timedelta(seconds=job.interval)
                         ):
                             continue
