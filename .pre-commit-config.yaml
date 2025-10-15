@@ -12,6 +12,7 @@ repos:
           - types-python-dateutil
           - types-simplejson
           - types-requests
+          - attrs
   - repo: https://github.com/astral-sh/ruff-pre-commit
     rev: v0.14.0
     hooks:
