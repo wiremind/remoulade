@@ -1,6 +1,5 @@
 import datetime
 import time
-from typing import Dict, List, Optional
 
 from ..backend import State, StateBackend
 
@@ -15,7 +14,7 @@ class StubBackend(StateBackend):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.states: Dict[str, Dict[str, str]] = {}
+        self.states: dict[str, dict[str, str]] = {}
 
     def get_state(self, message_id):
         message_key = self._build_message_key(message_id)
@@ -32,7 +31,7 @@ class StubBackend(StateBackend):
         message_key = self._build_message_key(state.message_id)
         ttl = ttl + time.monotonic()
         encoded_state = self._encode_dict(state.as_dict())
-        if message_key not in self.states.keys():
+        if message_key not in self.states:
             payload = {"state": encoded_state, "expiration": ttl}
             self.states[message_key] = payload
         else:
@@ -48,16 +47,16 @@ class StubBackend(StateBackend):
     def get_states(
         self,
         *,
-        size: Optional[int] = None,
+        size: int | None = None,
         offset: int = 0,
-        selected_actors: Optional[List[str]] = None,
-        selected_statuses: Optional[List[str]] = None,
-        selected_message_ids: Optional[List[str]] = None,
-        selected_composition_ids: Optional[List[str]] = None,
-        start_datetime: Optional[datetime.datetime] = None,
-        end_datetime: Optional[datetime.datetime] = None,
-        sort_column: Optional[str] = None,
-        sort_direction: Optional[str] = None,
+        selected_actors: list[str] | None = None,
+        selected_statuses: list[str] | None = None,
+        selected_message_ids: list[str] | None = None,
+        selected_composition_ids: list[str] | None = None,
+        start_datetime: datetime.datetime | None = None,
+        end_datetime: datetime.datetime | None = None,
+        sort_column: str | None = None,
+        sort_direction: str | None = None,
     ):
         time_now = time.monotonic()
         states = []
@@ -75,12 +74,12 @@ class StubBackend(StateBackend):
     def get_states_count(
         self,
         *,
-        selected_actors: Optional[List[str]] = None,
-        selected_statuses: Optional[List[str]] = None,
-        selected_messages_ids: Optional[List[str]] = None,
-        selected_composition_ids: Optional[List[str]] = None,
-        start_datetime: Optional[datetime.datetime] = None,
-        end_datetime: Optional[datetime.datetime] = None,
+        selected_actors: list[str] | None = None,
+        selected_statuses: list[str] | None = None,
+        selected_messages_ids: list[str] | None = None,
+        selected_composition_ids: list[str] | None = None,
+        start_datetime: datetime.datetime | None = None,
+        end_datetime: datetime.datetime | None = None,
         **kwargs,
     ) -> int:
         return len(self.states)

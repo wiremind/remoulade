@@ -69,7 +69,7 @@ class Cancel(Middleware):
         composition_id = message.options.get("composition_id")
 
         if self.backend.is_canceled(message.message_id, composition_id):
-            raise MessageCanceled("Message %s has been canceled" % message.message_id)
+            raise MessageCanceled(f"Message {message.message_id} has been canceled")
 
     def after_process_message(self, broker, message, *, result=None, exception=None):
         """Cancel all the messages in the composition if one of the message of the composition fails"""

@@ -2,7 +2,6 @@ import datetime
 import sys
 from collections import namedtuple
 from enum import Enum
-from typing import Dict, List, Optional
 
 from dateutil.parser import parse
 
@@ -106,7 +105,7 @@ class State(
         return as_dict
 
     @classmethod
-    def from_dict(cls, input_dict: Dict) -> "State":
+    def from_dict(cls, input_dict: dict) -> "State":
         if "status" in input_dict:
             input_dict["status"] = StateStatusesEnum(input_dict["status"])
         datetime_keys = ["enqueued_datetime", "started_datetime", "end_datetime"]
@@ -137,7 +136,7 @@ class StateBackend:
         self.encoder = encoder or get_encoder()
         self.max_size = max_size
 
-    def _build_message_key(self, message_id: str) -> str:  # noqa: F821
+    def _build_message_key(self, message_id: str) -> str:
         """Given a message id, return its globally-unique key.
 
         Parameters:
@@ -171,29 +170,29 @@ class StateBackend:
     def get_states(
         self,
         *,
-        size: Optional[int] = None,
+        size: int | None = None,
         offset: int = 0,
-        selected_actors: Optional[List[str]] = None,
-        selected_statuses: Optional[List[str]] = None,
-        selected_message_ids: Optional[List[str]] = None,
-        selected_composition_ids: Optional[List[str]] = None,
-        start_datetime: Optional[datetime.datetime] = None,
-        end_datetime: Optional[datetime.datetime] = None,
-        sort_column: Optional[str] = None,
-        sort_direction: Optional[str] = None,
-    ) -> List[State]:
+        selected_actors: list[str] | None = None,
+        selected_statuses: list[str] | None = None,
+        selected_message_ids: list[str] | None = None,
+        selected_composition_ids: list[str] | None = None,
+        start_datetime: datetime.datetime | None = None,
+        end_datetime: datetime.datetime | None = None,
+        sort_column: str | None = None,
+        sort_direction: str | None = None,
+    ) -> list[State]:
         """Return all the states in the backend"""
         raise NotImplementedError(f"{type(self).__name__} does not implement get_all_messages")
 
     def get_states_count(
         self,
         *,
-        selected_actors: Optional[List[str]] = None,
-        selected_statuses: Optional[List[str]] = None,
-        selected_messages_ids: Optional[List[str]] = None,
-        selected_composition_ids: Optional[List[str]] = None,
-        start_datetime: Optional[datetime.datetime] = None,
-        end_datetime: Optional[datetime.datetime] = None,
+        selected_actors: list[str] | None = None,
+        selected_statuses: list[str] | None = None,
+        selected_messages_ids: list[str] | None = None,
+        selected_composition_ids: list[str] | None = None,
+        start_datetime: datetime.datetime | None = None,
+        end_datetime: datetime.datetime | None = None,
         **kwargs,
     ) -> int:
         raise NotImplementedError(f"{type(self).__name__} does not implement get_states_count")
@@ -214,7 +213,7 @@ class StateBackend:
             decoded_data[self.encoder.decode(key)] = self.encoder.decode(value)
         return decoded_data
 
-    def clean(self, max_age: int = None, not_started: bool = False):
+    def clean(self, max_age: int | None = None, not_started: bool = False):
         """Deletes states.
 
         Parameters:

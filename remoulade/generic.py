@@ -109,4 +109,4 @@ class GenericActor(metaclass=generic_actor):
         a message.  All non-abstract subclasses must implement this
         method.
         """
-        raise NotImplementedError("%s does not implement perform()" % self.__name__)
+        raise NotImplementedError(f"{self.__name__} does not implement perform()")

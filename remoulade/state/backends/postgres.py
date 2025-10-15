@@ -2,9 +2,8 @@ import datetime
 import os
 import sys
 import threading
-from typing import List, Optional, Type, TypeVar
+from typing import TypeVar
 
-from pytz import utc
 from sqlalchemy import (
     Column,
     DateTime,
@@ -21,7 +20,7 @@ from sqlalchemy import (
 from sqlalchemy.orm import declarative_base
 from sqlalchemy.orm.session import sessionmaker
 from sqlalchemy.sql import func
-from sqlalchemy.sql.functions import coalesce, count, max, min
+from sqlalchemy.sql.functions import coalesce, count, max, min  # noqa: A004
 
 from remoulade import Encoder
 from remoulade.state import State, StateBackend
@@ -63,7 +62,7 @@ class StoredState(Base):
         return State.from_dict(state_dict)
 
     @classmethod
-    def from_state(cls: Type[T], state: State, max_size: int, encoder: Encoder) -> T:
+    def from_state(cls: type[T], state: State, max_size: int, encoder: Encoder) -> T:
         state_dict = state.as_dict()
         for key in ["args", "kwargs", "options"]:
             if key in state_dict:
@@ -81,12 +80,12 @@ class StateVersion(Base):
 def filter_query(
     *,
     query,
-    selected_actors: Optional[List[str]],
-    selected_statuses: Optional[List[str]],
-    selected_message_ids: Optional[List[str]],
-    selected_composition_ids: Optional[List[str]],
-    start_datetime: Optional[datetime.datetime],
-    end_datetime: Optional[datetime.datetime],
+    selected_actors: list[str] | None,
+    selected_statuses: list[str] | None,
+    selected_message_ids: list[str] | None,
+    selected_composition_ids: list[str] | None,
+    start_datetime: datetime.datetime | None,
+    end_datetime: datetime.datetime | None,
 ):
     if selected_actors is not None:
         query = query.filter(StoredState.actor_name.in_(selected_actors))
@@ -109,10 +108,10 @@ class PostgresBackend(StateBackend):
         self,
         *,
         namespace: str = "remoulade-state",
-        encoder: Optional[Encoder] = None,
-        client: Optional[sessionmaker] = None,
+        encoder: Encoder | None = None,
+        client: sessionmaker | None = None,
         max_size: int = 2000000,
-        url: Optional[str] = None,
+        url: str | None = None,
         future: bool = False,
     ):
         self.url = url or os.getenv("REMOULADE_POSTGRESQL_URL") or DEFAULT_POSTGRES_URI
@@ -150,23 +149,22 @@ class PostgresBackend(StateBackend):
             return state.as_state(self.encoder)
 
     def set_state(self, state: State, ttl=3600):
-        with self.lock:
-            with self.client.begin() as session:
-                session.merge(StoredState.from_state(state, self.max_size, self.encoder))
+        with self.lock, self.client.begin() as session:
+            session.merge(StoredState.from_state(state, self.max_size, self.encoder))
 
     def get_states(
         self,
         *,
-        size: Optional[int] = None,
+        size: int | None = None,
         offset: int = 0,
-        selected_actors: Optional[List[str]] = None,
-        selected_statuses: Optional[List[str]] = None,
-        selected_message_ids: Optional[List[str]] = None,
-        selected_composition_ids: Optional[List[str]] = None,
-        start_datetime: Optional[datetime.datetime] = None,
-        end_datetime: Optional[datetime.datetime] = None,
-        sort_column: Optional[str] = None,
-        sort_direction: Optional[str] = None,
+        selected_actors: list[str] | None = None,
+        selected_statuses: list[str] | None = None,
+        selected_message_ids: list[str] | None = None,
+        selected_composition_ids: list[str] | None = None,
+        start_datetime: datetime.datetime | None = None,
+        end_datetime: datetime.datetime | None = None,
+        sort_column: str | None = None,
+        sort_direction: str | None = None,
     ):
         sort_column = sort_column or "enqueued_datetime"
         sort_direction = sort_direction or "desc"
@@ -218,12 +216,12 @@ class PostgresBackend(StateBackend):
     def get_states_count(
         self,
         *,
-        selected_actors: Optional[List[str]] = None,
-        selected_statuses: Optional[List[str]] = None,
-        selected_messages_ids: Optional[List[str]] = None,
-        selected_composition_ids: Optional[List[str]] = None,
-        start_datetime: Optional[datetime.datetime] = None,
-        end_datetime: Optional[datetime.datetime] = None,
+        selected_actors: list[str] | None = None,
+        selected_statuses: list[str] | None = None,
+        selected_messages_ids: list[str] | None = None,
+        selected_composition_ids: list[str] | None = None,
+        start_datetime: datetime.datetime | None = None,
+        end_datetime: datetime.datetime | None = None,
         **kwargs,
     ):
         with self.client.begin() as session:
@@ -240,11 +238,11 @@ class PostgresBackend(StateBackend):
             )
             return query.first()[0]
 
-    def clean(self, max_age: Optional[int] = None, not_started: bool = False):
+    def clean(self, max_age: int | None = None, not_started: bool = False):
         with self.client.begin() as session:
             query = session.query(StoredState)
             if max_age:
-                now = datetime.datetime.now(utc)
+                now = datetime.datetime.now(datetime.UTC)
                 min_datetime = now - datetime.timedelta(minutes=max_age)
                 query = session.query(StoredState).filter(StoredState.end_datetime < min_datetime)
             if not_started:

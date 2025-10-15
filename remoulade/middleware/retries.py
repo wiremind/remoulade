@@ -16,7 +16,8 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 import traceback
-from typing import Any, Callable, Dict, Optional
+from collections.abc import Callable
+from typing import Any
 
 from ..helpers import compute_backoff
 from ..helpers.backoff import BackoffStrategy
@@ -54,14 +55,14 @@ class Retries(Middleware):
     def __init__(
         self,
         *,
-        max_retries: Optional[int] = None,
-        min_backoff: Optional[int] = None,
-        max_backoff: Optional[int] = None,
-        retry_when: Optional[Callable[[int, Exception], bool]] = None,
+        max_retries: int | None = None,
+        min_backoff: int | None = None,
+        max_backoff: int | None = None,
+        retry_when: Callable[[int, Exception], bool] | None = None,
         backoff_strategy: BackoffStrategy = "exponential",
         jitter: bool = True,
         increase_priority_on_retry: bool = False,
-        escalation_queue_mapping: Optional[Dict[str, str]] = None,
+        escalation_queue_mapping: dict[str, str] | None = None,
     ):
         self.logger = get_logger(__name__, type(self))
         self.max_retries = max_retries
@@ -99,11 +100,8 @@ class Retries(Middleware):
             message.fail()
             return
 
-        if (
-            retry_when is not None
-            and not retry_when(retries, exception)
-            or max_retries is not None
-            and retries >= max_retries
+        if (retry_when is not None and not retry_when(retries, exception)) or (
+            max_retries is not None and retries >= max_retries
         ):
             if max_retries is not None and retries >= max_retries:
                 self.logger.warning(f"Retries exceeded for message {message.message_id}.")
@@ -112,7 +110,7 @@ class Retries(Middleware):
             message.fail()
             return
 
-        new_message_options: Dict[str, Any] = {}
+        new_message_options: dict[str, Any] = {}
         retry_queue_name = message.queue_name
         escalation_queue_mapping = self.get_option("escalation_queue_mapping", broker=broker, message=message)
 

@@ -1,22 +1,22 @@
 default_language_version:
-  python: python3.11
+  python: python3.12
 exclude: ^env/
 repos:
   - repo: https://github.com/pre-commit/mirrors-mypy
-    rev: v0.910
+    rev: v1.18.2
     hooks:
       - id: mypy
-        additional_dependencies: ["sqlalchemy[mypy]", "types-redis", "types-python-dateutil", "types-pytz"]
-  - repo: https://github.com/psf/black
-    rev: 21.7b0
+        additional_dependencies:
+          - sqlalchemy[mypy]
+          - types-redis
+          - types-python-dateutil
+          - types-simplejson
+          - types-requests
+          - attrs
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.14.0
     hooks:
-      - id: black
-  - repo: https://github.com/pycqa/isort
-    rev: 5.9.1
-    hooks:
-      - id: isort
-  - repo: https://github.com/pycqa/flake8
-    rev: 3.9.2
-    hooks:
-      - id: flake8
-        additional_dependencies: ["flake8-bugbear", "flake8-quotes"]
+      - id: ruff-check
+        args:
+          - --fix
+      - id: ruff-format

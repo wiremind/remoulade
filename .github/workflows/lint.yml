@@ -17,46 +17,19 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: ['3.12', '3.13', '3.14']
+        python-version: ["3.12", "3.13", "3.14"]
     steps:
-      - uses: actions/checkout@v4.1.1
-
-      - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v4.7.1
+      - uses: actions/checkout@v5
+      - name: Install uv and set the Python version
+        uses: astral-sh/setup-uv@v6
         with:
           python-version: ${{ matrix.python-version }}
-
+          activate-environment: true
       - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          python -m pip install -e .[dev]
-
-      - name: Lint with flake8
-        run: |
-          flake8 . --count --show-source --statistics
-
-      - name: Lint with black
-        run: |
-          black --check .
-
-      - name: Check imports with isort
-        run: isort --check remoulade
-
+        run: uv pip install -e '.[dev]'
+      - name: Lint with ruff
+        run: ruff check
+      - name: Format with ruff
+        run: ruff format --check --diff
       - name: Check typing with mypy
-        run: |
-          mypy --show-traceback
-
-      - name: Check syntax with pyupgrade
-        run: |
-          pyupgrade --py38-plus **/*.py
-
-  linter:
-    name: black-format
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4.1.1
-      - uses: reviewdog/action-black@v3.10.2
-        with:
-          github_token: ${{ secrets.github_token }}
-          # Change reviewdog reporter if you need [github-pr-check, github-check].
-          reporter: github-pr-check
+        run: mypy --show-traceback

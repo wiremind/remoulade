@@ -37,9 +37,7 @@ def test_concurrent_rate_limiter_can_act_as_a_mutex(rate_limiter_backend):
 
     # If I execute multiple workers concurrently
     with ThreadPoolExecutor(max_workers=8) as e:
-        futures = []
-        for _ in range(8):
-            futures.append(e.submit(work))
+        futures = [e.submit(work) for _ in range(8)]
 
         for future in futures:
             future.result()
@@ -64,9 +62,7 @@ def test_concurrent_rate_limiter_limits_concurrency(rate_limiter_backend):
 
     # If I execute multiple workers concurrently
     with ThreadPoolExecutor(max_workers=32) as e:
-        futures = []
-        for _ in range(32):
-            futures.append(e.submit(work))
+        futures = [e.submit(work) for _ in range(32)]
 
         for future in futures:
             future.result()

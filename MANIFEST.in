@@ -1,8 +1,10 @@
-include COPYING
-include COPYING.LESSER
-include README.md
-include setup.cfg
-include setup.py
-include remoulade/py.typed
-
-recursive-include bin *
+prune artwork
+prune *benchmarks
+prune compose
+prune docs
+prune examples
+prune .git*
+exclude .git*
+exclude .readthedocs.yaml
+prune tests
+exclude .pre-commit-config.yaml

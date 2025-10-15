@@ -452,7 +452,7 @@ def test_pipelines_with_groups(stub_broker, stub_worker, result_middleware):
 
     result = pipe.result.get(block=True)
 
-    assert 12 + 15 == result
+    assert result == 12 + 15
 
     stub_broker.join(do_work.queue_name)
     stub_worker.join()
@@ -476,7 +476,7 @@ def test_pipelines_with_groups(stub_broker, stub_worker, result_middleware):
 
     result = pipe.result.get(block=True)
 
-    assert [13 + 12, 13 + 15] == list(result)
+    assert list(result) == [13 + 12, 13 + 15]
 
 
 def test_group_one_not_finished(stub_broker, stub_worker, result_middleware):
@@ -526,7 +526,7 @@ def test_complex_pipelines(stub_broker, stub_worker, result_middleware):
 
     result = final_pipe.result.get(block=True)
 
-    assert 9 == result
+    assert result == 9
 
 
 def test_pipeline_with_groups_and_pipe_ignore(stub_broker, stub_worker, result_backend):
@@ -554,7 +554,7 @@ def test_pipeline_with_groups_and_pipe_ignore(stub_broker, stub_worker, result_b
     # I don't get any error as long the second actor has pipe_ignore=True
     result = pipe.result.get(block=True)
 
-    assert 2 == result
+    assert result == 2
 
     # But if it don't, the pipeline cannot finish
     pipe = group([do_work.message(), do_work.message()]) | do_other_work.message()
@@ -587,12 +587,16 @@ def test_multiple_groups_pipelines(stub_broker, stub_worker, result_backend):
     stub_broker.declare_actor(do_sum)
 
     pipe = pipeline(
-        [group([do_work.message(), do_work.message()]), group([do_sum.message(), do_sum.message()]), do_sum.message()]
+        [
+            group([do_work.message(), do_work.message()]),
+            group([do_sum.message(), do_sum.message()]),
+            do_sum.message(),
+        ]
     ).run()
 
     result = pipe.result.get(block=True)
 
-    assert 4 == result
+    assert result == 4
 
 
 def test_pipeline_does_not_continue_to_next_actor_when_message_is_marked_as_failed(stub_broker, stub_worker):

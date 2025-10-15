@@ -1,5 +1,4 @@
 import random
-from typing import Dict
 
 import pytest
 
@@ -13,7 +12,7 @@ class TestProgressMessage:
     progress of the message"""
 
     def test_set_progress_message(self, stub_broker, stub_worker, state_middleware):
-        progress_messages: Dict[str, float] = {}
+        progress_messages: dict[str, float] = {}
 
         @remoulade.actor
         def do_work():

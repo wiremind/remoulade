@@ -32,5 +32,5 @@ of those changes to CLEARTYPE SRL.
 | [@pgitips](https://github.com/pgitips)                           | Pierre Giraud          |
 | [@williampollet](https://github.com/williampollet)               | William Pollet         |
 | [@mehdithez](https://github.com/mehdithez)                       | Zeroual Mehdi          |
-| [@julien-duponchelle ](https://github.com/julien-duponchelle)    |  Julien Duponchelle           |
-
+| [@julien-duponchelle](https://github.com/julien-duponchelle)    |  Julien Duponchelle           |
+| [@alisterd51](https://github.com/alisterd51)       | Antoine Clarman        |

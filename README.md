@@ -10,23 +10,23 @@
 
 <hr/>
 
-**Changelog**: https://remoulade.readthedocs.io/en/latest/changelog.html <br/>
-**Documentation**: https://remoulade.readthedocs.io
+**Changelog**: <https://remoulade.readthedocs.io/en/latest/changelog.html> <br/>
+**Documentation**: <https://remoulade.readthedocs.io>
 
 <hr/>
-
 
 ## Installation
 
 If you want to use it with [RabbitMQ]
+
 ```console
-    $ pipenv install 'remoulade[rabbitmq]'
+    uv pip install 'remoulade[rabbitmq]'
 ```
 
 or if you want to use it with [Redis]
 
 ```console
-   $ pipenv install 'remoulade[redis]'
+   uv pip install 'remoulade[redis]'
 ```
 
 ## Quickstart
@@ -58,15 +58,17 @@ if __name__ == "__main__":
 ```
 
 2. In one terminal, run your workers:
+
 ```console
-   $ remoulade example
+   remoulade example
 ```
 
 3. In another, start enqueueing messages:
+
 ```console
-   $ python3 example.py http://example.com
-   $ python3 example.py https://github.com
-   $ python3 example.py https://news.ycombinator.com
+   python3 example.py http://example.com
+   python3 example.py https://github.com
+   python3 example.py https://news.ycombinator.com
 ```
 
 Visit the [user guide] to see more features!.
@@ -74,12 +76,13 @@ Visit the [user guide] to see more features!.
 ## Releasing
 
 If you want to contribute to the project. First make a Pull request and get approval from a Maintainer and then:
+
 1. Merge your pull request
-2. Update your local clone with latest version of upstream.
-3. run `bumpversion [minor|major|patch]` depending on your change level
-4. This will create a commit with appropriate version changes
-5. Run `git push` and `git push --tag` to the upstream/origin
-6. The tag will be created in github repository and a CI/CD pipeline will run to publish the package
+2. Push a tag (must start with a `v`) from the commit you want (usually, the `master` branch)
+  a. You can create a new release on Github (recommended). This will create and push the tag for you.
+  b. Update your local clone, checkout `master`, `git tag` and then `git push --tags`
+
+This will trigger a CI/CD pipeline that publish the package
 
 ## Dashboard
 
