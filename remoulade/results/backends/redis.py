@@ -109,7 +109,7 @@ class RedisBackend(ResultBackend):
         while True:
             try:
                 return self.client.brpoplpush(src, dst, timeout=timeout)
-            except redis.exceptions.TimeoutError as e:
+            except redis.exceptions.TimeoutError as e:  # noqa try-except-in-loop
                 timeout = int(deadline - time.monotonic())
                 if timeout <= 0:
                     raise e
@@ -123,7 +123,7 @@ class RedisBackend(ResultBackend):
         while True:
             try:
                 return await self.async_client.brpoplpush(src, dst, timeout=timeout)
-            except redis.exceptions.TimeoutError as e:
+            except redis.exceptions.TimeoutError as e:  # noqa try-except-in-loop
                 timeout = int(deadline - time.monotonic())
                 if timeout <= 0:
                     raise e
