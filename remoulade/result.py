@@ -14,7 +14,7 @@
 #
 # You should have received a copy of the GNU Lesser General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
-from typing import Any, Generic, Literal, TypeVar, overload
+from typing import Any, Literal, TypeVar, overload
 
 import attr
 
@@ -27,7 +27,7 @@ R = TypeVar("R", covariant=True)
 
 
 @attr.s(frozen=True, slots=True, kw_only=True, auto_attribs=True)
-class Result(Generic[R]):
+class Result[R]:
     """Encapsulates metadata needed to retrieve the result of a message
 
     Parameters:

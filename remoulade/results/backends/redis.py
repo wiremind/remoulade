@@ -109,7 +109,7 @@ class RedisBackend(ResultBackend):
         while True:
             try:
                 return self.client.brpoplpush(src, dst, timeout=timeout)
-            except redis.exceptions.TimeoutError as e:  # noqa try-except-in-loop
+            except redis.exceptions.TimeoutError as e:
                 timeout = int(deadline - time.monotonic())
                 if timeout <= 0:
                     raise e
@@ -123,7 +123,7 @@ class RedisBackend(ResultBackend):
         while True:
             try:
                 return await self.async_client.brpoplpush(src, dst, timeout=timeout)
-            except redis.exceptions.TimeoutError as e:  # noqa try-except-in-loop
+            except redis.exceptions.TimeoutError as e:
                 timeout = int(deadline - time.monotonic())
                 if timeout <= 0:
                     raise e
@@ -160,7 +160,7 @@ class RedisBackend(ResultBackend):
                     forget_delay = self.check_timeout(attempts, end_time, message_id)
                     attempts += 1
                     await asyncio.sleep(forget_delay)
-            except (redis.ConnectionError, redis.TimeoutError, ResultTimeout):  # noqa: PERF203
+            except (redis.ConnectionError, redis.TimeoutError, ResultTimeout):
                 if data is not None:
                     break
                 if retry_count >= self.max_retries:
@@ -233,7 +233,7 @@ class RedisBackend(ResultBackend):
                     else:
                         raise ResultMissing(message_id)
 
-            except (redis.ConnectionError, redis.TimeoutError):  # noqa: PERF203
+            except (redis.ConnectionError, redis.TimeoutError):
                 # if data is not None, it means the second step of block+forget has failed, we can live without a forget
                 if data is not None:
                     break

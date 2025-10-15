@@ -16,7 +16,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 import time
-from typing import Any, Generic, TypeVar, cast
+from typing import Any, TypeVar, cast
 
 import attr
 
@@ -58,7 +58,7 @@ ResultT = TypeVar("ResultT", bound=Result[Any], covariant=True)
 
 
 @attr.s(frozen=True, slots=True, kw_only=True, auto_attribs=True)
-class Message(Generic[ResultT]):
+class Message[ResultT: Result[Any]]:
     """Encapsulates metadata about messages being sent to individual actors.
 
     Parameters:

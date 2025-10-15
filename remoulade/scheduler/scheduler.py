@@ -197,7 +197,7 @@ class Scheduler:
                             "Will not run %s today, because daily time has already passed. Wait for tomorrow",
                             job_hash,
                         )
-                        job.last_queued = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
+                        job.last_queued = datetime.datetime.now(datetime.UTC).replace(tzinfo=None)
                     self.logger.info("Adding new job %s to schedule", job_hash)
                     self.flush(job)
 
@@ -214,7 +214,7 @@ class Scheduler:
                 schedule = self.get_redis_schedule()
                 for job_hash, job in schedule.items():
                     now = datetime.datetime.now(ZoneInfo(job.tz))
-                    now_utc = datetime.datetime.now(datetime.timezone.utc)
+                    now_utc = datetime.datetime.now(datetime.UTC)
                     curr_isodow = now.isoweekday()
 
                     if not job.enabled:
@@ -231,9 +231,7 @@ class Scheduler:
                         if job.last_queued is not None:
                             # if task already ran today, skip it
                             last_queued_date = (
-                                job.last_queued.replace(tzinfo=datetime.timezone.utc)
-                                .astimezone(ZoneInfo(job.tz))
-                                .date()
+                                job.last_queued.replace(tzinfo=datetime.UTC).astimezone(ZoneInfo(job.tz)).date()
                             )
                             if now.date() == last_queued_date:
                                 continue
@@ -241,7 +239,7 @@ class Scheduler:
                     else:
                         if job.last_queued is not None and (
                             datetime.timedelta(seconds=0)
-                            < now_utc - job.last_queued.replace(tzinfo=datetime.timezone.utc)
+                            < now_utc - job.last_queued.replace(tzinfo=datetime.UTC)
                             < datetime.timedelta(seconds=job.interval)
                         ):
                             continue
@@ -252,7 +250,7 @@ class Scheduler:
 
                     self.broker.actors[job.actor_name].send(*job.args, **job.kwargs)
 
-                    job.last_queued = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
+                    job.last_queued = datetime.datetime.now(datetime.UTC).replace(tzinfo=None)
                     self.flush(job)
 
             if self.stopped:

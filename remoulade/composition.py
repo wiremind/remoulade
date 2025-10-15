@@ -19,9 +19,7 @@ from __future__ import annotations
 from collections import namedtuple
 from collections.abc import Iterable
 from contextlib import nullcontext
-from typing import TYPE_CHECKING, Any, Generic, TypedDict, TypeVar, cast, overload
-
-from typing_extensions import Self, Unpack
+from typing import TYPE_CHECKING, Any, Self, TypedDict, TypeVar, cast, overload
 
 from .broker import get_broker
 from .collection_results import CollectionResults
@@ -55,7 +53,7 @@ class GroupInfo(namedtuple("GroupInfo", ("group_id", "children_count"))):
         return cast(GroupInfoDict, self._asdict())
 
 
-class pipeline(Generic[ResultsT]):
+class pipeline[ResultsT: "Result[Any] | CollectionResults[Any]"]:
     """Chain actors together, passing the result of one actor to the
     next one in line.
 
@@ -78,7 +76,7 @@ class pipeline(Generic[ResultsT]):
         # we should actually not use ResultTs here but define a new type var that is only bound to Result
         # but then mypy gets lost, so reusing ResultsT and ignoring the error
         children: tuple[  # type: ignore
-            Unpack[tuple[Message[Any] | pipeline[Any] | group[Any], ...]], Message[ResultsT] | pipeline[ResultsT]
+            *tuple[Message[Any] | pipeline[Any] | group[Any], ...], Message[ResultsT] | pipeline[ResultsT]
         ],
         cancel_on_error: bool = False,
     ): ...
@@ -86,7 +84,7 @@ class pipeline(Generic[ResultsT]):
     @overload
     def __init__(
         self: pipeline[CollectionResults[ResultsT_1]],
-        children: tuple[Unpack[tuple[Message[Any] | pipeline[Any] | group[Any], ...]], group[ResultsT_1]],
+        children: tuple[*tuple[Message[Any] | pipeline[Any] | group[Any], ...], group[ResultsT_1]],
         cancel_on_error: bool = False,
     ): ...
 
@@ -209,7 +207,7 @@ class pipeline(Generic[ResultsT]):
         backend.cancel(list(flatten(self.message_ids)))
 
 
-class group(Generic[ResultsT]):
+class group[ResultsT: "Result[Any] | CollectionResults[Any]"]:
     """Run a group of actors in parallel.
 
     Parameters:

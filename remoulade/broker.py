@@ -205,7 +205,7 @@ class Broker:
         for middleware in self.middleware:
             try:
                 getattr(middleware, "before_" + signal)(self, *args, **kwargs)
-            except MiddlewareError:  # noqa: PERF203
+            except MiddlewareError:
                 raise
             except Exception:
                 self.logger.critical("Unexpected failure in before_%s.", signal, exc_info=True)
@@ -214,7 +214,7 @@ class Broker:
         for middleware in reversed(self.middleware):
             try:
                 getattr(middleware, "after_" + signal)(self, *args, **kwargs)
-            except Exception:  # noqa: PERF203
+            except Exception:
                 self.logger.critical("Unexpected failure in after_%s.", signal, exc_info=True)
 
     def get_result_backend(self) -> ResultBackend:

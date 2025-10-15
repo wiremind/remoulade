@@ -19,7 +19,7 @@ from __future__ import annotations
 import time
 from collections import deque
 from collections.abc import Generator, Iterable
-from typing import Any, Generic, Literal, TypeVar, Union, cast, overload
+from typing import Any, Literal, TypeVar, Union, cast, overload
 
 from remoulade.results.errors import ErrorStored
 
@@ -31,7 +31,7 @@ ResultT = TypeVar("ResultT", bound=Union[Result, "CollectionResults"])
 R = TypeVar("R")
 
 
-class CollectionResults(Generic[ResultT]):
+class CollectionResults[ResultT: Result | "CollectionResults"]:
     """Result of a group or pipeline, having result related methods
 
     Parameters:

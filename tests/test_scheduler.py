@@ -176,7 +176,7 @@ def test_scheduler_new_daily_time(stub_broker, stub_worker, scheduler, scheduler
     scheduler.schedule = [
         ScheduledJob(
             actor_name="write_loaded_at",
-            daily_time=(datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(seconds=1)).time(),
+            daily_time=(datetime.datetime.now(datetime.UTC) - datetime.timedelta(seconds=1)).time(),
         )
     ]
     scheduler.get_redis_schedule, event = mock_func(scheduler.get_redis_schedule)

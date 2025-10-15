@@ -56,7 +56,7 @@ class RedisBackend(RateLimiterBackend):
                     pipe.set(key, value, px=ttl)
                     pipe.execute()
                     return True
-                except WatchError:  # noqa: PERF203
+                except WatchError:
                     continue
 
     def decr(self, key: str, amount: int, minimum: int, ttl: int) -> bool:
@@ -73,7 +73,7 @@ class RedisBackend(RateLimiterBackend):
                     pipe.set(key, value, px=ttl)
                     pipe.execute()
                     return True
-                except WatchError:  # noqa: PERF203
+                except WatchError:
                     continue
 
     def incr_and_sum(self, key: str, keys: Callable[[], list[str]], amount: int, maximum: int, ttl: int) -> bool:
@@ -98,5 +98,5 @@ class RedisBackend(RateLimiterBackend):
                     pipe.set(key, value, px=ttl)
                     pipe.execute()
                     return True
-                except WatchError:  # noqa: PERF203
+                except WatchError:
                     continue

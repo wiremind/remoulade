@@ -142,7 +142,7 @@ class Worker:
         for queue_name, messages in messages_by_queue.items():
             try:
                 self.consumers[queue_name].requeue_messages(messages)
-            except ConnectionError:  # noqa: PERF203
+            except ConnectionError:
                 self.logger.warning(f"Failed to requeue messages on queue {queue_name}.", exc_info=True)
         self.logger.debug("Done requeueing in-progress messages.")
 

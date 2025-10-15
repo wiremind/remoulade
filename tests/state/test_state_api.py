@@ -336,9 +336,9 @@ class TestMessageStateAPI:
 
     def test_clean_max_age(self, stub_broker, postgres_state_middleware):
         backend = postgres_state_middleware.backend
-        backend.set_state(State("id0", end_datetime=datetime.datetime.now(datetime.timezone.utc)))
+        backend.set_state(State("id0", end_datetime=datetime.datetime.now(datetime.UTC)))
         backend.set_state(
-            State("id1", end_datetime=datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(minutes=50))
+            State("id1", end_datetime=datetime.datetime.now(datetime.UTC) - datetime.timedelta(minutes=50))
         )
 
         assert len(backend.get_states()) == 2
@@ -349,7 +349,7 @@ class TestMessageStateAPI:
 
     def test_clean_not_started(self, stub_broker, postgres_state_middleware):
         backend = postgres_state_middleware.backend
-        backend.set_state(State("id0", started_datetime=datetime.datetime.now(datetime.timezone.utc)))
+        backend.set_state(State("id0", started_datetime=datetime.datetime.now(datetime.UTC)))
         backend.set_state(State("id1"))
 
         assert len(backend.get_states()) == 2

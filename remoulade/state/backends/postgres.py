@@ -242,7 +242,7 @@ class PostgresBackend(StateBackend):
         with self.client.begin() as session:
             query = session.query(StoredState)
             if max_age:
-                now = datetime.datetime.now(datetime.timezone.utc)
+                now = datetime.datetime.now(datetime.UTC)
                 min_datetime = now - datetime.timedelta(minutes=max_age)
                 query = session.query(StoredState).filter(StoredState.end_datetime < min_datetime)
             if not_started:

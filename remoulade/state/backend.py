@@ -100,7 +100,7 @@ class State(
             for key in (item for item in ["args", "kwargs", "options"] if item in as_dict):
                 try:
                     as_dict[key] = get_encoder().encode(as_dict[key]).decode("utf-8")
-                except (UnicodeDecodeError, TypeError):  # noqa: PERF203
+                except (UnicodeDecodeError, TypeError):
                     as_dict[key] = "encoded_data"
         return as_dict
 

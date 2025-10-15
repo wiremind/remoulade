@@ -350,7 +350,7 @@ class RabbitmqBroker(Broker):
                         raise MessageNotDelivered("Message could not be delivered")
                 return message
 
-            except MessageNotDelivered:  # noqa: PERF203
+            except MessageNotDelivered:
                 attempts += 1
                 if self._has_transaction or attempts > MAX_ENQUEUE_ATTEMPTS:
                     raise
@@ -487,7 +487,7 @@ class _RabbitmqConsumer(Consumer):
             while message is None and time.monotonic() < deadline:
                 try:
                     message = next(self.channel.build_inbound_messages(auto_decode=False, break_on_empty=True))
-                except StopIteration:  # noqa: PERF203
+                except StopIteration:
                     time.sleep(0.1)
 
             return _RabbitmqMessage(message) if message else None

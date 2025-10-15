@@ -17,7 +17,7 @@
 
 import re
 from collections.abc import Callable
-from typing import TYPE_CHECKING, Any, Generic, Literal, ParamSpec, TypedDict, TypeVar, overload
+from typing import TYPE_CHECKING, Any, Literal, ParamSpec, TypedDict, TypeVar, overload
 
 from .helpers.actor_arguments import get_actor_arguments
 from .logging import get_logger
@@ -56,7 +56,7 @@ def actor(
 
 
 @overload
-def actor(
+def actor[**P, R](
     fn: Callable[P, R],
     *,
     actor_name: str | None = None,
@@ -146,7 +146,7 @@ def actor(
     return decorator(fn)
 
 
-class Actor(Generic[P, R]):
+class Actor[**P, R]:
     """Thin wrapper around callables that stores metadata about how
     they should be executed asynchronously.  Actors are callable.
 

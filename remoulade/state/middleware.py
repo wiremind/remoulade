@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from ..middleware import Middleware
 from .backend import State, StateStatusesEnum
@@ -41,7 +41,7 @@ class MessageState(Middleware):
         )
 
     def _get_current_time(self):
-        return datetime.now(timezone.utc)
+        return datetime.now(UTC)
 
     def before_enqueue(self, broker, message, delay):
         priority = broker.get_actor(message.actor_name).priority
