@@ -52,7 +52,6 @@ dev = [
   "types-requests",
   # Misc
   "pre-commit",
-  "bumpversion",
   "hiredis",
   "twine",
   # Testing
@@ -77,7 +76,7 @@ remoulade-run = "remoulade.cli.remoulade_run:main"
 remoulade-scheduler = "remoulade.cli.remoulade_scheduler:main"
 
 [build-system]
-requires = ["setuptools>=80.9", "wheel"]
+requires = ["setuptools>=80.9", "wheel", "setuptools-scm[simple]>=8"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools]
@@ -86,12 +85,8 @@ script-files = ["bin/remoulade-gevent"]
 [tool.setuptools.package-data]
 remoulade = ["py.typed"]
 
-[tool.setuptools.dynamic]
-version = { attr = "remoulade.__version__" }
-
 [tool.setuptools.packages.find]
 include = ["remoulade*"]
-exclude = ["tests"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

@@ -15,6 +15,8 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+import importlib.metadata
+
 from .actor import Actor, actor
 from .broker import Broker, Consumer, MessageProxy, change_broker, declare_actors, get_broker, set_broker
 from .collection_results import CollectionResults
@@ -90,4 +92,4 @@ __all__ = [
     "set_scheduler",
 ]
 
-__version__ = "4.0.0"
+__version__ = importlib.metadata.version(__package__)
