@@ -5,7 +5,7 @@ Changelog
 
 All notable changes to this project will be documented in this file.
 
-`Unreleased`_ -- 2025-10-08
+`4.0.1`_ -- 2025-10-08
 ---------------------------
 Feat
 ^^^^
