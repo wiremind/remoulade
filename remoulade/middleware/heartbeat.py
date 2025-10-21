@@ -19,7 +19,6 @@ import shutil
 import tempfile
 import threading
 import time
-from typing import Union
 
 from ..logging import get_logger
 from .middleware import Middleware
@@ -41,9 +40,9 @@ class Heartbeat(Middleware):
     # In particular, if something is killed unexpectedly, some files may be left
     # and you could think that a thread is stuck because a file is not updated anymore.
 
-    def __init__(self, dir: Union[str, None] = None, interval: int = 60):
+    def __init__(self, directory: str | None = None, interval: int = 60):
         super().__init__()
-        self.basedir = dir
+        self.basedir = directory
         self.interval = interval
         self.log = get_logger(__name__, "HeartbeatMiddleware")
         # process-specific

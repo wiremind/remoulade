@@ -121,7 +121,13 @@ select = [
   "UP",   # pyupgrade
   "RUF",  # ruff-specific-rules
 ]
-ignore = ["N801", "N818", "S311"]
+ignore = [
+  "N801",
+  "N818",
+  "S311",
+  # try-except-pass
+  "SIM105"
+]
 
 [tool.ruff.lint.per-file-ignores]
 "tests/**/*.py" = ["S101", "S603"]

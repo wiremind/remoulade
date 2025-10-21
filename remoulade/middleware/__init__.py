@@ -43,6 +43,7 @@ __all__ = [
     "AgeLimitException",
     "CatchError",
     "CurrentMessage",
+    "Heartbeat",
     # Threading
     "Interrupt",
     "LoggingMetadata",
@@ -61,7 +62,6 @@ __all__ = [
     "WorkerThreadLogging",
     "default_middleware",
     "raise_thread_exception",
-    "Heartbeat",
 ]
 
 if CURRENT_OS != "Windows":
