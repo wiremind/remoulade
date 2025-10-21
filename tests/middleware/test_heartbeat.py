@@ -24,7 +24,7 @@ from remoulade.worker import Worker
 
 def test_heartbeat(stub_broker: StubBroker, do_work, tmp_path: Path):
     beatdir = tmp_path
-    stub_broker.add_middleware(Heartbeat(dir=str(beatdir), interval=1))
+    stub_broker.add_middleware(Heartbeat(directory=str(beatdir), interval=1))
     stub_broker.emit_after("process_boot")
     worker = Worker(stub_broker, worker_timeout=100, worker_threads=1)
     worker.start()
@@ -70,7 +70,7 @@ def test_heartbeat(stub_broker: StubBroker, do_work, tmp_path: Path):
 
 def test_multith_heartbeat(stub_broker: StubBroker, do_work, tmp_path: Path):
     beatdir = tmp_path
-    stub_broker.add_middleware(Heartbeat(dir=str(beatdir), interval=1))
+    stub_broker.add_middleware(Heartbeat(directory=str(beatdir), interval=1))
     stub_broker.emit_after("process_boot")
     worker = Worker(stub_broker, worker_timeout=100, worker_threads=2)
     worker.start()
