@@ -20,6 +20,7 @@ import platform
 from .age_limit import AgeLimit, AgeLimitException
 from .catch_error import CatchError
 from .current_message import CurrentMessage
+from .heartbeat import Heartbeat
 from .logging_metadata import LoggingMetadata
 from .max_memory import MaxMemory
 from .max_tasks import MaxTasks
@@ -42,6 +43,7 @@ __all__ = [
     "AgeLimitException",
     "CatchError",
     "CurrentMessage",
+    "Heartbeat",
     # Threading
     "Interrupt",
     "LoggingMetadata",

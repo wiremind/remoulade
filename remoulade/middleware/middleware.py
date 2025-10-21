@@ -1,5 +1,4 @@
 # This file is a part of Remoulade.
-#
 # Copyright (C) 2017,2018 CLEARTYPE SRL <bogdan@cleartype.io>
 #
 # Remoulade is free software; you can redistribute it and/or modify it
@@ -104,6 +103,9 @@ class Middleware:
     def after_process_message(self, broker, message, *, result=None, exception=None):
         """Called after a message has been processed."""
 
+    def after_worker_thread_empty(self, broker, thread):
+        """Called when a worker thread found an empty queue."""
+
     def after_worker_thread_process_message(self, broker, thread):
         """Called after a worker thread has finished processing a message"""
 
@@ -129,6 +131,12 @@ class Middleware:
     def after_worker_boot(self, broker, worker):
         """Called after the worker process has started up."""
 
+    def after_consumer_thread_boot(self, broker, thread):
+        """Called after a consumer thread starts."""
+
+    def after_worker_thread_boot(self, broker, thread):
+        """Called after a worker thread starts."""
+
     def before_worker_shutdown(self, broker, worker):
         """Called before the worker process shuts down."""
 
@@ -139,8 +147,6 @@ class Middleware:
         """Called before a consumer thread shuts down.  This may be
         used to clean up thread-local resources (such as Django
         database connections).
-
-        There is no ``after_consumer_thread_boot``.
         """
 
     def before_worker_thread_shutdown(self, broker, thread):
