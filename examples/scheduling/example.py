@@ -10,7 +10,7 @@ remoulade.set_broker(broker)
 
 @remoulade.actor()
 def count_words(url):
-    response = requests.get(url).text
+    response = requests.get(url).text  # noqa: S113
     print(f"There are {len(response)} words in {url}")
 
 

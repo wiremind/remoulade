@@ -1,10 +1,9 @@
 import datetime
 import json
+from _decimal import Decimal
 from enum import Enum
-from typing import Optional, Tuple, Union
 
 import pytest
-from _decimal import Decimal
 from pydantic import BaseModel, ValidationError
 
 import remoulade
@@ -53,7 +52,7 @@ class MyEnum(Enum):
 
 class MyFirstSchema(BaseModel):
     name: str
-    address: Optional[str]
+    address: str | None
     birth_date: datetime.datetime
     enum: MyEnum
 
@@ -64,8 +63,8 @@ class MySecondSchema(BaseModel):
 
 
 class FirstOutputSchema(BaseModel):
-    output: Union[str, int]
-    error: Union[str, None] = None
+    output: str | int
+    error: str | None = None
 
 
 class SecondOutputSchema(BaseModel):
@@ -73,23 +72,23 @@ class SecondOutputSchema(BaseModel):
 
 
 def tuple_to_list(dict_value: dict, key: str) -> dict:
-    return {**dict_value, key: [args for args in dict_value[key]]}
+    return {**dict_value, key: list(dict_value[key])}
 
 
 @remoulade.actor(store_results=True)
 def my_actor_tuple(
     input_1: MyFirstSchema,
-    input_2: Optional[MySecondSchema] = None,
-    input_3: Union[MyFirstSchema, MySecondSchema, None] = None,
-) -> Tuple[FirstOutputSchema, Optional[SecondOutputSchema]]:
+    input_2: MySecondSchema | None = None,
+    input_3: MyFirstSchema | MySecondSchema | None = None,
+) -> tuple[FirstOutputSchema, SecondOutputSchema | None]:
     return FirstOutputSchema(output=input_1.name), SecondOutputSchema(val=input_2.id if input_2 is not None else "2")
 
 
 @remoulade.actor(store_results=True)
 def my_actor(
     input_1: MyFirstSchema,
-    input_2: Optional[MySecondSchema] = None,
-    input_3: Union[MyFirstSchema, MySecondSchema, None] = None,
+    input_2: MySecondSchema | None = None,
+    input_3: MyFirstSchema | MySecondSchema | None = None,
 ) -> FirstOutputSchema:
     return FirstOutputSchema(output=input_1.name)
 
@@ -97,8 +96,8 @@ def my_actor(
 @remoulade.actor(store_results=True)
 def my_actor_none(
     input_1: MyFirstSchema,
-    input_2: Optional[MySecondSchema] = None,
-    input_3: Union[MyFirstSchema, MySecondSchema, None] = None,
+    input_2: MySecondSchema | None = None,
+    input_3: MyFirstSchema | MySecondSchema | None = None,
 ) -> None:
     return
 
@@ -220,7 +219,7 @@ def backend_result_encoded_raise() -> bytes:
 
 @pytest.fixture
 def backend_result_encoded() -> bytes:
-    return b'{"result": {"output": "aa", "error": null}, ' b'"error": null, "forgot": true, "actor_name": "my_actor"}'
+    return b'{"result": {"output": "aa", "error": null}, "error": null, "forgot": true, "actor_name": "my_actor"}'
 
 
 @pytest.fixture

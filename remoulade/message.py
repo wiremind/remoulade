@@ -16,7 +16,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 import time
-from typing import Any, Dict, Generic, TypeVar, cast
+from typing import Any, TypeVar, cast
 
 import attr
 
@@ -58,7 +58,7 @@ ResultT = TypeVar("ResultT", bound=Result[Any], covariant=True)
 
 
 @attr.s(frozen=True, slots=True, kw_only=True, auto_attribs=True)
-class Message(Generic[ResultT]):
+class Message[ResultT: Result[Any]]:
     """Encapsulates metadata about messages being sent to individual actors.
 
     Parameters:
@@ -75,8 +75,8 @@ class Message(Generic[ResultT]):
     queue_name: str
     actor_name: str
     args: tuple = attr.field(converter=tuple)
-    kwargs: Dict
-    options: Dict[str, Any]
+    kwargs: dict
+    options: dict[str, Any]
     message_id: str = attr.field(factory=generate_unique_id)
     message_timestamp: int = attr.field(factory=lambda: int(time.time() * 1000))
 
@@ -104,7 +104,7 @@ class Message(Generic[ResultT]):
         options.update(updated_options)
         return attr.evolve(self, **attributes, options=options)
 
-    def build(self, options: Dict[str, Any]):
+    def build(self, options: dict[str, Any]):
         """Build message for pipeline"""
         return self.copy(options=options)
 

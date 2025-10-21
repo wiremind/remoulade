@@ -17,7 +17,6 @@
 import time
 from itertools import chain
 from queue import Empty, Queue
-from typing import List, Optional
 
 from ..broker import Broker, Consumer, MessageProxy
 from ..common import current_millis
@@ -37,7 +36,7 @@ class StubBroker(Broker):
     def __init__(self, middleware=None):
         super().__init__(middleware)
 
-        self.dead_letters: List[Message] = []
+        self.dead_letters: list[Message] = []
 
     def consume(self, queue_name, prefetch=1, timeout=100):
         """Create a new consumer for a queue.
@@ -75,7 +74,7 @@ class StubBroker(Broker):
             self.delay_queues.add(delayed_name)
             self.emit_after("declare_delay_queue", delayed_name)
 
-    def _apply_delay(self, message: "Message", delay: Optional[int] = None) -> "Message":
+    def _apply_delay(self, message: "Message", delay: int | None = None) -> "Message":
         if delay is not None:
             message_eta = current_millis() + delay
             queue_name = message.queue_name if delay is None else dq_name(message.queue_name)

@@ -14,10 +14,9 @@
 #
 # You should have received a copy of the GNU Lesser General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
-from typing import Any, Generic, Optional, TypeVar, Union, overload
+from typing import Any, Literal, TypeVar, overload
 
 import attr
-from typing_extensions import Literal
 
 from remoulade.results.errors import ErrorStored
 
@@ -28,7 +27,7 @@ R = TypeVar("R", covariant=True)
 
 
 @attr.s(frozen=True, slots=True, kw_only=True, auto_attribs=True)
-class Result(Generic[R]):
+class Result[R]:
     """Encapsulates metadata needed to retrieve the result of a message
 
     Parameters:
@@ -45,21 +44,19 @@ class Result(Generic[R]):
         self,
         *,
         block: bool = False,
-        timeout: Optional[int] = None,
+        timeout: int | None = None,
         raise_on_error: Literal[True] = True,
         forget: bool = False,
-    ) -> R:
-        ...
+    ) -> R: ...
 
     @overload
     def get(
-        self, *, block: bool = False, timeout: Optional[int] = None, raise_on_error: bool = True, forget: bool = False
-    ) -> Union[R, ErrorStored]:
-        ...
+        self, *, block: bool = False, timeout: int | None = None, raise_on_error: bool = True, forget: bool = False
+    ) -> R | ErrorStored: ...
 
     def get(
-        self, *, block: bool = False, timeout: Optional[int] = None, raise_on_error: bool = True, forget: bool = False
-    ) -> Union[R, ErrorStored]:
+        self, *, block: bool = False, timeout: int | None = None, raise_on_error: bool = True, forget: bool = False
+    ) -> R | ErrorStored:
         """Get the result associated with a message_id from a result backend.
 
         Parameters:
@@ -86,9 +83,7 @@ class Result(Generic[R]):
             self.message_id, block=block, timeout=timeout, forget=forget, raise_on_error=raise_on_error
         )
 
-    async def async_get(
-        self, *, timeout: Optional[int] = None, raise_on_error: bool = True, forget: bool = False
-    ) -> Any:
+    async def async_get(self, *, timeout: int | None = None, raise_on_error: bool = True, forget: bool = False) -> Any:
         return await self.backend.async_get_result(
             self.message_id, timeout=timeout, forget=forget, raise_on_error=raise_on_error
         )

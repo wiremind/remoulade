@@ -58,6 +58,6 @@ def test_raise_thread_exception_unsupported_platform(caplog, monkeypatch):
         (
             "remoulade.middleware.threading",
             logging.CRITICAL,
-            ("Setting thread exceptions (Interrupt) is not supported " "for your current platform ('not supported')."),
+            ("Setting thread exceptions (Interrupt) is not supported for your current platform ('not supported')."),
         ),
     ]

@@ -24,7 +24,7 @@ def test_shutdown_notifications_platform_not_supported(recwarn, monkeypatch):
     # A platform support warning is issued
     assert len(recwarn) == 1
     assert str(recwarn[0].message) == (
-        "ShutdownNotifications cannot kill threads " "on your current platform ('not supported')."
+        "ShutdownNotifications cannot kill threads on your current platform ('not supported')."
     )
 
 
@@ -72,13 +72,13 @@ def test_shutdown_notifications_worker_shutdown_messages(raise_thread_exception,
     [
         (True, True, True),
         (True, False, False),
-        (True, None, True),  # noqa: E241
+        (True, None, True),
         (False, True, True),
         (False, False, False),
-        (False, None, False),  # noqa: E241
+        (False, None, False),
         (None, True, True),
         (None, False, False),
-        (None, None, False),  # noqa: E241
+        (None, None, False),
     ],
 )
 def test_shutdown_notifications_options(stub_broker, actor_opt, message_opt, should_notify):

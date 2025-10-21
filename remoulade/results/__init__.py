@@ -21,11 +21,11 @@ from .middleware import Results
 
 __all__ = [
     "ErrorStored",
+    "MessageIdsMissing",
     "Missing",
     "ResultBackend",
     "ResultError",
-    "ResultTimeout",
     "ResultMissing",
+    "ResultTimeout",
     "Results",
-    "MessageIdsMissing",
 ]

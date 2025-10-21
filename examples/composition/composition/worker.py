@@ -9,7 +9,7 @@ from remoulade.middleware import Prometheus
 from .actors import broker
 
 prometheus: Middleware = Prometheus(
-    http_host="0.0.0.0",
+    http_host="0.0.0.0",  # noqa: S104
     http_port=9191,
     registry=REGISTRY,
 )

@@ -1,16 +1,16 @@
 services:
   redis:
-    image: redis
+    image: redis:7
     ports:
-      - "6379:6379"
+      - "127.0.0.1:6379:6379"
   rabbitmq:
-    image: rabbitmq
+    image: rabbitmq:4.1
     ports:
-      - "5672:5672"
+      - "127.0.0.1:5672:5672"
   postgres:
-    image: postgres
+    image: postgres:16
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"
     environment:
       POSTGRES_USER: remoulade
       POSTGRES_HOST_AUTH_METHOD: trust

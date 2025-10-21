@@ -15,7 +15,7 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 import time
-from typing import Iterable, Optional
+from collections.abc import Iterable
 
 import redis
 
@@ -48,10 +48,10 @@ class RedisBackend(CancelBackend):
     def __init__(
         self,
         *,
-        cancellation_ttl: Optional[int] = None,
+        cancellation_ttl: int | None = None,
         key: str = "remoulade-cancellations",
-        client: Optional[redis.Redis] = None,
-        url: Optional[str] = None,
+        client: redis.Redis | None = None,
+        url: str | None = None,
         socket_timeout: float = 5.0,
         **parameters,
     ) -> None:
@@ -60,7 +60,7 @@ class RedisBackend(CancelBackend):
         self.client = client or redis_client(url=url, socket_timeout=socket_timeout, **parameters)
         self.key = key
 
-    def is_canceled(self, message_id: str, composition_id: Optional[str]) -> bool:
+    def is_canceled(self, message_id: str, composition_id: str | None) -> bool:
         try:
             with self.client.pipeline() as pipe:
                 [pipe.zscore(self.key, key) for key in [message_id, composition_id] if key]
@@ -72,6 +72,6 @@ class RedisBackend(CancelBackend):
     def cancel(self, message_ids: Iterable[str]) -> None:
         timestamp = time.time()
         with self.client.pipeline() as pipe:
-            pipe.zadd(self.key, {message_id: timestamp for message_id in message_ids})
+            pipe.zadd(self.key, dict.fromkeys(message_ids, timestamp))
             pipe.zremrangebyscore(self.key, "-inf", timestamp - self.cancellation_ttl)
             pipe.execute()

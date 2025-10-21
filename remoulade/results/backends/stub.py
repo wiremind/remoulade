@@ -14,8 +14,9 @@
 #
 # You should have received a copy of the GNU Lesser General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
+import contextlib
 import time
-from typing import Any, Dict
+from typing import Any, ClassVar
 
 from ..backend import ForgottenResult, Missing, ResultBackend
 
@@ -29,7 +30,7 @@ class StubBackend(ResultBackend):
         result data.  Defaults to :class:`.JSONEncoder`.
     """
 
-    results: Dict[str, Any] = {}
+    results: ClassVar[dict[str, Any]] = {}
 
     def _get(self, message_key: str, forget: bool = False):
         if forget:
@@ -44,16 +45,14 @@ class StubBackend(ResultBackend):
         return Missing
 
     def _store(self, message_keys, results, ttl):
-        for message_key, result in zip(message_keys, results):
+        for message_key, result in zip(message_keys, results, strict=False):
             result_data = self.encoder.encode(result)
             expiration = time.monotonic() + int(ttl / 1000)
             self.results[message_key] = (result_data, expiration)
 
     def _delete(self, key: str):
-        try:
+        with contextlib.suppress(KeyError):
             del self.results[key]
-        except KeyError:
-            pass
 
     def increment_group_completion(self, group_id: str, message_id: str, ttl: int) -> int:
         group_completion_key = self.build_group_completion_key(group_id)

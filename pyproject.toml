@@ -1,34 +1,153 @@
-[tool.black]
-line-length = 120
-target-version = ['py39']
-include = '\.pyi?$'
-exclude = '''
-/(
-    \.eggs
-  | \.git
-  | \.hg
-  | \.mypy_cache
-  | \.pytest_cache
-  | \.venv
-  | _build
-  | remoulade.egg-info
-  | buck-out
-  | build
-  | dist
-)/
-'''
+[project]
+dynamic = ["version"]
+name = "remoulade"
+description = "Background Processing for Python 3."
+readme = "README.md"
+requires-python = ">=3.12"
+license = "LGPL-3.0-or-later"
+authors = [{ name = "Wiremind", email = "dev@wiremind.io" }]
+dependencies = [
+  "prometheus-client>=0.2",
+  "python-dateutil>=2.8.0",
+  "attrs>=19.2.0",
+]
+classifiers = [
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Programming Language :: Python :: 3.14",
+  "Programming Language :: Python :: 3 :: Only",
+  "Topic :: System :: Distributed Computing",
+]
 
-[tool.pytest.ini_options]
-asyncio_mode = "auto"
-markers = [
-    "confirm_delivery",
-    "group_transaction",
+[project.optional-dependencies]
+rabbitmq = ["amqpstorm>=2.6,<3"]
+redis = ["redis~=6.0"]
+server = ["flask~=2.3.3", "marshmallow>=3,<4", "flask-apispec"]
+postgres = ["sqlalchemy>=1.4.29,<2", "psycopg2>=2.9.11"]
+pydantic = ["pydantic>=2.12", "simplejson"]
+
+dev = [
+  "amqpstorm>=2.6,<3",
+  "redis~=5.0",
+  "flask~=2.3.3",
+  "marshmallow>=3,<4",
+  "flask-apispec",
+  "sqlalchemy>=1.4.29,<2",
+  "psycopg2==2.9.10",
+  "pydantic>=2.12",
+  "simplejson",
+  # Docs
+  "alabaster",
+  "sphinx==4.1.1",
+  "sphinxcontrib-napoleon",
+  "sphinxcontrib-versioning",
+  "sphinx-copybutton",
+  # Linting
+  "ruff",
+  "mypy~=1.18.2",
+  "sqlalchemy[mypy]>=1.4.29,<2",
+  "types-redis",
+  "types-python-dateutil",
+  "types-simplejson",
+  "types-requests",
+  # Misc
+  "pre-commit",
+  "hiredis",
+  "twine",
+  # Testing
+  "pytest",
+  "pytest-benchmark[histogram]",
+  "pytest-cov",
+  "pytest-timeout",
+  "pytest-asyncio",
+  "freezegun",
 ]
-filterwarnings = [
-    "error::sqlalchemy.exc.RemovedIn20Warning",
-    "error::sqlalchemy.exc.MovedIn20Warning",
-]
+
+[project.urls]
+Homepage = "https://github.com/wiremind/remoulade"
+Documentation = "https://remoulade.readthedocs.io/"
+Source = "https://github.com/wiremind/remoulade"
+Tracker = "https://github.com/wiremind/remoulade/issues"
+
+[project.scripts]
+remoulade = "remoulade.__main__:main"
+remoulade-ls = "remoulade.cli.remoulade_ls:main"
+remoulade-run = "remoulade.cli.remoulade_run:main"
+remoulade-scheduler = "remoulade.cli.remoulade_scheduler:main"
 
 [build-system]
-requires = ["setuptools"]
+requires = ["setuptools>=80.9", "wheel", "setuptools-scm[simple]>=8"]
 build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+script-files = ["bin/remoulade-gevent"]
+
+[tool.setuptools.package-data]
+remoulade = ["py.typed"]
+
+[tool.setuptools.packages.find]
+include = ["remoulade*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+markers = ["confirm_delivery", "group_transaction"]
+filterwarnings = [
+  "error::sqlalchemy.exc.RemovedIn20Warning",
+  "error::sqlalchemy.exc.MovedIn20Warning",
+]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 120
+exclude = [".git", "tests/mypy"]
+
+[tool.ruff.lint]
+# https://docs.astral.sh/ruff/rules/
+select = [
+  "S",    # flake8-bandit
+  "B",    # flake8-bugbear
+  "A",    # flake8-builtins
+  "C4",   # flake8-comprehensions
+  "ISC",  # flake8-implicit-str-concat
+  "Q",    # flake8-quotes
+  "SIM",  # flake8-simplify-sim
+  "I",    # isort
+  "N",    # pep8-naming
+  "PERF", # perflint-perf
+  "E",    # error
+  "W",    # warning
+  "F",    # pyflakes
+  "UP",   # pyupgrade
+  "RUF",  # ruff-specific-rules
+]
+ignore = ["N801", "N818", "S311"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**/*.py" = ["S101", "S603"]
+
+[tool.ruff.lint.isort]
+combine-as-imports = true
+force-wrap-aliases = true
+known-first-party = ["remoulade"]
+
+[tool.mypy]
+python_version = "3.12"
+ignore_missing_imports = true
+check_untyped_defs = true
+warn_unused_ignores = true
+strict_optional = false
+plugins = ["sqlalchemy.ext.mypy.plugin"]
+files = ["remoulade/**/*.py", "tests/**/*.py"]
+
+[[tool.mypy.overrides]]
+module = ["remoulade.scheduler.*"]
+ignore_errors = true
+
+[[tool.mypy.overrides]]
+module = ["benchmarks.*"]
+ignore_errors = true
+
+[[tool.mypy.overrides]]
+module = ["tests.*"]
+ignore_errors = true

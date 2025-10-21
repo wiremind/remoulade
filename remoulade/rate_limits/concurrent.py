@@ -35,7 +35,8 @@ class ConcurrentRateLimiter(RateLimiter):
     """
 
     def __init__(self, backend, key, *, limit=1, ttl=900000):
-        assert limit >= 1, "limit must be positive"
+        if not limit >= 1:
+            raise ValueError("limit must be positive")
 
         super().__init__(backend, key)
         self.limit = limit

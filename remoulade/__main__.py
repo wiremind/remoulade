@@ -17,6 +17,7 @@
 
 import argparse
 import atexit
+import contextlib
 import importlib
 import logging
 import os
@@ -124,12 +125,10 @@ def setup_pidfile(filename):
 
         try:
             os.kill(old_pid, 0)
-            raise RuntimeError("Remoulade is already running with PID %d." % old_pid)
+            raise RuntimeError(f"Remoulade is already running with PID {old_pid}.")
         except OSError:
-            try:
+            with contextlib.suppress(FileNotFoundError):
                 os.remove(filename)
-            except FileNotFoundError:
-                pass
 
     except FileNotFoundError:  # pragma: no cover
         pass
@@ -213,7 +212,7 @@ def start_worker(args, logger):
     return ret_code
 
 
-def main():  # noqa
+def main():
     args = parse_arguments()
     for path in args.path:
         sys.path.insert(0, path)
@@ -227,7 +226,7 @@ def main():  # noqa
         return RET_PIDFILE
 
     logger = setup_logging(args, stream=args.log_file or sys.stderr)
-    logger.info("Remoulade %r is booting up." % __version__)
+    logger.info(f"Remoulade {__version__!r} is booting up.")
     if args.pid_file:
         atexit.register(remove_pidfile, args.pid_file, logger)
 

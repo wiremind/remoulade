@@ -48,7 +48,7 @@ class UnknownStrategy(RemouladeError):
     """Raised when the backoff_strategy option is set to an unexpected value."""
 
 
-class ConnectionError(BrokerError):
+class ConnectionError(BrokerError):  # noqa: A001
     """Base class for broker connection-related errors."""
 
 

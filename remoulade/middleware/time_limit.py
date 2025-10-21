@@ -18,7 +18,7 @@ import os
 import threading
 import time
 import warnings
-from typing import TYPE_CHECKING, Dict, Optional, Set, Tuple
+from typing import TYPE_CHECKING
 
 from ..errors import NoCancelBackend
 from ..logging import get_logger
@@ -57,7 +57,7 @@ class TimeLimit(Middleware):
         self.logger = get_logger(__name__, type(self))
         self.time_limit = time_limit
         self.interval = interval
-        self.deadlines: "Dict[int, Optional[Tuple[float, Message, bool]]]" = {}
+        self.deadlines: dict[int, tuple[float, Message, bool] | None] = {}
         self.exit_delay = exit_delay
         self.lock = threading.Lock()
 
@@ -68,7 +68,7 @@ class TimeLimit(Middleware):
                 if row is None:
                     continue
 
-                deadline, message, exception_sent = row
+                deadline, message, _exception_sent = row
                 if current_time >= deadline:
                     self.logger.error("Time limit exceeded. Raising exception in worker thread %r.", thread_id)
                     self.deadlines[thread_id] = deadline, message, True
@@ -81,7 +81,7 @@ class TimeLimit(Middleware):
                 if row is None:
                     continue
 
-                deadline, message, exception_sent = row
+                deadline, message, _exception_sent = row
                 if current_time >= deadline + self.exit_delay / 1000:
                     self.deadlines[thread_id] = None
                     try:
@@ -118,7 +118,7 @@ class TimeLimit(Middleware):
             time.sleep(self.interval / 1000)
 
     @property
-    def actor_options(self) -> Set[str]:
+    def actor_options(self) -> set[str]:
         return {"time_limit"}
 
     def after_process_boot(self, _) -> None:

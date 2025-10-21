@@ -62,7 +62,7 @@ def test_generic_actors_can_be_abstract(stub_broker, stub_worker):
     assert not isinstance(BaseTask, remoulade.Actor)
     assert BaseTask.__actor__ is None
     with pytest.raises(AttributeError):
-        BaseTask.not_existing_attr
+        _ = BaseTask.not_existing_attr
 
     # When I subclass BaseTask
     class FooTask(BaseTask):

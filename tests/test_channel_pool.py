@@ -51,19 +51,20 @@ def test_raise_channel_pool_timeout(mock_channel_factory):
     channel_pool = ChannelPool(channel_factory=mock_channel_factory, pool_size=1)
     with channel_pool.acquire():
         assert len(channel_pool) == 0
-        with pytest.raises(ChannelPoolTimeout):
-            with channel_pool.acquire(timeout=1):
-                pass
+        with pytest.raises(ChannelPoolTimeout), channel_pool.acquire(timeout=1):
+            pass
 
 
 def test_channel_pool_clear(mock_channel_factory):
     channel_pool = ChannelPool(channel_factory=mock_channel_factory, pool_size=5)
-    with channel_pool.acquire():
-        with channel_pool.acquire():
-            with channel_pool.acquire():
-                with channel_pool.acquire():
-                    with channel_pool.acquire():
-                        pass
+    with (
+        channel_pool.acquire(),
+        channel_pool.acquire(),
+        channel_pool.acquire(),
+        channel_pool.acquire(),
+        channel_pool.acquire(),
+    ):
+        pass
 
     channel_pool.clear()
     items_in_pool = []

@@ -17,21 +17,20 @@
 from __future__ import annotations
 
 from collections import namedtuple
+from collections.abc import Iterable
 from contextlib import nullcontext
-from typing import TYPE_CHECKING, Any, Generic, Iterable, TypeVar, Union, cast, overload
-
-from typing_extensions import Self, TypedDict, Unpack
+from typing import TYPE_CHECKING, Any, Self, TypedDict, TypeVar, cast, overload
 
 from .broker import get_broker
 from .collection_results import CollectionResults
 from .common import flatten, generate_unique_id
 
 if TYPE_CHECKING:
-    from .message import Message  # noqa
+    from .message import Message
     from .result import Result
 
-ResultsT = TypeVar("ResultsT", bound="Union[Result[Any], CollectionResults[Any]]")
-ResultsT_1 = TypeVar("ResultsT_1", bound="Union[Result[Any], CollectionResults[Any]]")
+ResultsT = TypeVar("ResultsT", bound="Result[Any] | CollectionResults[Any]")
+ResultsT_1 = TypeVar("ResultsT_1", bound="Result[Any] | CollectionResults[Any]")
 
 
 class GroupInfoDict(TypedDict):
@@ -54,7 +53,7 @@ class GroupInfo(namedtuple("GroupInfo", ("group_id", "children_count"))):
         return cast(GroupInfoDict, self._asdict())
 
 
-class pipeline(Generic[ResultsT]):
+class pipeline[ResultsT: "Result[Any] | CollectionResults[Any]"]:
     """Chain actors together, passing the result of one actor to the
     next one in line.
 
@@ -76,26 +75,25 @@ class pipeline(Generic[ResultsT]):
         self,
         # we should actually not use ResultTs here but define a new type var that is only bound to Result
         # but then mypy gets lost, so reusing ResultsT and ignoring the error
-        children: tuple[Unpack[tuple[Message[Any] | pipeline[Any] | group[Any], ...]], Message[ResultsT] | pipeline[ResultsT]],  # type: ignore
+        children: tuple[  # type: ignore
+            *tuple[Message[Any] | pipeline[Any] | group[Any], ...], Message[ResultsT] | pipeline[ResultsT]
+        ],
         cancel_on_error: bool = False,
-    ):
-        ...
+    ): ...
 
     @overload
     def __init__(
         self: pipeline[CollectionResults[ResultsT_1]],
-        children: tuple[Unpack[tuple[Message[Any] | pipeline[Any] | group[Any], ...]], group[ResultsT_1]],
+        children: tuple[*tuple[Message[Any] | pipeline[Any] | group[Any], ...], group[ResultsT_1]],
         cancel_on_error: bool = False,
-    ):
-        ...
+    ): ...
 
     @overload
     def __init__(
         self,
         children: tuple[Message[Any] | pipeline[Any] | group[Any], ...],
         cancel_on_error: bool = False,
-    ):
-        ...
+    ): ...
 
     def __init__(
         self,
@@ -117,7 +115,7 @@ class pipeline(Generic[ResultsT]):
         if cancel_on_error:
             self.broker.get_cancel_backend()
 
-    def build(self, *, last_options=None, composition_id: str = None, cancel_on_error: bool = False):
+    def build(self, *, last_options=None, composition_id: str | None = None, cancel_on_error: bool = False):
         """Build the pipeline, return the first message to be enqueued or integrated in another pipeline
 
         Build the pipeline by starting at the end. We build a message with all it's options in one step and
@@ -138,18 +136,14 @@ class pipeline(Generic[ResultsT]):
         cancel_on_error = cancel_on_error or self.cancel_on_error
         next_child = None
         for child in reversed(self.children):
-            if next_child:
-                options = {"pipe_target": [m.asdict() for m in next_child]}
-            else:
-                options = last_options or {}
+            options: dict[str, bool | str | list[Any]] = (
+                {"pipe_target": [m.asdict() for m in next_child]} if next_child else last_options or {}
+            )
 
             options["composition_id"] = composition_id
             options["cancel_on_error"] = cancel_on_error
 
-            if isinstance(child, group):
-                next_child = child.build(options)
-            else:
-                next_child = [child.build(options)]
+            next_child = child.build(options) if isinstance(child, group) else [child.build(options)]
 
         return next_child
 
@@ -159,10 +153,10 @@ class pipeline(Generic[ResultsT]):
 
     def __or__(self, other: Message | group):
         """Returns a new pipeline with "other" added to the end."""
-        return type(self)(tuple(self.children) + (other,))
+        return type(self)((*tuple(self.children), other))
 
     def __str__(self):  # pragma: no cover
-        return "pipeline([%s])" % ", ".join(str(m) for m in self.children)
+        return "pipeline([{}])".format(", ".join(str(m) for m in self.children))
 
     @property
     def message_ids(self):
@@ -213,7 +207,7 @@ class pipeline(Generic[ResultsT]):
         backend.cancel(list(flatten(self.message_ids)))
 
 
-class group(Generic[ResultsT]):
+class group[ResultsT: "Result[Any] | CollectionResults[Any]"]:
     """Run a group of actors in parallel.
 
     Parameters:

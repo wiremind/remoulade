@@ -40,8 +40,10 @@ class WindowRateLimiter(RateLimiter):
     """
 
     def __init__(self, backend, key, *, limit=1, window=1):
-        assert limit >= 1, "limit must be positive"
-        assert window >= 1, "window must be positive"
+        if not limit >= 1:
+            raise ValueError("limit must be positive")
+        if not window >= 1:
+            raise ValueError("window must be positive")
 
         super().__init__(backend, key)
         self.limit = limit

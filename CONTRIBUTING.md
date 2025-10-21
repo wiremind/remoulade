@@ -23,7 +23,7 @@ Run the test suite with `pytest`.
 The tests require running [RabbitMQ] and [Redis], the easiest way is to use [docker compose].
 ```bash
 cd tests/
-docker-compose up
+docker compose up
 ```
 
 [CONTRIBUTORS]: https://github.com/wiremind/remoulade/blob/master/CONTRIBUTORS.md

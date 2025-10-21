@@ -15,6 +15,8 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+import importlib.metadata
+
 from .actor import Actor, actor
 from .broker import Broker, Consumer, MessageProxy, change_broker, declare_actors, get_broker, set_broker
 from .collection_results import CollectionResults
@@ -25,7 +27,7 @@ from .errors import (
     BrokerError,
     ChannelPoolTimeout,
     ConnectionClosed,
-    ConnectionError,
+    ConnectionError,  # noqa: A004
     ConnectionFailed,
     NoResultBackend,
     QueueJoinTimeout,
@@ -44,50 +46,50 @@ from .worker import Worker
 __all__ = [
     # Actors
     "Actor",
-    "GenericActor",
-    "actor",
+    "ActorNotFound",
     # Brokers
     "Broker",
+    "BrokerError",
+    "ChannelPoolTimeout",
+    "CollectionResults",
+    "ConnectionClosed",
+    "ConnectionError",
+    "ConnectionFailed",
     "Consumer",
+    # Encoding
+    "Encoder",
+    "GenericActor",
+    "JSONEncoder",
+    # Messages
+    "Message",
     "MessageProxy",
-    "get_broker",
-    "set_broker",
+    # Middleware
+    "Middleware",
+    "NoResultBackend",
+    "PickleEncoder",
+    "QueueJoinTimeout",
+    "QueueNotFound",
+    "RateLimitExceeded",
+    # Errors
+    "RemouladeError",
+    "Result",
+    # Workers
+    "Worker",
+    "actor",
     "change_broker",
     "declare_actors",
+    "get_broker",
+    "get_encoder",
+    # Logging
+    "get_logger",
+    # Scheduler
+    "get_scheduler",
     # Composition
     "group",
     "pipeline",
-    "CollectionResults",
-    # Encoding
-    "Encoder",
-    "JSONEncoder",
-    "PickleEncoder",
-    # Errors
-    "RemouladeError",
-    "BrokerError",
-    "ActorNotFound",
-    "QueueNotFound",
-    "QueueJoinTimeout",
-    "ConnectionError",
-    "ConnectionClosed",
-    "ConnectionFailed",
-    "RateLimitExceeded",
-    "NoResultBackend",
-    "ChannelPoolTimeout",
-    # Logging
-    "get_logger",
-    # Messages
-    "Message",
-    "get_encoder",
+    "set_broker",
     "set_encoder",
-    "Result",
-    # Middleware
-    "Middleware",
-    # Workers
-    "Worker",
-    # Scheduler
-    "get_scheduler",
     "set_scheduler",
 ]
 
-__version__ = "4.0.0"
+__version__ = importlib.metadata.version(__package__)

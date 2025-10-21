@@ -5,21 +5,37 @@ Changelog
 
 All notable changes to this project will be documented in this file.
 
+`4.0.1`_ -- 2025-10-08
+---------------------------
+Feat
+^^^^
+* Replace pip with uv
+* Replace flake8, isort, black, and pyupgrade with ruff
+* Improve typing (mypy)
+* Replace setup.py with pyproject.toml
+
+`4.0.0`_ -- 2025-10-13
+-----------------------
+Changed
+^^^^^^^
+* Add support for Python 3.14
+* Drop support for Python older than 3.12
+
 `3.5.2`_ -- 2025-10-10
 -----------------------
 Fix
-^^^^^
+^^^
 * Honor the get_result timeout when getting result from Redis
 
 `3.5.0`_ -- 2025-08-01
 -----------------------
 Fix
-^^^^^
+^^^
 * add a socket timeout for all redis connection
 * explicit timeout for rabbitmq broker
 
 Feat
-^^^^^
+^^^^
 - more agressive approach in case TimeLimit middleware is fired
 - consumer write heartbeat in a file in order to implement
   kube healthcheck
@@ -27,7 +43,7 @@ Feat
 `3.4.3`_ -- 2025-08-19
 ----------------------
 Fix
-^^^^
+^^^
 * Allow usage of any encoder in ScheduledJob
 
 `3.4.2`_ -- 2025-08-01

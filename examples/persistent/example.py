@@ -1,4 +1,5 @@
 import argparse
+import contextlib
 import json
 import os
 import sys
@@ -38,10 +39,8 @@ def dump_state(n, state):
 
 
 def remove_state(n):
-    try:
+    with contextlib.suppress(OSError):
         os.remove(path_to("states", n))
-    except OSError:
-        pass
 
     fib.logger.info("Deleted state for fib(%d).", n)
 

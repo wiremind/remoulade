@@ -27,7 +27,7 @@ def test_rabbitmq_actors_can_be_sent_messages(rabbitmq_broker, rabbitmq_worker):
 
     # If I send that actor many async messages
     for i in range(100):
-        assert put.send("key-%d" % i, i)
+        assert put.send(f"key-{i}", i)
 
     # And I give the workers time to process the messages
     rabbitmq_broker.join(put.queue_name)
@@ -196,7 +196,7 @@ def test_rabbitmq_actors_can_retry_multiple_times(rabbitmq_broker, rabbitmq_work
     def do_work():
         attempts.append(1)
         if sum(attempts) < 4:
-            raise RuntimeError("Failure #%d" % sum(attempts))
+            raise RuntimeError(f"Failure #{sum(attempts)}")
 
     # And this actor is declared
     rabbitmq_broker.declare_actor(do_work)
@@ -454,10 +454,9 @@ def test_rabbitmq_broker_can_use_transactions(rabbitmq_broker, rabbitmq_worker):
         do_work.send()
 
     # then enqueue message but raise in the transaction
-    with pytest.raises(ValueError):
-        with rabbitmq_broker.tx():
-            [do_work.send() for _ in range(10)]
-            raise ValueError()
+    with pytest.raises(ValueError), rabbitmq_broker.tx():
+        [do_work.send() for _ in range(10)]
+        raise ValueError()
 
     # Then join on the queue
     rabbitmq_broker.join(do_work.queue_name)

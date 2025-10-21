@@ -24,10 +24,10 @@ from ..logging import get_logger
 from .middleware import Middleware
 
 #: The default HTTP host the exposition server should bind to.
-DEFAULT_HTTP_HOST = os.getenv("remoulade_prom_host", "127.0.0.1")
+DEFAULT_HTTP_HOST = os.getenv("remoulade_prom_host", "127.0.0.1")  # noqa: SIM112
 
 #: The default HTTP port the exposition server should listen on.
-DEFAULT_HTTP_PORT = int(os.getenv("remoulade_prom_port", "9191"))
+DEFAULT_HTTP_PORT = int(os.getenv("remoulade_prom_port", "9191"))  # noqa: SIM112
 
 #: The default HTTP port the exposition server should listen on.
 DEFAULT_LABEL = "default"

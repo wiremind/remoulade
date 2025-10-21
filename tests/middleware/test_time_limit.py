@@ -23,7 +23,7 @@ from remoulade.middleware import TimeLimit, TimeLimitExceeded
 
 @mock.patch("os._exit")
 @mock.patch("remoulade.middleware.time_limit.raise_thread_exception")
-def test_time_limit_soft(raise_thread_exception, exit, stub_broker, stub_worker, do_work):
+def test_time_limit_soft(raise_thread_exception, exit, stub_broker, stub_worker, do_work):  # noqa: A002
     @remoulade.actor(time_limit=1)
     def do_work():
         time.sleep(1)

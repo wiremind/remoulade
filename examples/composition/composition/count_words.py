@@ -16,5 +16,5 @@ def ask_count_words():
         raise Exception("Please specify URI(s) to count")
 
     jobs = group([request.message(uri) | count_words.message() for uri in arguments.uri]).run()
-    for uri, count in zip(arguments.uri, jobs.results.get(block=True)):
+    for uri, count in zip(arguments.uri, jobs.results.get(block=True), strict=False):
         print(f" * {uri} has {count} words")

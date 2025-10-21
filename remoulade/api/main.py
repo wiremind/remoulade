@@ -1,11 +1,11 @@
-""" This file describe the API to get the state of messages """
+"""This file describe the API to get the state of messages"""
+
 import sys
-from typing import Any, List
+from typing import Any, TypedDict
 
 from flask import Flask
 from flask_apispec import marshal_with
 from marshmallow import Schema, ValidationError, fields, validate, validates_schema
-from typing_extensions import TypedDict
 from werkzeug.exceptions import HTTPException
 
 import remoulade
@@ -37,7 +37,7 @@ class MessageSchema(Schema):
     @validates_schema
     def validate_actor_name(self, data, **kwargs):
         actor_name = data.get("actor_name")
-        if actor_name not in remoulade.get_broker().actors.keys():
+        if actor_name not in remoulade.get_broker().actors:
             raise ValidationError(f"No actor named {actor_name} exists")
 
 
@@ -139,7 +139,7 @@ def enqueue_message(**kwargs):
 
 class GroupMessagesT(TypedDict):
     group_id: str
-    messages: List[dict]
+    messages: list[dict]
 
 
 @app.route("/actors")

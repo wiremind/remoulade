@@ -55,7 +55,8 @@ class BucketRateLimiter(RateLimiter):
     """
 
     def __init__(self, backend, key, *, limit=1, bucket=1000):
-        assert limit >= 1, "limit must be positive"
+        if not limit >= 1:
+            raise ValueError("limit must be positive")
 
         super().__init__(backend, key)
         self.limit = limit
@@ -64,7 +65,7 @@ class BucketRateLimiter(RateLimiter):
     def _acquire(self):
         timestamp = int(time.time() * 1000)
         current_timestamp = timestamp - (timestamp % self.bucket)
-        current_key = "%s@%d" % (self.key, current_timestamp)
+        current_key = f"{self.key}@{current_timestamp}"
         added = self.backend.add(current_key, 1, ttl=self.bucket)
         if added:
             return True
