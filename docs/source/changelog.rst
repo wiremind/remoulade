@@ -5,6 +5,12 @@ Changelog
 
 All notable changes to this project will be documented in this file.
 
+`4.0.2`_ -- 2025-10-22
+---------------------------
+Changed
+^^^^^^^
+* broker: no longer propagates the OpenTelemetry trace context (``trace_ctx``) to the actor by default.
+
 `4.0.1`_ -- 2025-10-08
 ---------------------------
 Feat

@@ -202,6 +202,9 @@ class Broker:
         yield
 
     def emit_before(self, signal, *args, **kwargs):
+        if signal == "process_message" and args:
+            message: Message[Any] = args[0]
+            message.options.pop("trace_ctx", None)
         for middleware in self.middleware:
             try:
                 getattr(middleware, "before_" + signal)(self, *args, **kwargs)
@@ -381,6 +384,7 @@ class Broker:
 
         message = self._apply_delay(message, delay)
         self.emit_before("enqueue", message, delay)
+        message.options.pop("trace_ctx", None)
 
         try:
             message = self._enqueue(message, delay=delay)
