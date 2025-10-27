@@ -108,10 +108,8 @@ def requeue_message(message_id):
 
 @app.route("/messages/result/<message_id>")
 @marshal_with(ResponseSchema)
-def get_results(message_id):
+def get_results(message_id, max_size:int = 1e4):
     from ..message import get_encoder
-
-    max_size = 1e4
     try:
         result = Result[Any](message_id=message_id).get()
         encoded_result = get_encoder().encode(result).decode("utf-8")
@@ -120,11 +118,11 @@ def get_results(message_id):
             encoded_result = f"The result is too big {size_result / 1e6}M"
         return {"result": encoded_result}
     except ResultMissing:
-        return {"result": "result is missing"}
+        return {"error": "result is missing"}
     except NoResultBackend:
-        return {"result": "no result backend"}
+        return {"error": "no result backend"}
     except (UnicodeDecodeError, TypeError):
-        return {"result": "non serializable result"}
+        return {"error": "non serializable result"}
 
 
 @app.route("/messages", methods=["POST"])
