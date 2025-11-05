@@ -31,6 +31,9 @@ class Heartbeat(Middleware):
     You can specify a minimal interval in seconds (default to 1 minute) between each write.
     The directory is created when starting if it does not exist
     (default to your temporary directory+/remouladebeat).
+
+    You should use an out-of-process probe to check the beats and react in consequence
+    if the threads lock themselves.
     """
 
     class ThreadBeat(threading.local):
