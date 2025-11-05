@@ -5,6 +5,13 @@ Changelog
 
 All notable changes to this project will be documented in this file.
 
+Not released
+------------
+Fix
+^^^
+* Avoid pipeline skipping messages after an empty group
+
+
 `4.0.1`_ -- 2025-10-08
 ---------------------------
 Feat
