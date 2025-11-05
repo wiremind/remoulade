@@ -15,7 +15,6 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 import os
-import shutil
 import tempfile
 import threading
 import time
@@ -34,6 +33,10 @@ class Heartbeat(Middleware):
     (default to your temporary directory+/remouladebeat).
     """
 
+    class ThreadBeat(threading.local):
+        ts: float
+        file: str
+
     # This implementation is rather simple and naive.
     # There is nothing to ensure the actual state of the filesystem corresponds
     # to what we think about it here.
@@ -45,11 +48,8 @@ class Heartbeat(Middleware):
         self.basedir = directory
         self.interval = interval
         self.log = get_logger(__name__, "HeartbeatMiddleware")
-        # process-specific
-        self.subdirs: dict[int, str] = {}
         # thread-specific
-        self.beats: dict[int, float] = {}
-        self.files: dict[int, str] = {}
+        self.beat = Heartbeat.ThreadBeat()
 
     def after_process_boot(self, broker):
         if not self.basedir:
@@ -57,21 +57,16 @@ class Heartbeat(Middleware):
         os.makedirs(self.basedir, exist_ok=True)
         self.log.debug("Created directory %s", self.basedir)
 
-    def before_worker_boot(self, broker, worker):
-        pid = os.getpid()
-        self.subdirs[pid] = tempfile.mkdtemp(dir=self.basedir, prefix=f"pid-{pid}-")
-        self.log.debug("Created directory %s", self.subdirs[pid])
-
     def after_worker_thread_boot(self, broker, thread):
-        fd, self.files[thread.ident] = tempfile.mkstemp(dir=self.subdirs[os.getpid()], prefix=f"th-{thread.ident}-")
+        fd, self.beat.file = tempfile.mkstemp(dir=self.basedir, prefix=f"th-{thread.ident}-")
         os.close(fd)
+        self.beat.ts = 0
 
     def heartbeat(self):
-        ident = threading.get_ident()
-        if self.beats.get(ident, 0) + self.interval < (beat := time.time()):
-            with open(self.files[ident], "w") as f:
+        if self.beat.ts + self.interval < (beat := time.time()):
+            with open(self.beat.file, "w") as f:
                 f.write(f"{beat}")
-            self.beats[ident] = beat
+            self.beat.ts = beat
 
     def before_process_message(self, broker, message):
         self.heartbeat()
@@ -81,10 +76,6 @@ class Heartbeat(Middleware):
 
     def before_worker_thread_shutdown(self, broker, thread):
         try:
-            os.remove(self.files[thread.ident])
+            os.remove(self.beat.file)
         except FileNotFoundError:
             pass
-        del self.beats[thread.ident]
-
-    def before_worker_shutdown(self, broker, worker):
-        shutil.rmtree(self.subdirs[os.getpid()], ignore_errors=True)

@@ -35,12 +35,9 @@ def test_heartbeat(stub_broker: StubBroker, do_work, tmp_path: Path):
     worker.join()
 
     assert beatdir.is_dir()
-    # one proc dir
-    assert len(list(beatdir.iterdir())) == 1
     # one thread file
-    procdir = next(beatdir.iterdir())
-    assert len(list(procdir.iterdir())) == 1
-    beatfile = next(procdir.iterdir())
+    assert len(list(beatdir.iterdir())) == 1
+    beatfile = next(beatdir.iterdir())
     beat = float(beatfile.read_text())
 
     do_work.send()
@@ -65,7 +62,6 @@ def test_heartbeat(stub_broker: StubBroker, do_work, tmp_path: Path):
     worker.workers[0].join()
     assert not beatfile.is_file()
     worker.stop()
-    assert not procdir.is_dir()
 
 
 def test_multith_heartbeat(stub_broker: StubBroker, do_work, tmp_path: Path):
@@ -90,16 +86,12 @@ def test_multith_heartbeat(stub_broker: StubBroker, do_work, tmp_path: Path):
     worker.join()
 
     assert beatdir.is_dir()
-    # one proc dir
-    assert len(list(beatdir.iterdir())) == 1
-    # two thread file
-    procdir = next(beatdir.iterdir())
-    assert len(list(procdir.iterdir())) == 2
-    assert all(float(f.read_text()) for f in procdir.iterdir())
+    # two thread files
+    assert len(list(beatdir.iterdir())) == 2
+    assert all(float(f.read_text()) for f in beatdir.iterdir())
 
     t0.stop()
     t0.join()
-    assert not any(str(t0.ident) in str(p) for p in procdir.iterdir())
-    assert len(list(procdir.iterdir())) == 1
+    assert not any(str(t0.ident) in str(p) for p in beatdir.iterdir())
+    assert len(list(beatdir.iterdir())) == 1
     worker.stop()
-    assert not procdir.is_dir()
