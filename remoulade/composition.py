@@ -143,7 +143,12 @@ class pipeline[ResultsT: "Result[Any] | CollectionResults[Any]"]:
             options["composition_id"] = composition_id
             options["cancel_on_error"] = cancel_on_error
 
-            next_child = child.build(options) if isinstance(child, group) else [child.build(options)]
+            built_children = child.build(options) if isinstance(child, group) else [child.build(options)]
+            if not built_children:
+                # Skip empty groups so downstream children still run
+                continue
+
+            next_child = built_children
 
         return next_child
 

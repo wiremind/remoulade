@@ -426,6 +426,46 @@ def test_group_wait_forget(stub_broker, result_backend, stub_worker):
     assert list(g.results.get()) == [None] * 5
 
 
+def test_pipeline_runs_after_empty_group(stub_broker, stub_worker):
+    callback_executed = threading.Event()
+
+    @remoulade.actor
+    def after_empty_group():
+        callback_executed.set()
+
+    stub_broker.declare_actor(after_empty_group)
+
+    empty_group = group([])
+    pipe = pipeline([empty_group, after_empty_group.message()])
+
+    pipe.run()
+
+    stub_broker.join(after_empty_group.queue_name)
+    stub_worker.join()
+
+    assert callback_executed.wait(timeout=1), "Pipeline should execute message following an empty group"
+
+
+def test_pipeline_runs_after_empty_pipeline(stub_broker, stub_worker):
+    callback_executed = threading.Event()
+
+    @remoulade.actor
+    def after_empty_pipeline():
+        callback_executed.set()
+
+    stub_broker.declare_actor(after_empty_pipeline)
+
+    empty_pipe = pipeline([])
+    pipe = pipeline([empty_pipe, after_empty_pipeline.message()])
+
+    pipe.run()
+
+    stub_broker.join(after_empty_pipeline.queue_name)
+    stub_worker.join()
+
+    assert callback_executed.wait(timeout=1), "Pipeline should execute message following an empty pipeline"
+
+
 def test_pipelines_with_groups(stub_broker, stub_worker, result_middleware):
     # Given an actor that stores results
     @remoulade.actor(store_results=True)
