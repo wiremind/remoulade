@@ -50,7 +50,7 @@ class TimeLimit(Middleware):
       time_limit(int): The maximum number of milliseconds actors may run for.
       interval(int): The interval (in milliseconds) with which to check for actors that have exceeded the limit.
       exit_delay(int): The delay (in milliseconds) after with we stop (SystemExit) to the worker if the exception failed
-       to stop the message (ie. system calls). None to disable, disabled by default.
+      to stop the message (ie. system calls). Default to 5 minutes (300000 ms).
     """
 
     def __init__(self, *, time_limit: int = 1800_000, interval: int = 1000, exit_delay: int = 300_000) -> None:
@@ -70,7 +70,11 @@ class TimeLimit(Middleware):
 
                 deadline, message, _exception_sent = row
                 if current_time >= deadline:
-                    self.logger.error("Time limit exceeded. Raising exception in worker thread %r.", thread_id)
+                    self.logger.error(
+                        "Time limit exceeded. Raising exception in worker thread %r (%d ms before hard kill)",
+                        thread_id,
+                        max(self.exit_delay - (current_time - deadline) * 1000, 0),
+                    )
                     self.deadlines[thread_id] = deadline, message, True
                     raise_thread_exception(thread_id, TimeLimitExceeded)
 
