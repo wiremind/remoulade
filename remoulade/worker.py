@@ -68,15 +68,7 @@ class Worker:
       prefetch_multiplier(int): The number of message to prefetch at a time, to be multiplied with the number of threads
     """
 
-    def __init__(
-        self,
-        broker,
-        *,
-        queues=None,
-        worker_timeout=1000,
-        worker_threads=8,
-        prefetch_multiplier=2,
-    ):
+    def __init__(self, broker, *, queues=None, worker_timeout=1000, worker_threads=8, prefetch_multiplier=2):
         self.logger = get_logger(__name__, type(self))
         self.broker = broker
         if broker.local:
@@ -215,10 +207,7 @@ class Worker:
 
     def _add_worker(self):
         worker = _WorkerThread(
-            broker=self.broker,
-            consumers=self.consumers,
-            work_queue=self.work_queue,
-            worker_timeout=self.worker_timeout,
+            broker=self.broker, consumers=self.consumers, work_queue=self.work_queue, worker_timeout=self.worker_timeout
         )
         worker.start()
         self.workers.append(worker)
@@ -270,9 +259,7 @@ class _ConsumerThread(Thread):
 
             try:
                 self.consumer = self.broker.consume(
-                    queue_name=self.queue_name,
-                    prefetch=self.prefetch,
-                    timeout=self.worker_timeout,
+                    queue_name=self.queue_name, prefetch=self.prefetch, timeout=self.worker_timeout
                 )
                 attempts = 0
 
@@ -461,12 +448,7 @@ class _WorkerThread(Thread):
         """
         try:
             extra = build_extra(message, 1000)
-            self.logger.debug(
-                "Received message %s with id %r.",
-                message,
-                message.message_id,
-                extra=extra,
-            )
+            self.logger.debug("Received message %s with id %r.", message, message.message_id, extra=extra)
             self.broker.emit_before("process_message", message)
 
             res = None
