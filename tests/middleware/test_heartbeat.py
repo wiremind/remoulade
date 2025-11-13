@@ -17,6 +17,8 @@
 import time
 from pathlib import Path
 
+from freezegun import freeze_time
+
 from remoulade.brokers.stub import StubBroker
 from remoulade.middleware import Heartbeat
 from remoulade.worker import Worker
@@ -28,11 +30,10 @@ def test_heartbeat(stub_broker: StubBroker, do_work, tmp_path: Path):
     stub_broker.emit_after("process_boot")
     worker = Worker(stub_broker, worker_timeout=100, worker_threads=1)
     worker.start()
-
-    do_work.send()
-
-    stub_broker.join(do_work.queue_name)
-    worker.join()
+    with freeze_time("1998-07-12 21:00"):
+        do_work.send()
+        stub_broker.join(do_work.queue_name)
+        worker.join()
 
     assert beatdir.is_dir()
     # one thread file
@@ -40,22 +41,21 @@ def test_heartbeat(stub_broker: StubBroker, do_work, tmp_path: Path):
     beatfile = next(beatdir.iterdir())
     beat = float(beatfile.read_text())
 
-    do_work.send()
-    stub_broker.join(do_work.queue_name)
-    worker.join()
-    # This is flaky if it took more than 1 second to get here since the previous send
-    # But I guess there's bigger issues if it is the case.
+    with freeze_time("1998-07-12 21:00"):
+        do_work.send()
+        stub_broker.join(do_work.queue_name)
+        worker.join()
     assert float(beatfile.read_text()) == beat
 
-    time.sleep(1)
-    do_work.send()
-    stub_broker.join(do_work.queue_name)
-    worker.join()
+    with freeze_time("1998-07-12 21:27"):
+        do_work.send()
+        stub_broker.join(do_work.queue_name)
+        worker.join()
     assert (beat2 := float(beatfile.read_text())) > beat
 
     # Test it beats even if the queue is empty
-    # Flaky due to lack of sync, but should not actually fail
-    time.sleep(2)
+    with freeze_time("1998-07-12 23:00"):
+        time.sleep(2)
     assert float(beatfile.read_text()) > beat2
 
     worker.workers[0].stop()
