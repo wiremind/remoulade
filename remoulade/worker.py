@@ -42,7 +42,10 @@ def build_extra(message, max_input_size: int | None = None):
     return {
         **message.options.get("logging_metadata", {}),
         "message_id": message.message_id,
-        "input": {"args": str(message.args)[:max_input_size], "kwargs": str(message.kwargs)[:max_input_size]},
+        "input": {
+            "args": str(message.args)[:max_input_size],
+            "kwargs": str(message.kwargs)[:max_input_size],
+        },
     }
 
 
@@ -242,6 +245,7 @@ class _ConsumerThread(Thread):
 
     def run(self):
         self.logger.debug("Running consumer thread...")
+        self.broker.emit_after("consumer_thread_boot", self)
         self.running = True
         restart_consumer = CONSUMER_RESTART_MAX_RETRIES > 0
         attempts = 0
@@ -415,6 +419,7 @@ class _WorkerThread(Thread):
 
     def run(self):
         self.logger.debug("Running worker thread...")
+        self.broker.emit_after("worker_thread_boot", self)
         self.running = True
         while self.running:
             if self.paused:
@@ -428,6 +433,7 @@ class _WorkerThread(Thread):
                 self.process_message(message)
                 self.broker.emit_after("worker_thread_process_message", self)
             except Empty:
+                self.broker.emit_after("worker_thread_empty", self)
                 continue
 
         self.broker.emit_before("worker_thread_shutdown", self)

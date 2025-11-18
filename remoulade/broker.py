@@ -26,6 +26,7 @@ from .middleware import (
     AgeLimit,
     CatchError,
     CurrentMessage,
+    Heartbeat,
     LoggingMetadata,
     MaxMemory,
     MaxTasks,
@@ -57,6 +58,7 @@ def _get_middleware_order():
     #: The order in which middlewares are sorted
     middleware_order = [
         WorkerThreadLogging,
+        Heartbeat,
         AgeLimit,
         TimeLimit,
         ShutdownNotifications,
