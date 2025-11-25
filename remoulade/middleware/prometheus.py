@@ -20,6 +20,8 @@ from threading import local
 
 import prometheus_client as prom
 
+from remoulade.common import current_millis
+
 from ..logging import get_logger
 from .middleware import Middleware
 
@@ -68,6 +70,7 @@ class Prometheus(Middleware):
         self.total_retried_messages = None
         self.total_rejected_messages = None
         self.message_durations = None
+        self.message_time_in_queue = None
 
     @property
     def actor_options(self):
@@ -91,6 +94,7 @@ class Prometheus(Middleware):
             self.total_retried_messages,
             self.total_rejected_messages,
             self.message_durations,
+            self.message_time_in_queue,
         ]
         worker_queues = worker.consumer_whitelist if worker else None
         for metric in metrics:
@@ -135,6 +139,12 @@ class Prometheus(Middleware):
             ["queue_name", "actor_name"],
             registry=self.registry,
         )
+        self.message_time_in_queue = prom.Summary(
+            "remoulade_message_time_in_queue_milliseconds",
+            "The time messages spend in the queue before being processed.",
+            ["queue_name", "actor_name"],
+            registry=self.registry,
+        )
         for actor in broker.actors.values():
             self._init_labels(actor, worker)
 
@@ -169,6 +179,9 @@ class Prometheus(Middleware):
 
     def before_process_message(self, broker, message):
         self.message_start_times[message.message_id] = time.monotonic() * 1000
+        self.message_time_in_queue.labels(*self._get_labels(broker, message)).observe(
+            current_millis() - message.message_timestamp
+        )
         self.worker_busy.set(1)
 
     def after_process_message(self, broker, message, *, result=None, exception=None):
