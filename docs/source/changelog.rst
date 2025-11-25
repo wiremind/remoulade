@@ -5,8 +5,11 @@ Changelog
 
 All notable changes to this project will be documented in this file.
 
-Not released
+`4.1.0`_ -- 2025-11-25
 ------------
+Feat
+^^^^
+* Add new remoulade_message_time_in_queue_milliseconds prometheus metric to track time spent in queue by messages
 Fix
 ^^^
 * Avoid pipeline skipping messages after an empty group
