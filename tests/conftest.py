@@ -21,6 +21,7 @@ from remoulade.brokers.local import LocalBroker
 from remoulade.brokers.rabbitmq import RabbitmqBroker
 from remoulade.brokers.stub import StubBroker
 from remoulade.cancel import backends as cl_backends
+from remoulade.concurrent import backends as cc_backends
 from remoulade.rate_limits import backends as rl_backends
 from remoulade.results import (
     Results,
@@ -173,26 +174,8 @@ def scheduler_thread():
 
 
 @pytest.fixture
-def redis_rate_limiter_backend():
-    redis_url = os.getenv("REMOULADE_TEST_REDIS_URL") or "redis://localhost:6481/0"
-    backend = rl_backends.RedisBackend(url=redis_url)
-    check_redis(backend.client)
-    return backend
-
-
-@pytest.fixture
-def stub_rate_limiter_backend():
+def rate_limit_backend():
     return rl_backends.StubBackend()
-
-
-@pytest.fixture
-def rate_limiter_backends(redis_rate_limiter_backend, stub_rate_limiter_backend):
-    return {"redis": redis_rate_limiter_backend, "stub": stub_rate_limiter_backend}
-
-
-@pytest.fixture(params=["redis", "stub"])
-def rate_limiter_backend(request, rate_limiter_backends):
-    return rate_limiter_backends[request.param]
 
 
 @pytest.fixture
@@ -335,6 +318,19 @@ def cancel_backends(redis_cancel_backend, stub_cancel_backend):
 @pytest.fixture(params=["redis", "stub"])
 def cancel_backend(request, cancel_backends):
     return cancel_backends[request.param]
+
+
+@pytest.fixture
+def redis_concurrency_backend():
+    redis_url = os.getenv("REMOULADE_TEST_REDIS_URL") or "redis://localhost:6481/0"
+    backend = cc_backends.RedisBackend(url=redis_url)
+    check_redis(backend.client)
+    return backend
+
+
+@pytest.fixture
+def stub_concurrency_backend():
+    return cc_backends.StubBackend()
 
 
 @pytest.fixture

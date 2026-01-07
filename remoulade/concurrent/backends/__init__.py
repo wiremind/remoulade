@@ -14,20 +14,21 @@
 #
 # You should have received a copy of the GNU Lesser General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
+import warnings
 
-from limits.storage import MemoryStorage
+from .stub import StubBackend
 
-from ..backend import RateLimitBackend
-from .utils import build_limiter
+try:
+    from .redis import RedisBackend
+except ImportError:  # pragma: no cover
+    warnings.warn(
+        "RedisBackend is not available.  Run `pip install remoulade[redis]` to add support for that backend.",
+        ImportWarning,
+        stacklevel=2,
+    )
 
 
-class StubBackend(RateLimitBackend):
-    """In-memory backend using ``limits`` MemoryStorage."""
-
-    def __init__(self, *, strategy: str = "sliding_window"):
-        super().__init__()
-
-        self.limiter = build_limiter(MemoryStorage(), strategy=strategy)
-
-    def hit(self, limit, key: str) -> bool:
-        return bool(self.limiter.hit(limit, key))
+__all__ = [
+    "RedisBackend",
+    "StubBackend",
+]

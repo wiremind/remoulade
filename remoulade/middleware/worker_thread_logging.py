@@ -1,6 +1,5 @@
 import logging
 
-from ..errors import RateLimitExceeded
 from ..logging import get_logger
 from .middleware import Middleware
 
@@ -32,19 +31,14 @@ class WorkerThreadLogging(Middleware):
     def after_process_message(self, broker, message, *, result=None, exception=None):
         if exception is None:
             return
-        if isinstance(exception, RateLimitExceeded):
-            self.logger.warning(
-                "Rate limit exceeded in message %s: %s.", message, exception, extra=self.build_extra(message)
-            )
-        else:
-            self.logger.log(
-                logging.ERROR if message.failed else logging.WARNING,
-                "Failed to process message %s with unhandled %s",
-                message,
-                exception.__class__.__name__,
-                exc_info=True,
-                extra=self.build_extra(message, 5000),
-            )
+        self.logger.log(
+            logging.ERROR if message.failed else logging.WARNING,
+            "Failed to process message %s with unhandled %s",
+            message,
+            exception.__class__.__name__,
+            exc_info=True,
+            extra=self.build_extra(message, 5000),
+        )
 
     def after_skip_message(self, broker, message):
         self.logger.warning("Message %s was skipped.", message, extra=self.build_extra(message))

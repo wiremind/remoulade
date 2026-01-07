@@ -14,68 +14,11 @@
 #
 # You should have received a copy of the GNU Lesser General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
-from collections.abc import Callable
 
 
-class RateLimiterBackend:
-    """ABC for rate limiter backends."""
+class RateLimitBackend:
+    """Common wrapper around a ``limits`` storage/strategy."""
 
-    def add(self, key: str, value: int, ttl: int) -> bool:  # pragma: no cover
-        """Add a key to the backend iff it doesn't exist.
-
-        Parameters:
-          key(str): The key to add.
-          value(int): The value to add.
-          ttl(int): The max amount of time in milliseconds the key can
-            live in the backend for.
-        """
-        raise NotImplementedError
-
-    def incr(self, key: str, amount: int, maximum: int, ttl: int) -> bool:  # pragma: no cover
-        """Atomically increment a key in the backend up to the given maximum.
-
-        Parameters:
-          key(str): The key to increment.
-          amount(int): The amount to increment the value by.
-          maximum(int): The maximum amount the value can have.
-          ttl(int): The max amount of time in milliseconds the key can
-            live in the backend for.
-
-        Returns:
-          bool: True if the key was successfully incremented.
-        """
-        raise NotImplementedError
-
-    def decr(self, key: str, amount: int, minimum: int, ttl: int) -> bool:  # pragma: no cover
-        """Atomically decrement a key in the backend up to the given maximum.
-
-        Parameters:
-          key(str): The key to decrement.
-          amount(int): The amount to decrement the value by.
-          minimum(int): The minimum amount the value can have.
-          ttl(int): The max amount of time in milliseconds the key can
-            live in the backend for.
-
-        Returns:
-          bool: True if the key was successfully decremented.
-        """
-        raise NotImplementedError
-
-    def incr_and_sum(
-        self, key: str, keys: Callable[[], list[str]], amount: int, maximum: int, ttl: int
-    ):  # pragma: no cover
-        """Atomically increment a key unless the sum of keys is greater than the given maximum.
-
-        Parameters:
-          key(str): The key to increment.
-          keys(callable): A callable to return the list of keys to be
-            summed over.
-          amount(int): The amount to decrement the value by.
-          maximum(int): The maximum sum of the keys.
-          ttl(int): The max amount of time in milliseconds the key can
-            live in the backend for.
-
-        Returns:
-          bool: True if the key was successfully incremented.
-        """
-        raise NotImplementedError
+    def hit(self, limit, key: str) -> bool:
+        """Return True if the operation can proceed under the given limit."""
+        raise NotImplementedError(f"{type(self).__name__!r} does not implement hit")

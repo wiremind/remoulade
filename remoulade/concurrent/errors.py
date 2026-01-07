@@ -1,6 +1,6 @@
 # This file is a part of Remoulade.
 #
-# Copyright (C) 2017,2018 CLEARTYPE SRL <bogdan@cleartype.io>
+# Copyright (C) 2017,2018 WIREMIND SAS <dev@wiremind.fr>
 #
 # Remoulade is free software; you can redistribute it and/or modify it
 # under the terms of the GNU Lesser General Public License as published by
@@ -15,19 +15,8 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-from limits.storage import MemoryStorage
-
-from ..backend import RateLimitBackend
-from .utils import build_limiter
+from ..middleware import MiddlewareError
 
 
-class StubBackend(RateLimitBackend):
-    """In-memory backend using ``limits`` MemoryStorage."""
-
-    def __init__(self, *, strategy: str = "sliding_window"):
-        super().__init__()
-
-        self.limiter = build_limiter(MemoryStorage(), strategy=strategy)
-
-    def hit(self, limit, key: str) -> bool:
-        return bool(self.limiter.hit(limit, key))
+class ConcurrencyLimitExceeded(MiddlewareError):
+    """Raised when a concurrency limit is exceeded inside middleware hooks."""

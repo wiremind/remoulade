@@ -1,12 +1,10 @@
 import platform
 import time
-from unittest.mock import patch
 
 import pytest
 
 import remoulade
 from remoulade import Message, Middleware
-from remoulade.errors import RateLimitExceeded
 from remoulade.middleware import SkipMessage
 from remoulade.results import Results
 
@@ -675,29 +673,6 @@ def test_can_call_repr_on_actors():
     # When I call repr on it
     # Then I should get back its representation
     assert repr(test) == "Actor({fn!r}, queue_name='default', actor_name='test')".format(**vars(test))
-
-
-def test_workers_log_rate_limit_exceeded_errors_differently(stub_broker, stub_worker):
-    # Given that I've mocked the logging class
-    with patch("logging.Logger.warning") as warning_mock:
-        # And I have an actor that raises RateLimitExceeded
-        @remoulade.actor(max_retries=0)
-        def raise_rate_limit_exceeded():
-            raise RateLimitExceeded("exceeded")
-
-        # And this actor is declared
-        stub_broker.declare_actor(raise_rate_limit_exceeded)
-
-        # When I send that actor a message
-        raise_rate_limit_exceeded.send()
-
-        # And wait for the message to get processed
-        stub_broker.join(raise_rate_limit_exceeded.queue_name)
-        stub_worker.join()
-
-        # Then warning mock should be called with a special message
-        warning_messages = [args[0] for _, args, _ in warning_mock.mock_calls]
-        assert "Rate limit exceeded in message %s: %s." in warning_messages
 
 
 def test_as_dict_actor(stub_broker):

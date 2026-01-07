@@ -5,6 +5,12 @@ Changelog
 
 All notable changes to this project will be documented in this file.
 
+`5.0.0`_ -- 2026-01-09
+------------
+Feat
+^^^^
+* Replace existing RateLimiter by RateLimitEnqueue, RateLimitProcess & Concurrent middlewares
+
 `4.2.0`_ -- 2025-11-25
 ------------
 Feat
