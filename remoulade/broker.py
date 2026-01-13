@@ -20,7 +20,15 @@ from queue import Queue
 from typing import TYPE_CHECKING, Any, TypeVar
 
 from .cancel import Cancel, CancelBackend
-from .errors import ActorNotFound, NoCancelBackend, NoResultBackend, NoStateBackend
+from .concurrent import ConcurrencyBackend, Concurrent
+from .errors import (
+    ActorNotFound,
+    NoCancelBackend,
+    NoConcurrencyBackend,
+    NoRateLimitBackend,
+    NoResultBackend,
+    NoStateBackend,
+)
 from .logging import get_logger
 from .middleware import (
     AgeLimit,
@@ -38,6 +46,7 @@ from .middleware import (
     WorkerThreadLogging,
     default_middleware,
 )
+from .rate_limits import RateLimitBackend, RateLimitEnqueue, RateLimitProcess
 from .results import ResultBackend, Results
 from .state import MessageState, StateBackend
 
@@ -72,6 +81,9 @@ def _get_middleware_order():
         MaxTasks,
         MessageState,
         Cancel,
+        Concurrent,
+        RateLimitEnqueue,
+        RateLimitProcess,
     ]
 
     try:
@@ -252,6 +264,40 @@ class Broker:
         """
         return self._get_backend("state")
 
+    def get_concurrency_backend(self) -> ConcurrencyBackend:
+        """Get the ConcurrencyBackend associated with the broker
+
+        Raises:
+            NoConcurrencyBackend: if there is no ConcurrencyBackend
+
+        Returns:
+            ConcurrencyBackend: the concurrency backend
+        """
+
+        return self._get_backend("concurrency")
+
+    def get_rate_limit_enqueue_backend(self) -> RateLimitBackend:
+        """Get the RateLimitBackend associated with the broker
+
+        Raises:
+            NoRateLimitBackend: if there is no RateLimitBackend
+
+        Returns:
+            RateLimitBackend: the rate limit backend
+        """
+        return self._get_backend("rate-limit-enqueue")
+
+    def get_rate_limit_process_backend(self) -> RateLimitBackend:
+        """Get the RateLimitBackend associated with the broker
+
+        Raises:
+            NoRateLimitBackend: if there is no RateLimitBackend
+
+        Returns:
+            RateLimitBackend: the rate limit backend
+        """
+        return self._get_backend("rate-limit-process")
+
     def _get_backend(self, name: str):
         """Get the backend associated with the broker either cancel or results"""
         message = "The default broker doesn't have a %s backend."
@@ -259,6 +305,9 @@ class Broker:
             "results": (Results, NoResultBackend(message % "results")),
             "cancel": (Cancel, NoCancelBackend(message % "cancel")),
             "state": (MessageState, NoStateBackend(message % "state")),
+            "rate-limit-enqueue": (RateLimitEnqueue, NoRateLimitBackend(message % "rate-limit")),
+            "rate-limit-process": (RateLimitProcess, NoRateLimitBackend(message % "rate-limit")),
+            "concurrency": (Concurrent, NoConcurrencyBackend(message % "concurrency")),
         }
         try:
             middleware_class, exception = backends[name]

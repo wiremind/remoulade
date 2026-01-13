@@ -32,7 +32,6 @@ from .errors import (
     NoResultBackend,
     QueueJoinTimeout,
     QueueNotFound,
-    RateLimitExceeded,
     RemouladeError,
 )
 from .generic import GenericActor
@@ -69,7 +68,6 @@ __all__ = [
     "PickleEncoder",
     "QueueJoinTimeout",
     "QueueNotFound",
-    "RateLimitExceeded",
     # Errors
     "RemouladeError",
     "Result",

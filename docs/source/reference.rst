@@ -137,31 +137,44 @@ Backends
 .. autoclass:: remoulade.results.backends.StubBackend
 
 
-Rate Limiters
+Rate Limiting
 -------------
 
-Rate limiters can be used to determine whether or not an operation can
-be run at the current time across many processes and machines by using
-a shared storage backend.
+Rate limits can be enforced at enqueue time and/or process time using
+dedicated middleware and a shared backend.
 
-Rate Limiter Backends
-^^^^^^^^^^^^^^^^^^^^^
+Middleware
+^^^^^^^^^^
 
-Rate limiter backends are used to store metadata about rate limits.
+.. autoclass:: remoulade.rate_limits.middleware.RateLimitEnqueue
+.. autoclass:: remoulade.rate_limits.middleware.RateLimitProcess
 
-.. autoclass:: remoulade.rate_limits.RateLimiterBackend
+Rate Limit Backends
+^^^^^^^^^^^^^^^^^^^
+
+.. autoclass:: remoulade.rate_limits.RateLimitBackend
 .. autoclass:: remoulade.rate_limits.backends.RedisBackend
 .. autoclass:: remoulade.rate_limits.backends.StubBackend
 
 
-Limiters
-^^^^^^^^
+Concurrency
+-----------
 
-.. autoclass:: remoulade.rate_limits.RateLimiter
-   :members:
-.. autoclass:: remoulade.rate_limits.BucketRateLimiter
-.. autoclass:: remoulade.rate_limits.ConcurrentRateLimiter
-.. autoclass:: remoulade.rate_limits.WindowRateLimiter
+Concurrency limits are enforced during message processing using the
+Concurrent middleware and a backend that coordinates leases.
+
+Middleware
+^^^^^^^^^^
+
+.. autoclass:: remoulade.concurrent.middleware.Concurrent
+
+Concurrency Backends
+^^^^^^^^^^^^^^^^^^^^
+
+.. autoclass:: remoulade.concurrent.ConcurrencyBackend
+.. autoclass:: remoulade.concurrent.backends.RedisBackend
+.. autoclass:: remoulade.concurrent.backends.StubBackend
+.. autoclass:: remoulade.concurrent.lease.Lease
 
 
 Workers
@@ -188,9 +201,15 @@ Errors
    :members:
 .. autoclass:: ConnectionFailed
    :members:
+.. autoclass:: remoulade.concurrent.ConcurrencyLimitExceeded
+   :members:
 .. autoclass:: RateLimitExceeded
    :members:
 .. autoclass:: NoResultBackend
+   :members:
+.. autoclass:: remoulade.errors.NoRateLimitBackend
+   :members:
+.. autoclass:: remoulade.errors.NoConcurrencyBackend
    :members:
 .. autoclass:: remoulade.results.ResultError
    :members:

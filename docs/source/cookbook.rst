@@ -283,38 +283,65 @@ Rate Limiting
 Rate limiting work
 ^^^^^^^^^^^^^^^^^^
 
-You can use Remoulade's |RateLimiters| to constrain actor concurrency.
+You can enforce rate limits with the |RateLimitEnqueue| and
+|RateLimitProcess| middleware and a backend such as |RedisRLBackend|.
+Use enqueue limits to reject messages before they're persisted, and
+process-time limits to ensure workers honor limits when reloading or
+after restarts.
 
 .. code-block:: python
 
    import remoulade
-   import time
 
-   from remoulade.rate_limits import ConcurrentRateLimiter
+   from remoulade.brokers.rabbitmq import RabbitmqBroker
+   from remoulade.rate_limits import RateLimitEnqueue, RateLimitProcess
    from remoulade.rate_limits.backends import RedisBackend
 
+   broker = RabbitmqBroker()
    backend = RedisBackend()
-   DISTRIBUTED_MUTEX = ConcurrentRateLimiter(backend, "distributed-mutex", limit=1)
+   broker.add_middleware(RateLimitEnqueue(backend=backend))
+   broker.add_middleware(RateLimitProcess(backend=backend))
 
-   @remoulade.actor
-   def one_at_a_time():
-     with DISTRIBUTED_MUTEX.acquire():
-       time.sleep(1)
-       print("Done.")
+   @remoulade.actor(enqueue_rate_limits="2 per second", process_rate_limits="5 per minute")
+   def limited():
+     return "ok"
 
-Whenever two ``one_at_a_time`` actors run at the same time, one of
-them will be retried with exponential backoff.  This works by raising
-an exception and relying on the built-in Retries middleware to do the
-work of re-enqueueing the task.
+   broker.declare_actor(limited)
 
-If you want rate limiters not to raise an exception when they can't be
-acquired, you should pass ``raise_on_failure=False`` to ``acquire``::
+   limited.send()
+   limited.send()
 
-  with DISTRIBUTED_MUTEX.acquire(raise_on_failure=False) as acquired:
-    if not acquired:
-      print("Lock could not be acquired.")
-    else:
-      print("Lock was acquired.")
+   try:
+     limited.send()
+   except remoulade.RateLimitExceeded:
+     print("Too many requests")
+
+You can bypass limits for a specific message by setting
+``bypass_rate_limits=True`` in ``send_with_options``.
+
+Concurrency limits
+^^^^^^^^^^^^^^^^^^
+
+Use the |Concurrent| middleware to cap the number of messages processed
+at the same time for a given key.
+
+.. code-block:: python
+
+   from remoulade.brokers.rabbitmq import RabbitmqBroker
+   from remoulade.concurrent.backends import RedisBackend
+   from remoulade.concurrent.middleware import Concurrent
+
+   broker = RabbitmqBroker()
+   broker.add_middleware(Concurrent(backend=RedisBackend(), default_ttl_ms=1_000))
+
+   @remoulade.actor(concurrency_limit=1, concurrency_key="{actor_name}:{args[0]}")
+   def process(user_id):
+     return user_id
+
+   broker.declare_actor(process)
+
+   process.send("user-1")
+   process.send("user-1")  # raises ConcurrencyLimitExceeded if the first is still running
 
 
 Results

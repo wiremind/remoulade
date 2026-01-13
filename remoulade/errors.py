@@ -64,10 +64,6 @@ class MessageNotDelivered(ConnectionError):
     """Raised when a message has not been delivered."""
 
 
-class RateLimitExceeded(RemouladeError):
-    """Raised when a rate limit has been exceeded."""
-
-
 class NoResultBackend(BrokerError):
     """Raised when trying to access the result backend on a broker without it"""
 
@@ -78,6 +74,14 @@ class NoCancelBackend(BrokerError):
 
 class NoStateBackend(BrokerError):
     """Raised when trying to access the state backend on a broker without it"""
+
+
+class NoRateLimitBackend(BrokerError):
+    """Raised when trying to access the rate limit backend on a broker without it"""
+
+
+class NoConcurrencyBackend(BrokerError):
+    """Raised when trying to access the concurrency backend on a broker without it"""
 
 
 class ChannelPoolTimeout(BrokerError):

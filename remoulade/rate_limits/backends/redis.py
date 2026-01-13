@@ -14,89 +14,47 @@
 #
 # You should have received a copy of the GNU Lesser General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
-from collections.abc import Callable
 
-from redis import WatchError
+from limits.storage import RedisSentinelStorage, RedisStorage, Storage
 
-from ...helpers.redis_client import redis_client
-from ..backend import RateLimiterBackend
+from ..backend import RateLimitBackend
+from .utils import build_limiter
 
 
-class RedisBackend(RateLimiterBackend):
-    """A rate limiter backend for Redis_.
+class RedisBackend(RateLimitBackend):
+    """Redis backend using ``limits`` RedisStorage.
 
     Parameters:
-      client(Redis): An optional client.  If this is passed,
-        then all other parameters are ignored.
-      url(str): An optional connection URL.  If both a URL and
-        connection paramters are provided, the URL is used.
+      url(str): A redis connection URL.  If both a URL and
+        connection parameters are provided, the URL is used.
+      key_prefix(str): A prefix to prepend to all keys used for rate limiting.
+      strategy(str): The rate limiting strategy to use.  One of
+        ``fixed_window``, ``moving_window``, or ``sliding_window``.
+        See :ref:`limits strategies <limits-strategies>` for details.
       **parameters(dict): Connection parameters are passed directly
         to :class:`redis.Redis`.
 
     .. _redis: https://redis.io
+    .. _limits: https://limits.readthedocs.io/en/stable/
     """
 
-    def __init__(self, *, client=None, url=None, socket_timeout=5.0, **parameters):
-        self.client = client or redis_client(url=url, socket_timeout=socket_timeout, **parameters)
+    def __init__(
+        self,
+        *,
+        url: str,
+        key_prefix: str = "remoulade-rate-limit:",
+        strategy: str = "sliding_window",
+        **parameters,
+    ):
+        super().__init__()
 
-    def add(self, key: str, value: int, ttl: int) -> bool:
-        return bool(self.client.set(key, value, px=ttl, nx=True))
+        storage: Storage
+        if "sentinel" in url:
+            storage = RedisSentinelStorage(url, key_prefix=key_prefix, **parameters)
+        else:
+            storage = RedisStorage(url, key_prefix=key_prefix, **parameters)
 
-    def incr(self, key: str, amount: int, maximum: int, ttl: int) -> bool:
-        with self.client.pipeline() as pipe:
-            while True:
-                try:
-                    pipe.watch(key)
-                    value = int(pipe.get(key) or b"0")
-                    value += amount
-                    if value > maximum:
-                        return False
+        self.limiter = build_limiter(storage, strategy=strategy)
 
-                    pipe.multi()
-                    pipe.set(key, value, px=ttl)
-                    pipe.execute()
-                    return True
-                except WatchError:
-                    continue
-
-    def decr(self, key: str, amount: int, minimum: int, ttl: int) -> bool:
-        with self.client.pipeline() as pipe:
-            while True:
-                try:
-                    pipe.watch(key)
-                    value = int(pipe.get(key) or b"0")
-                    value -= amount
-                    if value < minimum:
-                        return False
-
-                    pipe.multi()
-                    pipe.set(key, value, px=ttl)
-                    pipe.execute()
-                    return True
-                except WatchError:
-                    continue
-
-    def incr_and_sum(self, key: str, keys: Callable[[], list[str]], amount: int, maximum: int, ttl: int) -> bool:
-        with self.client.pipeline() as pipe:
-            while True:
-                try:
-                    # TODO: Drop non-callable keys in Remoulade v2.
-                    key_list = keys() if callable(keys) else keys
-                    pipe.watch(key, *key_list)
-                    value = int(pipe.get(key) or b"0")
-                    value += amount
-                    if value > maximum:
-                        return False
-
-                    # Fetch keys again to account for net/server latency.
-                    values = pipe.mget(keys() if callable(keys) else keys)
-                    total = amount + sum(int(n) for n in values if n)
-                    if total > maximum:
-                        return False
-
-                    pipe.multi()
-                    pipe.set(key, value, px=ttl)
-                    pipe.execute()
-                    return True
-                except WatchError:
-                    continue
+    def hit(self, limit, key: str) -> bool:
+        return bool(self.limiter.hit(limit, key))
