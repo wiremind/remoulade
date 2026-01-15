@@ -29,6 +29,12 @@ or if you want to use it with [Redis]
    $ pipenv install 'remoulade[redis]'
 ```
 
+or if you want to use it with [PostgreSQL]
+
+```console
+   $ pipenv install 'remoulade[postgres]'
+```
+
 ## Quickstart
 
 1. Make sure you've got [RabbitMQ] running, then create a new file called
@@ -109,4 +115,5 @@ remoulade is licensed under the LGPL.  Please see [COPYING] and
 [COPYING]: https://github.com/wiremind/remoulade/blob/master/COPYING
 [RabbitMQ]: https://www.rabbitmq.com/
 [Redis]: https://redis.io
+[PostgreSQL]: https://www.postgresql.org/
 [user guide]: https://remoulade.readthedocs.io/en/latest/guide.html

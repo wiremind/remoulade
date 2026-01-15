@@ -9,6 +9,7 @@ from unittest.mock import Mock
 import pytest
 import redis
 from freezegun import freeze_time
+from sqlalchemy import text
 from sqlalchemy.engine import create_engine
 from sqlalchemy.inspection import inspect
 from sqlalchemy.orm.session import sessionmaker
@@ -18,6 +19,7 @@ import remoulade
 from remoulade import Worker
 from remoulade.api import app
 from remoulade.brokers.local import LocalBroker
+from remoulade.brokers.postgres import PostgresBroker
 from remoulade.brokers.rabbitmq import RabbitmqBroker
 from remoulade.brokers.stub import StubBroker
 from remoulade.cancel import backends as cl_backends
@@ -65,14 +67,29 @@ def check_postgres(client):
         states_exists = insp.has_table("states")
         if version_exists:
             versions = session.query(StateVersion).all()
-        return version_exists and states_exists and len(versions) == 1 and versions[0].version == DB_VERSION
+        return (
+            version_exists
+            and states_exists
+            and len(versions) == 1
+            and versions[0].version == DB_VERSION
+        )
+
+
+def check_postgres_connection(engine):
+    try:
+        with engine.connect() as connection:
+            connection.execute(text("SELECT 1"))
+    except Exception as e:
+        raise e from e if CI else pytest.skip("No connection to Postgres server.")
 
 
 @pytest.fixture
 def check_postgres_begin():
     client = remoulade.get_broker().get_state_backend().client
     if not check_postgres(client):
-        pytest.skip("Postgres Database is not in the proper state. Database initialisation is probably incorrect.")
+        pytest.skip(
+            "Postgres Database is not in the proper state. Database initialisation is probably incorrect."
+        )
 
 
 @pytest.fixture()
@@ -95,11 +112,33 @@ def rabbitmq_broker(request):
         confirm_delivery = marker_1.args[0]
     if marker_2 is not None:
         group_transaction = marker_2.args[0]
-    rmq_url = os.getenv("REMOULADE_TEST_RABBITMQ_URL") or "amqp://guest:guest@localhost:5784"
+    rmq_url = (
+        os.getenv("REMOULADE_TEST_RABBITMQ_URL") or "amqp://guest:guest@localhost:5784"
+    )
     broker = RabbitmqBroker(
-        max_priority=10, url=rmq_url, confirm_delivery=confirm_delivery, group_transaction=group_transaction
+        max_priority=10,
+        url=rmq_url,
+        confirm_delivery=confirm_delivery,
+        group_transaction=group_transaction,
     )
     check_rabbitmq(broker)
+    broker.emit_after("process_boot")
+    remoulade.set_broker(broker)
+    yield broker
+    broker.flush_all()
+    broker.emit_before("process_stop")
+    broker.close()
+
+
+@pytest.fixture()
+def postgres_broker():
+    db_string = (
+        os.getenv("REMOULADE_TEST_DB_URL")
+        or "postgresql://remoulade@localhost:5544/test"
+    )
+    engine = create_engine(db_string, poolclass=NullPool)
+    check_postgres_connection(engine)
+    broker = PostgresBroker(client=sessionmaker(engine))
     broker.emit_after("process_boot")
     remoulade.set_broker(broker)
     yield broker
@@ -130,6 +169,14 @@ def stub_worker(stub_broker):
 @pytest.fixture()
 def rabbitmq_worker(rabbitmq_broker):
     worker = Worker(rabbitmq_broker, worker_timeout=100, worker_threads=32)
+    worker.start()
+    yield worker
+    worker.stop()
+
+
+@pytest.fixture()
+def postgres_worker(postgres_broker):
+    worker = Worker(postgres_broker, worker_timeout=100, worker_threads=32)
     worker.start()
     yield worker
     worker.stop()
@@ -200,6 +247,19 @@ def redis_result_backend():
 
 
 @pytest.fixture
+def postgres_result_backend():
+    db_string = (
+        os.getenv("REMOULADE_TEST_DB_URL")
+        or "postgresql://remoulade@localhost:5544/test"
+    )
+    engine = create_engine(db_string, poolclass=NullPool)
+    check_postgres_connection(engine)
+    backend = res_backends.PostgresBackend(client=sessionmaker(engine))
+    backend.clean()
+    return backend
+
+
+@pytest.fixture
 def redis_state_backend():
     redis_url = os.getenv("REMOULADE_TEST_REDIS_URL") or "redis://localhost:6481/0"
     backend = st_backends.RedisBackend(url=redis_url)
@@ -214,15 +274,24 @@ def stub_state_backend():
 
 @pytest.fixture
 def postgres_state_backend():
-    db_string = os.getenv("REMOULADE_TEST_DB_URL") or "postgresql://remoulade@localhost:5544/test"
-    backend = st_backends.PostgresBackend(client=sessionmaker(create_engine(db_string, poolclass=NullPool)))
+    db_string = (
+        os.getenv("REMOULADE_TEST_DB_URL")
+        or "postgresql://remoulade@localhost:5544/test"
+    )
+    backend = st_backends.PostgresBackend(
+        client=sessionmaker(create_engine(db_string, poolclass=NullPool))
+    )
     backend.clean()
     return backend
 
 
 @pytest.fixture
 def state_backends(postgres_state_backend, redis_state_backend, stub_state_backend):
-    return {"postgres": postgres_state_backend, "redis": redis_state_backend, "stub": stub_state_backend}
+    return {
+        "postgres": postgres_state_backend,
+        "redis": redis_state_backend,
+        "stub": stub_state_backend,
+    }
 
 
 @pytest.fixture(params=["postgres", "redis", "stub"])

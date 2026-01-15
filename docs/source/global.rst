@@ -85,4 +85,5 @@
 .. _gevent: http://www.gevent.org/
 .. _RabbitMQ: https://www.rabbitmq.com
 .. _Redis: https://redis.io
+.. _PostgreSQL: https://www.postgresql.org
 .. _Dramatiq: https://dramatiq.io

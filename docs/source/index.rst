@@ -53,6 +53,10 @@ Or if you want to use it with Redis_::
 
    $ pip install -U 'remoulade[redis]'
 
+Or if you want to use it with PostgreSQL_::
+
+   $ pip install -U 'remoulade[postgres]'
+
 Read the :doc:`guide` if you're ready to get started.
 
 

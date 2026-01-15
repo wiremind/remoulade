@@ -381,7 +381,7 @@ Message Brokers
 ---------------
 
 Remoulade abstracts over the notion of a message broker and currently
-supports RabbitMQ out of the box.
+supports RabbitMQ and PostgreSQL out of the box.
 
 RabbitMQ Broker
 ^^^^^^^^^^^^^^^
@@ -396,6 +396,26 @@ execution::
 
   rabbitmq_broker = RabbitmqBroker(url="rabbitmq")
   remoulade.set_broker(rabbitmq_broker)
+
+
+PostgreSQL Broker
+^^^^^^^^^^^^^^^^^
+
+To configure the PostgreSQL broker, instantiate a :class:`PostgresBroker
+<remoulade.brokers.postgres.PostgresBroker>` and set it as the global
+broker as early as possible during your program's execution::
+
+  import remoulade
+
+  from remoulade.brokers.postgres import PostgresBroker
+
+  postgres_broker = PostgresBroker(url="postgresql://remoulade@localhost:5432/remoulade")
+  remoulade.set_broker(postgres_broker)
+
+PostgresBroker stores messages in list-partitioned tables by queue name.
+Acked messages are archived for replay using the ``ack_retention`` setting
+(or ``REMOULADE_POSTGRESQL_ACK_RETENTION``) and can be requeued with
+``broker.requeue_archived(message_id, queue_name)``.
 
 
 Local Broker

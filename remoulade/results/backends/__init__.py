@@ -21,12 +21,23 @@ from .local import LocalBackend
 from .stub import StubBackend
 
 try:
-    from .redis import RedisBackend
+    from .postgres import PostgresBackend
 except ImportError:  # pragma: no cover
     warnings.warn(
-        "RedisBackend is not available.  Run `pip install remoulade[redis]` " "to add support for that backend.",
+        "PostgresBackend is not available.  Run `pip install remoulade[postgres]` "
+        "to add support for that backend.",
         ImportWarning,
         stacklevel=2,
     )
 
-__all__ = ["StubBackend", "RedisBackend", "LocalBackend"]
+try:
+    from .redis import RedisBackend
+except ImportError:  # pragma: no cover
+    warnings.warn(
+        "RedisBackend is not available.  Run `pip install remoulade[redis]` "
+        "to add support for that backend.",
+        ImportWarning,
+        stacklevel=2,
+    )
+
+__all__ = ["StubBackend", "RedisBackend", "LocalBackend", "PostgresBackend"]

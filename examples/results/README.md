@@ -10,6 +10,7 @@ retrieve task results.
 1. Install remoulade: `pip install remoulade[rabbitmq]`
 1. In a separate terminal window, run the workers: `remoulade example`.
 1. In another terminal, run `python -m example`.
+1. For PostgreSQL, install `pip install remoulade[postgres]` and run `python -m postgres_example`.
 
 
 [docker]: https://docs.docker.com/engine/install/

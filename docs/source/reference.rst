@@ -62,6 +62,9 @@ Brokers
 .. autoclass:: remoulade.brokers.rabbitmq.RabbitmqBroker
    :members:
    :inherited-members:
+.. autoclass:: remoulade.brokers.postgres.PostgresBroker
+   :members:
+   :inherited-members:
 .. autoclass:: remoulade.brokers.stub.StubBroker
    :members:
    :inherited-members:
@@ -133,6 +136,7 @@ Backends
 ^^^^^^^^
 
 .. autoclass:: remoulade.results.ResultBackend
+.. autoclass:: remoulade.results.backends.PostgresBackend
 .. autoclass:: remoulade.results.backends.RedisBackend
 .. autoclass:: remoulade.results.backends.StubBackend
 
