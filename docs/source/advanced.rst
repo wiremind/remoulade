@@ -231,9 +231,9 @@ All metrics define labels for ``queue_name`` and ``actor_name``.
 Grafana Dashboard
 ~~~~~~~~~~~~~~~~~
 
-You can find a Grafana dashboard that displays these metrics here_.
+You can find an exported Grafana dashboard that displays these metrics here_.
 
-.. _here: https://grafana.com/dashboards/3692
+.. _here: https://remoulade.readthedocs.io/en/latest/_static/remoulade-dashboard.json
 
 Gotchas with Prometheus
 ~~~~~~~~~~~~~~~~~~~~~~~
