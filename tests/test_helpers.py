@@ -1,5 +1,13 @@
+import threading
+import time
+from queue import Queue
+
+import pytest
+
 import remoulade
+from remoulade import QueueJoinTimeout
 from remoulade.helpers import compute_backoff, get_actor_arguments
+from remoulade.helpers.queues import join_queue
 from remoulade.helpers.reduce import reduce
 from remoulade.results import Results
 
@@ -77,3 +85,49 @@ def test_compute_backoff_spread_exponential():
     assert compute_backoff(
         4, min_backoff=10, jitter=False, max_backoff=160, max_retries=3, backoff_strategy="spread_exponential"
     ) == (5, 160)
+
+
+class _GeventStyleQueue:
+    def __init__(self, result):
+        self.result = result
+        self.received_timeout = None
+
+    def join(self, timeout=None):
+        self.received_timeout = timeout
+        return self.result
+
+
+def test_join_queue_gevent_style_timeout_raises_queue_join_timeout():
+    queue = _GeventStyleQueue(result=False)
+
+    with pytest.raises(QueueJoinTimeout):
+        join_queue(queue, timeout=0.1)
+
+
+def test_join_queue_gevent_style_success():
+    queue = _GeventStyleQueue(result=True)
+    join_queue(queue, timeout=0.1)
+    assert queue.received_timeout == 0.1
+
+
+def test_join_queue_stdlib_fallback_success():
+    queue = Queue()
+    queue.put(1)
+
+    def worker():
+        _ = queue.get()
+        time.sleep(0.01)
+        queue.task_done()
+
+    thread = threading.Thread(target=worker)
+    thread.start()
+    join_queue(queue, timeout=0.2)
+    thread.join()
+
+
+def test_join_queue_stdlib_fallback_timeout_raises_queue_join_timeout():
+    queue = Queue()
+    queue.put(1)
+
+    with pytest.raises(QueueJoinTimeout):
+        join_queue(queue, timeout=0.01)

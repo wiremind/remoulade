@@ -189,6 +189,9 @@ If your tasks spend most of their time doing network IO and don't
 depend on C extensions to execute those network calls then using
 gevent could provide a significant performance improvement.
 
+Remoulade supports running under ``monkey.patch_all()`` with recent
+gevent versions, including the default queue monkey-patching behavior.
+
 I suggest at least experimenting with it to see if it fits your use
 case.
 

@@ -5,6 +5,12 @@ Changelog
 
 All notable changes to this project will be documented in this file.
 
+`5.0.1`_ -- 2026-03-02
+-----------
+Fix
+^^^
+* Support gevent monkey.patch_all queue patching
+
 `5.0.0`_ -- 2026-01-09
 ------------
 Feat
