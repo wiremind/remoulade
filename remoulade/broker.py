@@ -87,11 +87,17 @@ def _get_middleware_order():
     ]
 
     try:
-        from opentelemetry.instrumentation.remoulade import _InstrumentationMiddleware
+        from .middleware.tracing import OpenTelemetryMiddleware
 
-        middleware_order.insert(0, _InstrumentationMiddleware)
+        middleware_order.insert(0, OpenTelemetryMiddleware)
     except ImportError:
-        pass
+        # Fall back to the legacy external instrumentor if available
+        try:
+            from opentelemetry.instrumentation.remoulade import _InstrumentationMiddleware
+
+            middleware_order.insert(0, _InstrumentationMiddleware)
+        except ImportError:
+            pass
 
     return middleware_order
 
