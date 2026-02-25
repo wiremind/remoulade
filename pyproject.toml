@@ -26,6 +26,7 @@ server = ["flask~=2.3.3", "marshmallow>=3,<4", "flask-apispec"]
 postgres = ["sqlalchemy>=1.4.29,<2", "psycopg2>=2.9.11"]
 pydantic = ["pydantic>=2.12", "simplejson"]
 limits = ["limits~=5.3.0"]
+tracing = ["opentelemetry-api>=1.20"]
 
 dev = [
   "amqpstorm>=2.6,<3",
@@ -63,6 +64,8 @@ dev = [
   "pytest-timeout",
   "pytest-asyncio",
   "freezegun",
+  "opentelemetry-api>=1.20",
+  "opentelemetry-sdk>=1.20",
 ]
 
 [project.urls]
