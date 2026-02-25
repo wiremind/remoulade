@@ -5,6 +5,13 @@ Changelog
 
 All notable changes to this project will be documented in this file.
 
+`5.1.0`_ -- 2026-02-26
+------------
+Feat
+^^^^
+* Add built-in OpenTelemetry tracing middleware with link-based propagation instead of parent-child, preventing trace explosion on fan-out workloads
+* Add ``tracing`` optional dependency (``remoulade[tracing]``)
+
 `5.0.0`_ -- 2026-01-09
 ------------
 Feat

@@ -37,6 +37,11 @@ CURRENT_OS = platform.system()
 if CURRENT_OS != "Windows":
     from .prometheus import Prometheus  # noqa: F401
 
+try:
+    from .tracing import OpenTelemetryMiddleware
+except ImportError:
+    pass
+
 __all__ = [
     # Middlewares
     "AgeLimit",
@@ -52,6 +57,7 @@ __all__ = [
     # Basics
     "Middleware",
     "MiddlewareError",
+    "OpenTelemetryMiddleware",
     "Pipelines",
     "Retries",
     "Shutdown",
