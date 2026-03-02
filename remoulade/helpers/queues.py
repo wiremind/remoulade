@@ -22,16 +22,33 @@ def join_queue(queue, timeout=None):
     with optional timeout support, by depending the internals of
     Queue.
 
+    It also supports gevent queue objects (for example when
+    ``monkey.patch_all(queue=True)`` is enabled), which expose
+    ``join(timeout=...)``.
+
     Raises:
       QueueJoinTimeout: When the timeout is reached.
 
     Parameters:
       timeout(Optional[float])
     """
+    # gevent compatibility: gevent queues expose join(timeout=...) while
+    # stdlib queues expose all_tasks_done.
+    if not hasattr(queue, "all_tasks_done"):
+        if timeout is None:
+            queue.join()
+            return
+
+        timeout = max(timeout, 0)
+        if queue.join(timeout=timeout) is False:
+            raise QueueJoinTimeout(f"timed out after {timeout:.2f} seconds")
+        return
+
     with queue.all_tasks_done:
         while queue.unfinished_tasks:
             finished_in_time = queue.all_tasks_done.wait(timeout=timeout)
             if not finished_in_time:
+                timeout = 0 if timeout is None else timeout
                 raise QueueJoinTimeout(f"timed out after {timeout:.2f} seconds")
 
 
