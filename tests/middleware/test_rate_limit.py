@@ -79,3 +79,10 @@ def test_rate_limit_ignored_when_option_missing(stub_broker):
 def test_rate_limit_unknown_strategy():
     with pytest.raises(ValueError, match="Unknown rate limit strategy"):
         StubBackend(strategy="unknown")
+
+
+def test_redis_backend_requires_url_or_client():
+    from remoulade.rate_limits.backends import RedisBackend
+
+    with pytest.raises(ValueError, match="Either url or client must be provided"):
+        RedisBackend()

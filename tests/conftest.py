@@ -174,8 +174,38 @@ def scheduler_thread():
 
 
 @pytest.fixture
-def rate_limit_backend():
+def stub_rate_limit_backend():
     return rl_backends.StubBackend()
+
+
+@pytest.fixture
+def redis_rate_limit_backend():
+    redis_url = os.getenv("REMOULADE_TEST_REDIS_URL") or "redis://localhost:6481/0"
+    client = redis.Redis.from_url(redis_url)
+    check_redis(client)
+    return rl_backends.RedisBackend(url=redis_url)
+
+
+@pytest.fixture
+def redis_rate_limit_backend_from_client():
+    redis_url = os.getenv("REMOULADE_TEST_REDIS_URL") or "redis://localhost:6481/0"
+    client = redis.Redis.from_url(redis_url)
+    check_redis(client)
+    return rl_backends.RedisBackend(client=client)
+
+
+@pytest.fixture
+def rate_limit_backends(stub_rate_limit_backend, redis_rate_limit_backend, redis_rate_limit_backend_from_client):
+    return {
+        "stub": stub_rate_limit_backend,
+        "redis": redis_rate_limit_backend,
+        "redis_client": redis_rate_limit_backend_from_client,
+    }
+
+
+@pytest.fixture(params=["stub", "redis", "redis_client"])
+def rate_limit_backend(request, rate_limit_backends):
+    return rate_limit_backends[request.param]
 
 
 @pytest.fixture
