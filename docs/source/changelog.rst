@@ -5,6 +5,13 @@ Changelog
 
 All notable changes to this project will be documented in this file.
 
+=======
+Unreleased
+-------------
+Feat
+^^^^
+* Replace the file-based heartbeat middleware with an HTTP liveness server backed by in-memory worker heartbeats
+
 `6.1.0`_ -- 2026-05-15
 ------------
 Changed

@@ -14,71 +14,139 @@
 #
 # You should have received a copy of the GNU Lesser General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
-import os
-import tempfile
 import threading
 import time
+from functools import partial
+from http import HTTPStatus
+from http.server import BaseHTTPRequestHandler, HTTPServer
+from urllib.parse import parse_qs, urlsplit
 
 from ..logging import get_logger
 from .middleware import Middleware
 
+DEFAULT_HTTP_HOST = "0.0.0.0"  # noqa: S104
+DEFAULT_HTTP_PORT = 9192
+DEFAULT_THRESHOLD = 2 * 60 * 60
+HEARTBEAT_INTERVAL = 10
+
+
+class HeartbeatRequestHandler(BaseHTTPRequestHandler):
+    server: "HeartbeatServer"
+
+    def do_GET(self):
+        self.server.answer(self)
+
+    def log_message(self, *_args):
+        return
+
+
+class HeartbeatServer(HTTPServer):
+    allow_reuse_address = True
+
+    def __init__(
+        self,
+        heartbeat: "Heartbeat",
+        *,
+        http_host: str = DEFAULT_HTTP_HOST,
+        http_port: int = DEFAULT_HTTP_PORT,
+    ):
+        self.heartbeat = heartbeat
+        super().__init__((http_host, http_port), HeartbeatRequestHandler)
+
+    def answer(self, handler: BaseHTTPRequestHandler):
+        try:
+            raw_threshold = parse_qs(urlsplit(handler.path).query).get("threshold", [None])[-1]
+            threshold = self.heartbeat.threshold if raw_threshold is None else int(raw_threshold)
+            status = HTTPStatus.OK if self.heartbeat.healthy(threshold) else HTTPStatus.INTERNAL_SERVER_ERROR
+        except Exception:
+            # Probe failures must not kill the process by mistake. The worker
+            # will remain observable through logs while liveness stays green.
+            self.heartbeat.logger.exception("Heartbeat probe failed.")
+            status = HTTPStatus.OK
+
+        body = b"OK\n" if status == HTTPStatus.OK else b"UNHEALTHY\n"
+        handler.send_response(status)
+        handler.send_header("Content-Type", "text/plain; charset=utf-8")
+        handler.send_header("Content-Length", str(len(body)))
+        handler.end_headers()
+        handler.wfile.write(body)
+
 
 class Heartbeat(Middleware):
-    """Make Remoulade's heart beats.
+    """Expose worker-thread liveness over HTTP.
 
-    This middleware makes each worker thread writes a file
-    in the specified directory containing the timestamp they started their latest task.
-    You can specify a minimal interval in seconds (default to 1 minute) between each write.
-    The directory is created when starting if it does not exist
-    (default to your temporary directory+/remouladebeat).
+    A lightweight HTTP server runs alongside the worker process and reports
+    whether all worker threads have published a recent heartbeat. Heartbeats
+    are kept in memory and refreshed by worker-thread hooks.
 
-    You should use an out-of-process probe to check the beats and react in consequence
-    if the threads lock themselves.
+    Parameters:
+      http_host(str): The host to bind the heartbeat server on.
+      http_port(int): The port on which the server should listen.
+      threshold(int): The default liveness threshold, in seconds, used
+        when the request query string does not override it.
     """
 
-    class ThreadBeat(threading.local):
-        ts: float
-        file: str
-
-    # This implementation is rather simple and naive.
-    # There is nothing to ensure the actual state of the filesystem corresponds
-    # to what we think about it here.
-    # In particular, if something is killed unexpectedly, some files may be left
-    # and you could think that a thread is stuck because a file is not updated anymore.
-
-    def __init__(self, directory: str | None = None, interval: int = 60):
+    def __init__(
+        self,
+        *,
+        http_host: str = DEFAULT_HTTP_HOST,
+        http_port: int = DEFAULT_HTTP_PORT,
+        threshold: int = DEFAULT_THRESHOLD,
+    ):
         super().__init__()
-        self.basedir = directory
-        self.interval = interval
-        self.log = get_logger(__name__, "HeartbeatMiddleware")
-        # thread-specific
-        self.beat = Heartbeat.ThreadBeat()
+        self.logger = get_logger(__name__, "HeartbeatMiddleware")
+        self.threshold = threshold
+        self.local = threading.local()
+        self.heartbeats: dict[int, float] = {}
+        self.lock = threading.Lock()
+        # Defer socket binding to worker boot so producer-only processes can
+        # share the same broker configuration without claiming the port.
+        self.server_factory = partial(HeartbeatServer, self, http_host=http_host, http_port=http_port)
 
-    def after_process_boot(self, broker):
-        if not self.basedir:
-            self.basedir = tempfile.gettempdir() + "/remouladebeat"
-        os.makedirs(self.basedir, exist_ok=True)
-        self.log.debug("Created directory %s", self.basedir)
+    def healthy(self, threshold: int) -> bool:
+        if threshold <= 0:
+            raise ValueError("Heartbeat threshold must be strictly positive.")
+
+        now = time.time()
+        with self.lock:
+            heartbeats = list(self.heartbeats.values())
+        return bool(heartbeats) and all(heartbeat + threshold >= now for heartbeat in heartbeats)
+
+    def before_worker_boot(self, broker, worker):
+        self.server = self.server_factory()
+        self.server_thread = threading.Thread(target=self.server.serve_forever, name="HeartbeatServer", daemon=True)
+        self.server_thread.start()
 
     def after_worker_thread_boot(self, broker, thread):
-        fd, self.beat.file = tempfile.mkstemp(dir=self.basedir, prefix=f"th-{thread.ident}-")
-        os.close(fd)
-        self.beat.ts = 0
+        now = time.time()
+        self.local.last_beat = now
+        with self.lock:
+            self.heartbeats[thread.ident] = now
 
-    def heartbeat(self):
-        if self.beat.ts + self.interval < (beat := time.time()):
-            with open(self.beat.file, "w") as f:
-                f.write(f"{beat}")
-            self.beat.ts = beat
+    def beat(self, *, now: float | None = None):
+        now = time.time() if now is None else now
+        # Worker hooks run on every processed message and empty poll. Debounce
+        # heartbeat publication to keep locking off the hot path.
+        if self.local.last_beat + HEARTBEAT_INTERVAL > now:
+            return
+
+        self.local.last_beat = now
+        with self.lock:
+            self.heartbeats[threading.get_ident()] = now
 
     def before_process_message(self, broker, message):
-        self.heartbeat()
+        self.beat()
 
     def after_worker_thread_empty(self, broker, thread):
-        self.heartbeat()
+        self.beat()
 
     def before_worker_thread_shutdown(self, broker, thread):
-        try:
-            os.remove(self.beat.file)
-        except FileNotFoundError:
-            pass
+        with self.lock:
+            self.heartbeats.pop(thread.ident, None)
+
+    def after_worker_shutdown(self, broker, worker):
+        self.server.shutdown()
+        self.server.server_close()
+        self.server_thread.join(timeout=1)
+        with self.lock:
+            self.heartbeats.clear()
