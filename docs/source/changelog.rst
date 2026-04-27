@@ -5,11 +5,12 @@ Changelog
 
 All notable changes to this project will be documented in this file.
 
-`5.1.1`_ -- 2026-04-20
+`6.0.0`_ -- 2026-04-27
 ------------
-Feat
-^^^^
-* Fix remoulade_message_time_in_queue_milliseconds prometheus metric to make sure it is monotonically increasing
+Changed
+^^^^^^^
+* Pass raised exception arguments to ``on_failure`` as a dedicated positional ``exception_args`` parameter.
+* ``on_failure`` callbacks now receive ``(actor_name, exception_name, exception_args, message_args, message_kwargs)``.
 
 `5.1.0`_ -- 2026-03-03
 ------------
