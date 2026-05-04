@@ -19,13 +19,14 @@ class CatchError(Middleware):
 
         if message.failed:
             on_failure = self.get_option("on_failure", broker=broker, message=message)
+
             if isinstance(on_failure, str):
                 actor = broker.get_actor(on_failure)
-                actor.send(message.actor_name, type(exception).__name__, message.args, message.kwargs)
+                actor.send(message.actor_name, type(exception).__name__, exception.args, message.args, message.kwargs)
             elif isinstance(on_failure, dict):
                 on_failure_message = Message[Any](**on_failure)
                 on_failure_message = on_failure_message.copy(
-                    args=[message.actor_name, type(exception).__name__, message.args, message.kwargs]
+                    args=[message.actor_name, type(exception).__name__, exception.args, message.args, message.kwargs]
                 )
                 broker.enqueue(on_failure_message)
 
