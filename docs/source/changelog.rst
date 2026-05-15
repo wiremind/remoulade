@@ -5,6 +5,13 @@ Changelog
 
 All notable changes to this project will be documented in this file.
 
+`6.1.0`_ -- 2026-05-15
+------------
+Changed
+^^^^^^^
+* Bump ``redis`` to ``>=7.0.0`` (in both ``redis`` extra and ``dev`` group).
+* Bump ``psycopg2`` to ``>=2.9.11`` in ``dev`` group.
+
 `6.0.0`_ -- 2026-04-27
 ------------
 Changed

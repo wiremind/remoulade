@@ -91,7 +91,7 @@ language = None
 # List of patterns, relative to source directory, that match files and
 # directories to ignore when looking for source files.
 # This patterns also effect to html_static_path and html_extra_path
-exclude_patterns = []
+exclude_patterns: list[str] = []
 
 # The name of the Pygments (syntax highlighting) style to use.
 # pygments_style = 'sphinx'
@@ -107,7 +107,7 @@ todo_include_todos = False
 #
 html_theme = "alabaster"
 
-html_context = {}
+html_context: dict[str, object] = {}
 
 # Theme options are theme-specific and customize the look and feel of a theme
 # further.  For a list of options available for each theme, see the
@@ -150,7 +150,7 @@ htmlhelp_basename = "remouladedoc"
 
 # -- Options for LaTeX output ---------------------------------------------
 
-latex_elements = {
+latex_elements: dict[str, str] = {
     # The paper size ('letterpaper' or 'a4paper').
     #
     # 'papersize': 'letterpaper',
