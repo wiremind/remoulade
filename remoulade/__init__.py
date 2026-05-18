@@ -33,6 +33,7 @@ from .errors import (
     QueueJoinTimeout,
     QueueNotFound,
     RemouladeError,
+    UnsupportedMessageEncoding,
 )
 from .generic import GenericActor
 from .logging import get_logger
@@ -71,6 +72,7 @@ __all__ = [
     # Errors
     "RemouladeError",
     "Result",
+    "UnsupportedMessageEncoding",
     # Workers
     "Worker",
     "actor",

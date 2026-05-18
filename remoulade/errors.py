@@ -64,6 +64,10 @@ class MessageNotDelivered(ConnectionError):
     """Raised when a message has not been delivered."""
 
 
+class UnsupportedMessageEncoding(BrokerError):
+    """Raised when the current message encoder does not produce JSON compatible payloads."""
+
+
 class NoResultBackend(BrokerError):
     """Raised when trying to access the result backend on a broker without it"""
 
