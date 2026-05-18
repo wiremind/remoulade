@@ -6,7 +6,7 @@ Changelog
 All notable changes to this project will be documented in this file.
 
 =======
-Unreleased
+`6.2.0`_ -- 2026-05-18
 -------------
 Feat
 ^^^^
