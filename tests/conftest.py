@@ -13,11 +13,13 @@ from sqlalchemy.engine import create_engine
 from sqlalchemy.inspection import inspect
 from sqlalchemy.orm.session import sessionmaker
 from sqlalchemy.pool import NullPool
+from sqlalchemy.sql import text
 
 import remoulade
 from remoulade import Worker
 from remoulade.api import app
 from remoulade.brokers.local import LocalBroker
+from remoulade.brokers.pgmq import PgmqBroker
 from remoulade.brokers.rabbitmq import RabbitmqBroker
 from remoulade.brokers.stub import StubBroker
 from remoulade.cancel import backends as cl_backends
@@ -73,6 +75,22 @@ def check_postgres(client):
         return version_exists and states_exists and len(versions) == 1 and versions[0].version == DB_VERSION
 
 
+def check_pgmq(client):
+    try:
+        with client.begin() as session:
+            session.execute(text("CREATE EXTENSION IF NOT EXISTS pgmq"))
+            session.execute(text("SELECT pgmq.validate_queue_name('remoulade_test_queue')"))
+    except Exception as e:
+        raise e from e if CI else pytest.skip("No connection to PostgreSQL/PGMQ server.")
+
+
+def cleanup_pgmq_queues(client):
+    with client.begin() as session:
+        queue_names = [row[0] for row in session.execute(text("SELECT queue_name FROM pgmq.list_queues()")).all()]
+        for queue_name in queue_names:
+            session.execute(text("SELECT pgmq.drop_queue(:queue_name)"), {"queue_name": queue_name})
+
+
 @pytest.fixture
 def check_postgres_begin():
     client = remoulade.get_broker().get_state_backend().client
@@ -109,6 +127,23 @@ def rabbitmq_broker(request):
     remoulade.set_broker(broker)
     yield broker
     broker.flush_all()
+    broker.emit_before("process_stop")
+    broker.close()
+
+
+@pytest.fixture()
+def pgmq_broker():
+    db_string = os.getenv("REMOULADE_TEST_DB_URL") or "postgresql://remoulade@localhost:5544/test"
+    engine = create_engine(db_string, poolclass=NullPool)
+    client = sessionmaker(bind=engine)
+    check_pgmq(client)
+    cleanup_pgmq_queues(client)
+
+    broker = PgmqBroker(sessionmaker=client)
+    broker.emit_after("process_boot")
+    remoulade.set_broker(broker)
+    yield broker
+    cleanup_pgmq_queues(client)
     broker.emit_before("process_stop")
     broker.close()
 
