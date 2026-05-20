@@ -3,7 +3,7 @@ import time
 from unittest.mock import Mock
 
 import pytest
-from sqlalchemy import JSON, Column, Integer, MetaData, Table, create_engine, func
+from sqlalchemy import JSON, Column, Integer, MetaData, Table, func
 from sqlalchemy.sql import select, text
 
 import remoulade
@@ -25,7 +25,7 @@ class RecorderMiddleware(Middleware):
 
 @pytest.fixture
 def sqlite_pgmq_broker():
-    broker = PgmqBroker(engine=create_engine("sqlite://"), middleware=[])
+    broker = PgmqBroker(url="sqlite://", middleware=[])
     remoulade.set_broker(broker)
     yield broker
     broker.close()
@@ -60,13 +60,60 @@ def _expected_payload(message):
     return json.loads(message.encode().decode("utf-8"))
 
 
-def test_pgmq_broker_prefers_pgmq_url_from_environment(monkeypatch):
-    monkeypatch.setenv("REMOULADE_PGMQ_URL", "postgresql://pgmq-user@localhost/pgmq")
-    monkeypatch.setenv("REMOULADE_POSTGRESQL_URL", "postgresql://postgres-user@localhost/postgres")
+def test_pgmq_broker_uses_provided_url():
+    broker_url = "postgresql://pgmq-user@localhost/pgmq"
+    broker = PgmqBroker(url=broker_url)
 
-    broker = PgmqBroker(engine=create_engine("sqlite://"))
+    assert broker.url == broker_url
 
-    assert broker.url == "postgresql://pgmq-user@localhost/pgmq"
+
+def test_pgmq_broker_partitions_archive_table_on_postgresql_queue_init():
+    broker = PgmqBroker(
+        url="postgresql://pgmq-user@localhost/pgmq",
+        middleware=[],
+        partition_archive_on_queue_init=True,
+    )
+    broker.client.validate_queue_name = Mock()
+    broker.client.create_partitioned_queue = Mock()
+    broker.client.create_queue = Mock()
+
+    broker.declare_queue("default")
+
+    broker.client.create_partitioned_queue.assert_called_once_with(
+        "default",
+        partition_interval="1 day",
+        retention_interval="7 days",
+        conn=None,
+    )
+    broker.client.create_queue.assert_not_called()
+
+
+def test_pgmq_broker_uses_non_partitioned_queue_creation_when_disabled():
+    broker = PgmqBroker(
+        url="postgresql://pgmq-user@localhost/pgmq",
+        middleware=[],
+        partition_archive_on_queue_init=False,
+    )
+    broker.client.validate_queue_name = Mock()
+    broker.client.create_partitioned_queue = Mock()
+    broker.client.create_queue = Mock()
+
+    broker.declare_queue("default")
+
+    broker.client.create_queue.assert_called_once_with("default", conn=None)
+    broker.client.create_partitioned_queue.assert_not_called()
+
+
+def test_pgmq_broker_uses_non_partitioned_queue_creation_on_non_postgresql():
+    broker = PgmqBroker(url="sqlite://", middleware=[])
+    broker.client.validate_queue_name = Mock()
+    broker.client.create_partitioned_queue = Mock()
+    broker.client.create_queue = Mock()
+
+    broker.declare_queue("default")
+
+    broker.client.create_queue.assert_called_once_with("default", conn=None)
+    broker.client.create_partitioned_queue.assert_not_called()
 
 
 def test_pgmq_broker_declares_queue_idempotently(sqlite_pgmq_broker):

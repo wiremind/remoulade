@@ -15,7 +15,6 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 import json
-import os
 from contextlib import contextmanager
 from datetime import UTC, datetime, timedelta
 from threading import local
@@ -24,13 +23,10 @@ from typing import TYPE_CHECKING
 from pgmq import SQLAlchemyPGMQueue
 from sqlalchemy import bindparam, create_engine, text
 from sqlalchemy.dialects.postgresql import JSONB
-from sqlalchemy.engine import Engine
 from sqlalchemy.orm import sessionmaker as sqlalchemy_sessionmaker
-from sqlalchemy.orm.session import sessionmaker
 
 from ..broker import Broker
 from ..errors import QueueNotFound, UnsupportedMessageEncoding
-from ..state.backends.postgres import DEFAULT_POSTGRES_URI
 
 if TYPE_CHECKING:
     from ..message import Message
@@ -55,71 +51,44 @@ class PgmqBroker(Broker):
     def __init__(
         self,
         *,
-        url: str | None = None,
+        url: str,
         middleware: list["Middleware"] | None = None,
-        sessionmaker: sessionmaker | None = None,
-        engine: Engine | None = None,
         group_transaction: bool = False,
+        partition_archive_on_queue_init: bool = False,
+        archive_partition_interval: int | str = "1 day",
+        archive_retention_interval: int | str = "7 days",
     ):
         super().__init__(middleware=middleware)
 
-        if engine is not None and sessionmaker is not None:
-            raise ValueError("Only one of engine or sessionmaker can be provided.")
-
-        self.url = (
-            url
-            or os.getenv("REMOULADE_PGMQ_URL")
-            or os.getenv("REMOULADE_POSTGRESQL_URL")
-            or DEFAULT_POSTGRES_URI
-        )
+        self.url = url
         self.state = local()
         self.group_transaction = group_transaction
-        self._owns_engine = engine is None and sessionmaker is None
+        self.partition_archive_on_queue_init = partition_archive_on_queue_init
+        self.archive_partition_interval = archive_partition_interval
+        self.archive_retention_interval = archive_retention_interval
 
-        if sessionmaker is not None:
-            bound_engine = sessionmaker.kw.get("bind")
-            if bound_engine is None or not isinstance(bound_engine, Engine):
-                raise ValueError("sessionmaker must be bound to a SQLAlchemy engine.")
-            self.engine = bound_engine
-            self.sessionmaker = sessionmaker
-        else:
-            self.engine = engine or create_engine(self.url, pool_pre_ping=True)
-            self.sessionmaker = sqlalchemy_sessionmaker(bind=self.engine)
+        self.engine = create_engine(self.url, pool_pre_ping=True)
+        self.sessionmaker = sqlalchemy_sessionmaker(bind=self.engine)
 
         self.client = SQLAlchemyPGMQueue(engine=self.engine, init_extension=False)
 
     @contextmanager
     def tx(self):
-        if self._has_transaction:
-            self.state.transaction_depth += 1
-            try:
-                yield
-            finally:
-                self.state.transaction_depth -= 1
-            return
-
         with self.sessionmaker.begin() as session:
-            self.state.transaction_depth = 1
             self.state.transaction_session = session
             self.state.transaction_connection = session.connection()
             try:
                 yield
             finally:
-                self.state.transaction_depth = 0
                 self.state.transaction_session = None
                 self.state.transaction_connection = None
-
-    @property
-    def _has_transaction(self) -> bool:
-        return getattr(self.state, "transaction_connection", None) is not None
 
     @property
     def _current_connection(self):
         return getattr(self.state, "transaction_connection", None)
 
     def close(self):
-        if self._owns_engine:
-            self.engine.dispose()
+        self.engine.dispose()
 
     def consume(self, queue_name: str, prefetch: int = 1, timeout: int = 30000):
         raise NotImplementedError("PgmqBroker.consume() will be implemented in jalon 2.")
@@ -130,7 +99,15 @@ class PgmqBroker(Broker):
 
         self.client.validate_queue_name(queue_name, conn=self._current_connection)
         self.emit_before("declare_queue", queue_name)
-        self.client.create_queue(queue_name, conn=self._current_connection)
+        if self.partition_archive_on_queue_init:
+            self.client.create_partitioned_queue(
+                queue_name,
+                partition_interval=self.archive_partition_interval,
+                retention_interval=self.archive_retention_interval,
+                conn=self._current_connection,
+            )
+        else:
+            self.client.create_queue(queue_name, conn=self._current_connection)
         self.queues[queue_name] = None
         self.emit_after("declare_queue", queue_name)
 
