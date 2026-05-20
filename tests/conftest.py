@@ -139,7 +139,7 @@ def pgmq_broker():
     check_pgmq(client)
     cleanup_pgmq_queues(client)
 
-    broker = PgmqBroker(sessionmaker=client)
+    broker = PgmqBroker(url=db_string)
     broker.emit_after("process_boot")
     remoulade.set_broker(broker)
     yield broker
