@@ -7,7 +7,7 @@ from sqlalchemy import JSON, Column, Integer, MetaData, Table, func
 from sqlalchemy.sql import select, text
 
 import remoulade
-from remoulade import Message, Middleware, UnsupportedMessageEncoding
+from remoulade import Message, Middleware, QueueNotFound, UnsupportedMessageEncoding, Worker
 from remoulade.brokers.pgmq import PgmqBroker
 
 
@@ -48,6 +48,12 @@ def _first_payload(broker, queue_name="default"):
     with broker.sessionmaker.begin() as session:
         row = session.execute(select(queue_table.c.message).order_by(queue_table.c.msg_id).limit(1)).one()
     return row[0]
+
+
+def _count_archived_messages(broker, queue_name="default"):
+    archive_table = Table(f"a_{queue_name}", MetaData(), Column("msg_id", Integer), schema="pgmq")
+    with broker.sessionmaker.begin() as session:
+        return session.execute(select(func.count()).select_from(archive_table)).scalar_one()
 
 
 def _queue_exists(broker, queue_name):
@@ -223,9 +229,91 @@ def test_pgmq_broker_middleware_receives_standard_messages(sqlite_pgmq_broker):
     assert middleware.after_messages == [(message, None, None)]
 
 
-def test_pgmq_broker_worker_entrypoints_fail_explicitly_until_jalon_two(sqlite_pgmq_broker):
-    with pytest.raises(NotImplementedError, match="jalon 2"):
+def test_pgmq_broker_consume_fails_when_queue_was_not_declared(sqlite_pgmq_broker):
+    with pytest.raises(QueueNotFound):
         sqlite_pgmq_broker.consume("default")
 
+
+@pytest.mark.usefixtures("pgmq_broker")
+def test_pgmq_consumer_reads_messages_and_acks_with_delete(pgmq_broker):
+    message = Message(queue_name="default", actor_name="do_work", args=(42,), kwargs={}, options={})
+    pgmq_broker.declare_queue(message.queue_name)
+    pgmq_broker.enqueue(message)
+
+    consumer = pgmq_broker.consume("default", prefetch=2, timeout=200)
+    consumed_message = next(consumer)
+    assert consumed_message is not None
+    assert consumed_message.message_id == message.message_id
+
+    consumer.ack(consumed_message)
+    consumer.close()
+
+    assert _count_messages(pgmq_broker) == 0
+
+
+@pytest.mark.usefixtures("pgmq_broker")
+def test_pgmq_consumer_nack_archives_messages(pgmq_broker):
+    message = Message(queue_name="default", actor_name="do_work", args=(), kwargs={}, options={})
+    pgmq_broker.declare_queue(message.queue_name)
+    pgmq_broker.enqueue(message)
+
+    consumer = pgmq_broker.consume("default", prefetch=1, timeout=200)
+    consumed_message = next(consumer)
+
+    assert consumed_message is not None
+    consumer.nack(consumed_message)
+    consumer.close()
+
+    assert _count_messages(pgmq_broker) == 0
+    assert _count_archived_messages(pgmq_broker) == 1
+
+
+@pytest.mark.usefixtures("pgmq_broker")
+def test_pgmq_consumer_requeue_restores_visibility_with_set_vt(pgmq_broker):
+    message = Message(queue_name="default", actor_name="do_work", args=(), kwargs={}, options={})
+    pgmq_broker.declare_queue(message.queue_name)
+    pgmq_broker.enqueue(message)
+
+    consumer = pgmq_broker.consume("default", prefetch=1, timeout=200)
+    consumed_message = next(consumer)
+
+    assert consumed_message is not None
+    consumer.requeue([consumed_message])
+
+    replayed_message = next(consumer)
+    assert replayed_message is not None
+    assert replayed_message.message_id == message.message_id
+
+    consumer.ack(replayed_message)
+    consumer.close()
+
+    assert _count_messages(pgmq_broker) == 0
+
+
+@pytest.mark.usefixtures("pgmq_broker")
+def test_pgmq_worker_processes_native_delayed_messages_without_delay_queue(pgmq_broker):
+    seen = []
+
+    @remoulade.actor
+    def do_work(value):
+        seen.append(value)
+
+    pgmq_broker.declare_actor(do_work)
+    worker = Worker(pgmq_broker, worker_timeout=100, worker_threads=2)
+    worker.start()
+    try:
+        do_work.send_with_options(args=(3,), delay=150)
+        deadline = time.monotonic() + 10
+        while not seen and time.monotonic() < deadline:
+            time.sleep(0.05)
+        assert seen == [3]
+        worker.join()
+    finally:
+        worker.stop()
+
+    assert not _queue_exists(pgmq_broker, "default.DQ")
+
+
+def test_pgmq_broker_join_is_not_implemented_until_jalon_three(sqlite_pgmq_broker):
     with pytest.raises(NotImplementedError, match="jalon 3"):
         sqlite_pgmq_broker.join("default")

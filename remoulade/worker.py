@@ -171,7 +171,8 @@ class Worker:
         """
         while True:
             for consumer in self.consumers.values():
-                consumer.delay_queue.join()
+                if consumer.uses_in_memory_delay:
+                    consumer.delay_queue.join()
 
             self.work_queue.join()
 
@@ -179,7 +180,7 @@ class Worker:
             # joining on the work queue then it should be safe to exit.
             # This could still miss stuff but the chances are slim.
             for consumer in self.consumers.values():
-                if consumer.delay_queue.unfinished_tasks:
+                if consumer.uses_in_memory_delay and consumer.delay_queue.unfinished_tasks:
                     break
             else:
                 if self.work_queue.unfinished_tasks:
@@ -241,6 +242,7 @@ class _ConsumerThread(Thread):
         self.queue_name = queue_name
         self.work_queue = work_queue
         self.worker_timeout = worker_timeout
+        self.uses_in_memory_delay = not broker.supports_native_delay
         self.delay_queue = PriorityQueue()  # type: PriorityQueue
 
     def run(self):
@@ -270,7 +272,8 @@ class _ConsumerThread(Thread):
                     elif self.paused:
                         break
 
-                    self.handle_delayed_messages()
+                    if self.uses_in_memory_delay:
+                        self.handle_delayed_messages()
                     if not self.running:
                         break
 
@@ -323,7 +326,7 @@ class _ConsumerThread(Thread):
         work queue.
         """
         try:
-            if "eta" in message.options:
+            if self.uses_in_memory_delay and "eta" in message.options:
                 self.logger.debug("Pushing message %r onto delay queue.", message.message_id)
                 self.broker.emit_before("delay_message", message)
                 self.delay_queue.put((message.options.get("eta", 0), message))
@@ -388,7 +391,8 @@ class _ConsumerThread(Thread):
         """Close this consumer thread and its underlying connection."""
         try:
             if self.consumer:
-                self.requeue_messages(m for _, m in iter_queue(self.delay_queue))
+                if self.uses_in_memory_delay:
+                    self.requeue_messages(m for _, m in iter_queue(self.delay_queue))
                 self.consumer.close()
         except ConnectionError:
             pass
