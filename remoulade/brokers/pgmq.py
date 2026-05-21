@@ -15,6 +15,7 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 import json
+from collections import deque
 from contextlib import contextmanager
 from datetime import UTC, datetime, timedelta
 from threading import local
@@ -25,11 +26,11 @@ from sqlalchemy import bindparam, create_engine, text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import sessionmaker as sqlalchemy_sessionmaker
 
-from ..broker import Broker
+from ..broker import Broker, Consumer, MessageProxy
 from ..errors import QueueNotFound, UnsupportedMessageEncoding
+from ..message import Message
 
 if TYPE_CHECKING:
-    from ..message import Message
     from ..middleware import Middleware
 
 
@@ -69,6 +70,7 @@ class PgmqBroker(Broker):
 
         self.engine = create_engine(self.url, pool_pre_ping=True)
         self.sessionmaker = sqlalchemy_sessionmaker(bind=self.engine)
+        self.supports_native_delay = True
 
         self.client = SQLAlchemyPGMQueue(engine=self.engine, init_extension=False)
 
@@ -90,8 +92,10 @@ class PgmqBroker(Broker):
     def close(self):
         self.engine.dispose()
 
-    def consume(self, queue_name: str, prefetch: int = 1, timeout: int = 30000):
-        raise NotImplementedError("PgmqBroker.consume() will be implemented in jalon 2.")
+    def consume(self, queue_name: str, prefetch: int = 1, timeout: int = 30000) -> "_PgmqConsumer":
+        if queue_name not in self.queues:
+            raise QueueNotFound(queue_name)
+        return _PgmqConsumer(self, queue_name=queue_name, prefetch=prefetch, timeout=timeout)
 
     def declare_queue(self, queue_name: str) -> None:
         if queue_name in self.queues:
@@ -166,3 +170,70 @@ class PgmqBroker(Broker):
 
     def join(self, queue_name: str, *, timeout: int | None = None) -> None:
         raise NotImplementedError("PgmqBroker.join() will be implemented in jalon 3.")
+
+
+class _PgmqConsumer(Consumer):
+    def __init__(self, broker: PgmqBroker, *, queue_name: str, prefetch: int, timeout: int):
+        self.broker = broker
+        self.client = broker.client
+        self.queue_name = queue_name
+        self.prefetch = max(prefetch, 1)
+        self.timeout = max(timeout, 0)
+        self.messages = deque()
+
+    @property
+    def max_poll_seconds(self) -> int:
+        return max((self.timeout + 999) // 1000, 1)
+
+    @property
+    def poll_interval_ms(self) -> int:
+        return max(min(self.timeout, 1000), 1)
+
+    def ack(self, message):
+        if not isinstance(message, _PgmqMessage):
+            raise ValueError("It must be a PgmqMessage")
+        self.client.delete(self.queue_name, message._pgmq_message.msg_id)
+
+    def nack(self, message):
+        if not isinstance(message, _PgmqMessage):
+            raise ValueError("It must be a PgmqMessage")
+        self.client.archive(self.queue_name, message._pgmq_message.msg_id)
+
+    def requeue(self, messages):
+        msg_ids = [message._pgmq_message.msg_id for message in messages if isinstance(message, _PgmqMessage)]
+        if msg_ids:
+            self.client.set_vt(self.queue_name, msg_ids, 0)
+
+    def __next__(self):
+        if self.messages:
+            return _PgmqMessage(self.messages.popleft())
+
+        messages = self.client.read_with_poll(
+            self.queue_name,
+            qty=self.prefetch,
+            max_poll_seconds=self.max_poll_seconds,
+            poll_interval_ms=self.poll_interval_ms,
+        )
+        if not messages:
+            return None
+
+        self.messages.extend(messages)
+        return _PgmqMessage(self.messages.popleft())
+
+    def close(self):
+        return
+
+
+class _PgmqMessage(MessageProxy):
+    def __init__(self, pgmq_message):
+        payload = pgmq_message.message
+        if not isinstance(payload, dict):
+            raise UnsupportedMessageEncoding("PGMQ messages must contain JSON objects.")
+
+        try:
+            message = Message(**payload)
+        except TypeError as exc:
+            raise UnsupportedMessageEncoding("PGMQ message payload is not a valid Remoulade message envelope.") from exc
+
+        super().__init__(message)
+        self._pgmq_message = pgmq_message

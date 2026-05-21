@@ -199,6 +199,7 @@ class Broker:
         self.actors: dict[str, Actor] = {}
         self.queues: dict[str, Queue | None] = {}
         self.delay_queues: set[str] = set()
+        self.supports_native_delay = False
 
         self.actor_options: set[str] = set()
         self.middleware: list[Middleware] = []
