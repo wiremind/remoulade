@@ -23,8 +23,8 @@ classifiers = [
 rabbitmq = ["amqpstorm>=2.6,<3"]
 redis = ["redis>=7.0.0"]
 server = ["flask~=2.3.3", "marshmallow>=3,<4", "flask-apispec"]
-postgres = ["sqlalchemy>=2.0,<3", "psycopg2>=2.9.11"]
-pgmq = ["pgmq[sqlalchemy]>=1.1.1"]
+postgres = ["sqlalchemy>=1.4.29", "psycopg2>=2.9.11"]
+pgmq = ["sqlalchemy>=2.0,<3", "psycopg>=3.2", "pgmq[sqlalchemy]>=1.1.1"]
 pydantic = ["pydantic>=2.12", "simplejson"]
 limits = ["limits~=5.3.0"]
 tracing = ["opentelemetry-api>=1.20"]
@@ -38,6 +38,7 @@ dev = [
   "sqlalchemy>=2.0,<3",
   "psycopg2>=2.9.11",
   "pgmq[sqlalchemy]>=1.1.1",
+  "psycopg>=3.2",
   "pydantic>=2.12",
   "simplejson",
   "limits~=5.3.0",
