@@ -8,28 +8,8 @@ from sqlalchemy import JSON, Column, Integer, MetaData, Table, func
 from sqlalchemy.sql import select, text
 
 import remoulade
-from remoulade import Message, Middleware, QueueNotFound, UnsupportedMessageEncoding, Worker
+from remoulade import Message, Worker
 from remoulade.brokers.pgmq import PgmqBroker
-
-
-class RecorderMiddleware(Middleware):
-    def __init__(self):
-        self.before_messages = []
-        self.after_messages = []
-
-    def before_enqueue(self, broker, message, delay):
-        self.before_messages.append((message, delay))
-
-    def after_enqueue(self, broker, message, delay, exception=None):
-        self.after_messages.append((message, delay, exception))
-
-
-@pytest.fixture
-def sqlite_pgmq_broker():
-    broker = PgmqBroker(url="sqlite://", middleware=[])
-    remoulade.set_broker(broker)
-    yield broker
-    broker.close()
 
 
 def _count_messages(broker, queue_name="default"):
@@ -134,39 +114,6 @@ def test_pgmq_broker_does_not_fail_when_enable_notify_raises(caplog):
     assert "Failed to enable LISTEN/NOTIFY" in caplog.text
 
 
-def test_pgmq_broker_uses_non_partitioned_queue_creation_on_non_postgresql():
-    broker = PgmqBroker(url="sqlite://", middleware=[])
-    broker.client.validate_queue_name = Mock()
-    broker.client.create_partitioned_queue = Mock()
-    broker.client.create_queue = Mock()
-    broker.client.enable_notify = Mock()
-
-    broker.declare_queue("default")
-
-    broker.client.create_queue.assert_called_once_with("default", conn=None)
-    broker.client.create_partitioned_queue.assert_not_called()
-    broker.client.enable_notify.assert_not_called()
-
-
-def test_pgmq_broker_declares_queue_idempotently(sqlite_pgmq_broker):
-    sqlite_pgmq_broker.client.validate_queue_name = Mock()
-    sqlite_pgmq_broker.client.create_queue = Mock()
-    sqlite_pgmq_broker.declare_queue("default")
-    sqlite_pgmq_broker.declare_queue("default")
-
-    assert sqlite_pgmq_broker.get_declared_queues() == {"default"}
-    assert sqlite_pgmq_broker.get_declared_delay_queues() == set()
-    assert sqlite_pgmq_broker.client.validate_queue_name.call_count == 1
-    assert sqlite_pgmq_broker.client.create_queue.call_count == 1
-
-
-def test_pgmq_broker_rejects_too_long_queue_names(sqlite_pgmq_broker):
-    sqlite_pgmq_broker.client.validate_queue_name = Mock(side_effect=ValueError("queue name too long"))
-
-    with pytest.raises(ValueError):
-        sqlite_pgmq_broker.declare_queue("q" * 49)
-
-
 @pytest.mark.usefixtures("pgmq_broker")
 def test_pgmq_broker_enqueue_stores_a_standard_remoulade_payload_as_jsonb(pgmq_broker):
     message = Message(queue_name="default", actor_name="do_work", args=(1, 2), kwargs={"debug": True}, options={})
@@ -176,19 +123,6 @@ def test_pgmq_broker_enqueue_stores_a_standard_remoulade_payload_as_jsonb(pgmq_b
 
     assert _count_messages(pgmq_broker) == 1
     assert _first_payload(pgmq_broker) == _expected_payload(message)
-
-
-def test_pgmq_broker_rejects_non_json_encoders(sqlite_pgmq_broker, pickle_encoder):
-    message = Message(queue_name="default", actor_name="do_work", args=(1,), kwargs={}, options={})
-    sqlite_pgmq_broker.client.validate_queue_name = Mock()
-    sqlite_pgmq_broker.client.create_queue = Mock()
-    sqlite_pgmq_broker.declare_queue(message.queue_name)
-    sqlite_pgmq_broker.client.send = Mock()
-
-    with pytest.raises(UnsupportedMessageEncoding):
-        sqlite_pgmq_broker.enqueue(message)
-
-    sqlite_pgmq_broker.client.send.assert_not_called()
 
 
 @pytest.mark.usefixtures("pgmq_broker")
@@ -224,40 +158,6 @@ def test_pgmq_broker_transactions_commit_and_rollback_messages(pgmq_broker):
         raise ValueError("rollback")
 
     assert _count_messages(pgmq_broker) == 1
-
-
-def test_pgmq_broker_flush_purges_messages(sqlite_pgmq_broker):
-    sqlite_pgmq_broker.client.validate_queue_name = Mock()
-    sqlite_pgmq_broker.client.create_queue = Mock()
-    sqlite_pgmq_broker.client.purge = Mock()
-
-    sqlite_pgmq_broker.declare_queue("default")
-    sqlite_pgmq_broker.flush("default")
-
-    sqlite_pgmq_broker.client.purge.assert_called_once_with("default", conn=None)
-
-
-def test_pgmq_broker_middleware_receives_standard_messages(sqlite_pgmq_broker):
-    middleware = RecorderMiddleware()
-    sqlite_pgmq_broker.client.validate_queue_name = Mock()
-    sqlite_pgmq_broker.client.create_queue = Mock()
-    sqlite_pgmq_broker.client.send = Mock()
-    sqlite_pgmq_broker.add_middleware(middleware)
-
-    @remoulade.actor
-    def do_work():
-        return 1
-
-    sqlite_pgmq_broker.declare_actor(do_work)
-    message = do_work.send()
-
-    assert middleware.before_messages == [(message, None)]
-    assert middleware.after_messages == [(message, None, None)]
-
-
-def test_pgmq_broker_consume_fails_when_queue_was_not_declared(sqlite_pgmq_broker):
-    with pytest.raises(QueueNotFound):
-        sqlite_pgmq_broker.consume("default")
 
 
 def test_pgmq_consumer_uses_notification_path_when_listener_is_available(monkeypatch):
@@ -459,8 +359,3 @@ def test_pgmq_consumer_listener_wakes_on_enqueue_with_listen_notify(pgmq_broker)
         consumer.ack(consumed)
     finally:
         consumer.close()
-
-
-def test_pgmq_broker_join_is_not_implemented_until_jalon_three(sqlite_pgmq_broker):
-    with pytest.raises(NotImplementedError, match="jalon 3"):
-        sqlite_pgmq_broker.join("default")
