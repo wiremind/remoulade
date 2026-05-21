@@ -6,12 +6,19 @@ from remoulade.brokers.pgmq import PgmqBroker
 
 # Same DSN as local_pgmq_broker.py
 URL = "postgresql://remoulade@localhost:5544/test"
+QUEUE_NAME = "default"
+ACTOR_NAME = "demo.add"
 
-broker = PgmqBroker(url=URL, middleware=[])
+broker = PgmqBroker(
+    url=URL,
+    middleware=[],
+    listen_notify_enabled=True,
+)
 remoulade.set_broker(broker)
+broker.declare_queue(QUEUE_NAME)
 
 
-@remoulade.actor(actor_name="demo.add", queue_name="default")
+@remoulade.actor(actor_name=ACTOR_NAME, queue_name=QUEUE_NAME)
 def add(x: int, y: int) -> int:
     result = x + y
     print(f"[demo.add] {x} + {y} = {result}")
@@ -22,9 +29,13 @@ remoulade.declare_actors([add])
 
 
 if __name__ == "__main__":
-    worker = Worker(broker, queues={"default"}, worker_threads=1, worker_timeout=500)
+    probe = broker.consume(QUEUE_NAME, prefetch=1, timeout=30_000)
+    listener_mode = "LISTEN/NOTIFY" if probe._listener_available else "polling fallback"
+    probe.close()
+
+    worker = Worker(broker, queues={QUEUE_NAME}, worker_threads=1, worker_timeout=30_000)
     worker.start()
-    print("PGMQ local consumer started on queue 'default'. Press Ctrl+C to stop.")
+    print(f"PGMQ local consumer started on queue '{QUEUE_NAME}' ({listener_mode}). Press Ctrl+C to stop.")
     try:
         while True:
             time.sleep(1)
