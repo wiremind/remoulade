@@ -4,6 +4,7 @@ import time
 from unittest.mock import Mock
 
 import pytest
+from pydantic import BaseModel
 from sqlalchemy import JSON, Column, Integer, MetaData, Table, func
 from sqlalchemy.sql import select, text
 
@@ -248,6 +249,47 @@ def test_pgmq_consumer_falls_back_to_polling_when_listener_stops_during_wait(mon
         max_poll_seconds=1,
         poll_interval_ms=200,
     )
+    consumer.close()
+
+
+def test_pgmq_consumer_decodes_payload_with_global_encoder(monkeypatch, pydantic_encoder):
+    class InputSchema(BaseModel):
+        value: int
+
+    def _fake_start_listener(self):
+        self._listener_available = False
+
+    monkeypatch.setattr("remoulade.brokers.pgmq._PgmqConsumer._start_listener", _fake_start_listener)
+
+    broker = PgmqBroker(url="postgresql://pgmq-user@localhost/pgmq", middleware=[])
+    remoulade.set_broker(broker)
+    broker.client.validate_queue_name = Mock()
+    broker.client.create_queue = Mock()
+    broker.client.enable_notify = Mock()
+
+    @remoulade.actor(actor_name="typed.actor", queue_name="default")
+    def typed_actor(payload: InputSchema):
+        return payload.value
+
+    broker.declare_actor(typed_actor)
+
+    message = Message(
+        queue_name="default",
+        actor_name="typed.actor",
+        args=(InputSchema(value=42),),
+        kwargs={},
+        options={},
+    )
+    payload = _expected_payload(message)
+    broker.client.read = Mock(return_value=None)
+    broker.client.read_with_poll = Mock(return_value=[Mock(msg_id=1, message=payload)])
+
+    consumer = broker.consume("default", prefetch=1, timeout=200)
+    consumed = next(consumer)
+
+    assert consumed is not None
+    assert isinstance(consumed.args[0], InputSchema)
+    assert consumed.args[0].value == 42
     consumer.close()
 
 
