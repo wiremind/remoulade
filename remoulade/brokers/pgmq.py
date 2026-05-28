@@ -1,6 +1,6 @@
 # This file is a part of Remoulade.
 #
-# Copyright (C) 2017,2018 CLEARTYPE SRL <bogdan@cleartype.io>
+# Copyright (C) 2017,2018 WIREMIND SAS <dev@wiremind.fr>
 #
 # Remoulade is free software; you can redistribute it and/or modify it
 # under the terms of the GNU Lesser General Public License as published by
@@ -20,7 +20,7 @@ from collections import deque
 from collections.abc import Iterable, Iterator
 from contextlib import contextmanager
 from datetime import UTC, datetime, timedelta
-from threading import Event, Thread, local
+from threading import Event, Lock, Thread, local
 from typing import TYPE_CHECKING, Any
 
 import psycopg
@@ -29,7 +29,6 @@ from pgmq.messages import Message as PgmqQueueMessage
 from psycopg import sql as psycopg_sql
 from sqlalchemy import Column, Integer, MetaData, Table, bindparam, create_engine, func, select, text
 from sqlalchemy.dialects.postgresql import JSONB
-from sqlalchemy.engine import make_url
 from sqlalchemy.orm import sessionmaker as sqlalchemy_sessionmaker
 
 from ..broker import Broker, Consumer, MessageProxy
@@ -67,8 +66,31 @@ class PgmqBroker(Broker):
         archive_partition_interval: int | str = "1 day",
         archive_retention_interval: int | str = "7 days",
         listen_notify_enabled: bool = True,
+        visibility_timeout: int = 30,
+        heartbeat_interval: float = 10.0,
     ) -> None:
+        """Initialize a PostgreSQL-backed broker using the PGMQ extension.
+
+        Parameters:
+          url(str): PostgreSQL URL in plain format (`postgresql://...`), used both by SQLAlchemy and psycopg.
+          middleware(list[Middleware] | None): Middleware stack applied to this broker.
+          group_transaction(bool): If True, wraps group and pipeline operations in a single transaction.
+          partition_archive_on_queue_init(bool): If True, creates partitioned queues when declaring queues.
+          archive_partition_interval(int | str): Partition interval passed to PGMQ when creating partitioned queues.
+          archive_retention_interval(int | str): Retention interval passed to PGMQ for archive partitions.
+          listen_notify_enabled(bool): If True, enables LISTEN/NOTIFY to wake consumers when new messages arrive.
+          visibility_timeout(int): Message visibility timeout in seconds after read; must be greater than 0.
+          heartbeat_interval(float): Heartbeat interval in seconds used to extend in-flight message visibility;
+            must be greater than 0 and lower than visibility_timeout.
+
+        Raises:
+          ValueError: If visibility_timeout or heartbeat_interval values are invalid.
+        """
         super().__init__(middleware=middleware)
+        if visibility_timeout <= 0:
+            raise ValueError("visibility_timeout must be greater than 0")
+        if heartbeat_interval <= 0 or heartbeat_interval >= visibility_timeout:
+            raise ValueError("heartbeat_interval must be greater than 0 and lower than visibility_timeout")
 
         self.url = url
         self.state = local()
@@ -77,12 +99,14 @@ class PgmqBroker(Broker):
         self.archive_partition_interval = archive_partition_interval
         self.archive_retention_interval = archive_retention_interval
         self.listen_notify_enabled = listen_notify_enabled
+        self.visibility_timeout = visibility_timeout
+        self.heartbeat_interval = heartbeat_interval
 
         self.engine = create_engine(self.url, pool_pre_ping=True)
         self.sessionmaker = sqlalchemy_sessionmaker(bind=self.engine)
         self.supports_native_delay = True
 
-        self.client = SQLAlchemyPGMQueue(engine=self.engine, init_extension=False)
+        self.client = SQLAlchemyPGMQueue(engine=self.engine, init_extension=True, vt=self.visibility_timeout)
 
     @contextmanager
     def tx(self) -> Iterator[None]:
@@ -98,10 +122,6 @@ class PgmqBroker(Broker):
     @property
     def _current_connection(self) -> Any | None:
         return getattr(self.state, "transaction_connection", None)
-
-    def _build_listener_conninfo(self) -> str:
-        # psycopg expects a plain PostgreSQL URL and rejects SQLAlchemy-style driver suffixes.
-        return make_url(self.url).set(drivername="postgresql").render_as_string(hide_password=False)
 
     def _try_enable_notify(self, queue_name: str) -> None:
         if not self.listen_notify_enabled:
@@ -256,20 +276,36 @@ class PgmqBroker(Broker):
 
 class _PgmqConsumer(Consumer):
     def __init__(self, broker: PgmqBroker, *, queue_name: str, prefetch: int, timeout: int) -> None:
+        """Initialize a consumer for a PGMQ queue.
+
+        Parameters:
+          broker(PgmqBroker): Broker instance that owns the queue and database client.
+          queue_name(str): Name of the declared queue to consume from.
+          prefetch(int): Maximum number of messages fetched per read call; values lower than 1 are coerced to 1.
+          timeout(int): Idle wait timeout in milliseconds when polling for messages; values lower than 0 are coerced to
+          0. A value of 0 performs non-blocking reads.
+        """
         self.broker = broker
         self.client = broker.client
         self.queue_name = queue_name
         self.prefetch = max(prefetch, 1)
         self.timeout = max(timeout, 0)
+        self.visibility_timeout = broker.visibility_timeout
+        self.heartbeat_interval = broker.heartbeat_interval
         self.messages: deque[PgmqQueueMessage] = deque()
         self._notify_event = Event()
         self._listener_stop = Event()
         self._listener_thread: Thread | None = None
         self._listener_connection: psycopg.Connection[Any] | None = None
         self._listener_available = False
+        self._heartbeat_stop = Event()
+        self._heartbeat_thread: Thread | None = None
+        self._heartbeat_msg_ids_lock = Lock()
+        self._heartbeat_msg_ids: set[int] = set()
 
         if self.broker.listen_notify_enabled:
             self._start_listener()
+        self._start_heartbeat()
 
     @property
     def max_poll_seconds(self) -> int:
@@ -289,23 +325,60 @@ class _PgmqConsumer(Consumer):
         return [messages] if not isinstance(messages, list) else messages
 
     def _read_immediate(self) -> list[PgmqQueueMessage]:
-        return self._normalize_messages(self.client.read(self.queue_name, qty=self.prefetch))
+        return self._normalize_messages(
+            self.client.read(
+                self.queue_name,
+                vt=self.visibility_timeout,
+                qty=self.prefetch,
+            )
+        )
 
     def _read_with_poll(self) -> list[PgmqQueueMessage]:
         return self._normalize_messages(
             self.client.read_with_poll(
                 self.queue_name,
+                vt=self.visibility_timeout,
                 qty=self.prefetch,
                 max_poll_seconds=self.max_poll_seconds,
                 poll_interval_ms=self.poll_interval_ms,
             )
         )
 
+    def _start_heartbeat(self) -> None:
+        self._heartbeat_thread = Thread(
+            target=self._run_heartbeat,
+            name=f"pgmq-heartbeat-{self.queue_name}",
+            daemon=True,
+        )
+        self._heartbeat_thread.start()
+
+    def _run_heartbeat(self) -> None:
+        while not self._heartbeat_stop.wait(self.heartbeat_interval):
+            with self._heartbeat_msg_ids_lock:
+                msg_ids = list(self._heartbeat_msg_ids)
+            if not msg_ids:
+                continue
+            try:
+                self.client.set_vt(self.queue_name, msg_ids, self.visibility_timeout)
+            except Exception:
+                self.broker.logger.warning(
+                    "Failed to extend visibility timeout heartbeat for queue %s.",
+                    self.queue_name,
+                    exc_info=True,
+                )
+
+    def _register_heartbeat_msg(self, message: "_PgmqMessage") -> None:
+        with self._heartbeat_msg_ids_lock:
+            self._heartbeat_msg_ids.add(message._pgmq_message.msg_id)
+
+    def _unregister_heartbeat_msg_id(self, msg_id: int) -> None:
+        with self._heartbeat_msg_ids_lock:
+            self._heartbeat_msg_ids.discard(msg_id)
+
     def _start_listener(self) -> None:
         channel = f"pgmq.q_{self.queue_name}.INSERT"
         try:
-            conninfo = self.broker._build_listener_conninfo()
-            self._listener_connection = psycopg.connect(conninfo, autocommit=True)
+            self._listener_connection = psycopg.connect(self.broker.url, autocommit=True)
             self._listener_connection.execute(psycopg_sql.SQL("LISTEN {}").format(psycopg_sql.Identifier(channel)))
             self._listener_available = True
         except Exception:
@@ -349,21 +422,30 @@ class _PgmqConsumer(Consumer):
     def ack(self, message: "MessageProxy") -> None:
         if not isinstance(message, _PgmqMessage):
             raise ValueError("It must be a PgmqMessage")
+        self._unregister_heartbeat_msg_id(message._pgmq_message.msg_id)
         self.client.archive(self.queue_name, message._pgmq_message.msg_id)
 
     def nack(self, message: "MessageProxy") -> None:
         if not isinstance(message, _PgmqMessage):
             raise ValueError("It must be a PgmqMessage")
+        self._unregister_heartbeat_msg_id(message._pgmq_message.msg_id)
         self.client.archive(self.queue_name, message._pgmq_message.msg_id)
 
     def requeue(self, messages: Iterable["MessageProxy"]) -> None:
         msg_ids = [message._pgmq_message.msg_id for message in messages if isinstance(message, _PgmqMessage)]
         if msg_ids:
+            for msg_id in msg_ids:
+                self._unregister_heartbeat_msg_id(msg_id)
             self.client.set_vt(self.queue_name, msg_ids, 0)
+
+    def _build_message(self, pgmq_message: PgmqQueueMessage) -> "_PgmqMessage":
+        message = _PgmqMessage(pgmq_message)
+        self._register_heartbeat_msg(message)
+        return message
 
     def __next__(self) -> "_PgmqMessage | None":
         if self.messages:
-            return _PgmqMessage(self.messages.popleft())
+            return self._build_message(self.messages.popleft())
 
         if self._listener_available:
             self._notify_event.clear()
@@ -378,10 +460,11 @@ class _PgmqConsumer(Consumer):
             return None
 
         self.messages.extend(messages)
-        return _PgmqMessage(self.messages.popleft())
+        return self._build_message(self.messages.popleft())
 
     def close(self) -> None:
         self._listener_stop.set()
+        self._heartbeat_stop.set()
         self._notify_event.set()
         if self._listener_connection is not None:
             try:
@@ -392,6 +475,8 @@ class _PgmqConsumer(Consumer):
                 self._listener_connection = None
         if self._listener_thread is not None:
             self._listener_thread.join(timeout=1)
+        if self._heartbeat_thread is not None:
+            self._heartbeat_thread.join(timeout=1)
         return
 
 
