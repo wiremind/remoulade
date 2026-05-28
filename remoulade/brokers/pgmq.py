@@ -15,6 +15,7 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 import json
+import time
 from collections import deque
 from collections.abc import Iterable, Iterator
 from contextlib import contextmanager
@@ -26,13 +27,13 @@ import psycopg
 from pgmq import SQLAlchemyPGMQueue
 from pgmq.messages import Message as PgmqQueueMessage
 from psycopg import sql as psycopg_sql
-from sqlalchemy import bindparam, create_engine, text
+from sqlalchemy import Column, Integer, MetaData, Table, bindparam, create_engine, func, select, text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.engine import make_url
 from sqlalchemy.orm import sessionmaker as sqlalchemy_sessionmaker
 
 from ..broker import Broker, Consumer, MessageProxy
-from ..errors import QueueNotFound, UnsupportedMessageEncoding
+from ..errors import QueueJoinTimeout, QueueNotFound, UnsupportedMessageEncoding
 from ..message import Message
 
 if TYPE_CHECKING:
@@ -199,8 +200,58 @@ class PgmqBroker(Broker):
         for queue_name in self.queues:
             self.flush(queue_name)
 
-    def join(self, queue_name: str, *, timeout: int | None = None) -> None:
-        raise NotImplementedError("PgmqBroker.join() will be implemented in jalon 3.")
+    def _count_enqueued_messages(self, queue_name: str) -> int:
+        queue_table = Table(f"q_{queue_name}", MetaData(), Column("msg_id", Integer), schema="pgmq")
+        count_query = select(func.count()).select_from(queue_table)
+
+        with self.sessionmaker.begin() as session:
+            return session.execute(count_query).scalar_one()
+
+    def join(
+        self,
+        queue_name: str,
+        min_successes: int = 10,
+        idle_time: int = 100,
+        *,
+        timeout: int | None = None,
+    ) -> None:
+        """Wait for all the messages on the given queue to be processed.
+
+        This method checks the full PGMQ queue table and therefore waits for
+        all states: visible messages, invisible in-flight messages and native
+        delayed messages.
+
+        Parameters:
+          queue_name(str): The queue to wait on.
+          min_successes(int): The minimum number of times the queue should be
+            observed as empty.
+          idle_time(int): The number of milliseconds to wait between checks.
+          timeout(Optional[int]): The max amount of time, in milliseconds, to
+            wait on this queue.
+
+        Raises:
+          QueueNotFound: If the given queue was never declared.
+          QueueJoinTimeout: When the timeout elapses.
+        """
+        if queue_name not in self.queues:
+            raise QueueNotFound(queue_name)
+
+        deadline = time.monotonic() + timeout / 1000 if timeout is not None else None
+        successes = 0
+
+        while successes < min_successes:
+            if deadline and time.monotonic() >= deadline:
+                raise QueueJoinTimeout(queue_name)
+
+            total_messages = self._count_enqueued_messages(queue_name)
+            if total_messages == 0:
+                successes += 1
+                if successes >= min_successes:
+                    return
+            else:
+                successes = 0
+
+            time.sleep(idle_time / 1000)
 
 
 class _PgmqConsumer(Consumer):

@@ -9,7 +9,7 @@ from sqlalchemy import JSON, Column, Integer, MetaData, Table, func
 from sqlalchemy.sql import select, text
 
 import remoulade
-from remoulade import Message, Worker
+from remoulade import Message, QueueJoinTimeout, Worker
 from remoulade.brokers.pgmq import PgmqBroker
 
 
@@ -362,15 +362,42 @@ def test_pgmq_worker_processes_native_delayed_messages_without_delay_queue(pgmq_
     worker.start()
     try:
         do_work.send_with_options(args=(3,), delay=150)
-        deadline = time.monotonic() + 10
-        while not seen and time.monotonic() < deadline:
-            time.sleep(0.05)
+        pgmq_broker.join(do_work.queue_name, timeout=10_000)
         assert seen == [3]
         worker.join()
     finally:
         worker.stop()
 
     assert not _queue_exists(pgmq_broker, "default.DQ")
+
+
+@pytest.mark.usefixtures("pgmq_broker")
+def test_pgmq_broker_join_times_out_while_processing_invisible_message(pgmq_broker):
+    started = threading.Event()
+    release = threading.Event()
+
+    @remoulade.actor
+    def do_work():
+        started.set()
+        release.wait(timeout=5)
+
+    pgmq_broker.declare_actor(do_work)
+
+    worker = Worker(pgmq_broker, worker_timeout=100, worker_threads=1)
+    worker.start()
+    try:
+        do_work.send()
+        assert started.wait(timeout=2)
+
+        with pytest.raises(QueueJoinTimeout):
+            pgmq_broker.join(do_work.queue_name, timeout=100)
+
+        release.set()
+        pgmq_broker.join(do_work.queue_name, timeout=5_000)
+        worker.join()
+    finally:
+        release.set()
+        worker.stop()
 
 
 @pytest.mark.usefixtures("pgmq_broker")
