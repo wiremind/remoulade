@@ -24,8 +24,8 @@ from typing import TYPE_CHECKING, Any
 
 import psycopg
 from pgmq import SQLAlchemyPGMQueue
+from pgmq.messages import Message as PgmqQueueMessage
 from psycopg import sql as psycopg_sql
-from pydantic import BaseModel, ConfigDict, ValidationError
 from sqlalchemy import bindparam, create_engine, text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.engine import make_url
@@ -38,16 +38,7 @@ from ..message import Message
 if TYPE_CHECKING:
     from ..middleware import Middleware
 
-
 PgmqPayload = dict[str, Any]
-
-
-class _PgmqQueueMessage(BaseModel):
-    model_config = ConfigDict(extra="ignore", from_attributes=True)
-
-    msg_id: int
-    message: PgmqPayload
-
 
 DELAYED_SEND_SQL = text(
     """
@@ -219,7 +210,7 @@ class _PgmqConsumer(Consumer):
         self.queue_name = queue_name
         self.prefetch = max(prefetch, 1)
         self.timeout = max(timeout, 0)
-        self.messages: deque[_PgmqQueueMessage] = deque()
+        self.messages: deque[PgmqQueueMessage] = deque()
         self._notify_event = Event()
         self._listener_stop = Event()
         self._listener_thread: Thread | None = None
@@ -241,24 +232,15 @@ class _PgmqConsumer(Consumer):
     def wait_timeout_seconds(self) -> float:
         return self.timeout / 1000 if self.timeout > 0 else 0
 
-    def _normalize_messages(self, messages: Any | list[Any] | None) -> list[_PgmqQueueMessage]:
+    def _normalize_messages(self, messages: PgmqQueueMessage | list[PgmqQueueMessage] | None) -> list[PgmqQueueMessage]:
         if messages is None:
             return []
-        raw_messages = messages if isinstance(messages, list) else [messages]
-        normalized_messages: list[_PgmqQueueMessage] = []
-        for message in raw_messages:
-            try:
-                normalized_messages.append(_PgmqQueueMessage.model_validate(message, from_attributes=True))
-            except ValidationError as exc:
-                raise UnsupportedMessageEncoding(
-                    "PGMQ messages must expose 'msg_id' and a JSONB-serializable object in 'message'."
-                ) from exc
-        return normalized_messages
+        return [messages] if not isinstance(messages, list) else messages
 
-    def _read_immediate(self) -> list[_PgmqQueueMessage]:
+    def _read_immediate(self) -> list[PgmqQueueMessage]:
         return self._normalize_messages(self.client.read(self.queue_name, qty=self.prefetch))
 
-    def _read_with_poll(self) -> list[_PgmqQueueMessage]:
+    def _read_with_poll(self) -> list[PgmqQueueMessage]:
         return self._normalize_messages(
             self.client.read_with_poll(
                 self.queue_name,
@@ -316,7 +298,7 @@ class _PgmqConsumer(Consumer):
     def ack(self, message: "MessageProxy") -> None:
         if not isinstance(message, _PgmqMessage):
             raise ValueError("It must be a PgmqMessage")
-        self.client.delete(self.queue_name, message._pgmq_message.msg_id)
+        self.client.archive(self.queue_name, message._pgmq_message.msg_id)
 
     def nack(self, message: "MessageProxy") -> None:
         if not isinstance(message, _PgmqMessage):
@@ -363,13 +345,15 @@ class _PgmqConsumer(Consumer):
 
 
 class _PgmqMessage(MessageProxy):
-    def __init__(self, pgmq_message: _PgmqQueueMessage) -> None:
+    def __init__(self, pgmq_message: PgmqQueueMessage) -> None:
         payload = pgmq_message.message
         if not isinstance(payload, dict):
             raise UnsupportedMessageEncoding("PGMQ messages must contain JSON objects.")
 
         try:
-            message: Message = Message(**payload)
+            # Re-run the global message decoder so custom encoders (e.g. PydanticEncoder)
+            # can rehydrate actor args/kwargs to their typed schemas.
+            message = Message.decode(json.dumps(payload, separators=(",", ":")).encode("utf-8"))
         except TypeError as exc:
             raise UnsupportedMessageEncoding("PGMQ message payload is not a valid Remoulade message envelope.") from exc
 
