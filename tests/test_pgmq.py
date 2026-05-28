@@ -1,4 +1,5 @@
 import json
+import os
 import threading
 import time
 from unittest.mock import Mock
@@ -11,6 +12,8 @@ from sqlalchemy.sql import select, text
 import remoulade
 from remoulade import Message, QueueJoinTimeout, Worker
 from remoulade.brokers.pgmq import PgmqBroker
+
+TEST_PGMQ_URL = os.getenv("REMOULADE_TEST_DB_URL") or "postgresql://remoulade@localhost:5544/test"
 
 
 def _count_messages(broker, queue_name="default"):
@@ -49,7 +52,7 @@ def _expected_payload(message):
 
 
 def test_pgmq_broker_uses_provided_url():
-    broker_url = "postgresql://pgmq-user@localhost/pgmq"
+    broker_url = TEST_PGMQ_URL
     broker = PgmqBroker(url=broker_url)
 
     assert broker.url == broker_url
@@ -57,7 +60,7 @@ def test_pgmq_broker_uses_provided_url():
 
 def test_pgmq_broker_partitions_archive_table_on_postgresql_queue_init():
     broker = PgmqBroker(
-        url="postgresql://pgmq-user@localhost/pgmq",
+        url=TEST_PGMQ_URL,
         middleware=[],
         partition_archive_on_queue_init=True,
     )
@@ -78,7 +81,7 @@ def test_pgmq_broker_partitions_archive_table_on_postgresql_queue_init():
 
 def test_pgmq_broker_uses_non_partitioned_queue_creation_when_disabled():
     broker = PgmqBroker(
-        url="postgresql://pgmq-user@localhost/pgmq",
+        url=TEST_PGMQ_URL,
         middleware=[],
         partition_archive_on_queue_init=False,
     )
@@ -93,7 +96,7 @@ def test_pgmq_broker_uses_non_partitioned_queue_creation_when_disabled():
 
 
 def test_pgmq_broker_enables_notify_on_postgresql_queue_init():
-    broker = PgmqBroker(url="postgresql://pgmq-user@localhost/pgmq", middleware=[])
+    broker = PgmqBroker(url=TEST_PGMQ_URL, middleware=[])
     broker.client.validate_queue_name = Mock()
     broker.client.create_queue = Mock()
     broker.client.enable_notify = Mock()
@@ -104,7 +107,7 @@ def test_pgmq_broker_enables_notify_on_postgresql_queue_init():
 
 
 def test_pgmq_broker_does_not_fail_when_enable_notify_raises(caplog):
-    broker = PgmqBroker(url="postgresql://pgmq-user@localhost/pgmq", middleware=[])
+    broker = PgmqBroker(url=TEST_PGMQ_URL, middleware=[])
     broker.client.validate_queue_name = Mock()
     broker.client.create_queue = Mock()
     broker.client.enable_notify = Mock(side_effect=RuntimeError("notify unavailable"))
@@ -167,7 +170,7 @@ def test_pgmq_consumer_uses_notification_path_when_listener_is_available(monkeyp
 
     monkeypatch.setattr("remoulade.brokers.pgmq._PgmqConsumer._start_listener", _fake_start_listener)
 
-    broker = PgmqBroker(url="postgresql://pgmq-user@localhost/pgmq", middleware=[])
+    broker = PgmqBroker(url=TEST_PGMQ_URL, middleware=[])
     broker.queues["default"] = None
 
     message = Message(queue_name="default", actor_name="do_work", args=(1,), kwargs={}, options={})
@@ -193,7 +196,7 @@ def test_pgmq_consumer_falls_back_to_polling_when_listener_is_unavailable(monkey
 
     monkeypatch.setattr("remoulade.brokers.pgmq._PgmqConsumer._start_listener", _fake_start_listener)
 
-    broker = PgmqBroker(url="postgresql://pgmq-user@localhost/pgmq", middleware=[])
+    broker = PgmqBroker(url=TEST_PGMQ_URL, middleware=[])
     broker.queues["default"] = None
 
     message = Message(queue_name="default", actor_name="do_work", args=(2,), kwargs={}, options={})
@@ -209,6 +212,35 @@ def test_pgmq_consumer_falls_back_to_polling_when_listener_is_unavailable(monkey
     broker.client.read.assert_not_called()
     broker.client.read_with_poll.assert_called_once_with(
         "default",
+        vt=30,
+        qty=1,
+        max_poll_seconds=1,
+        poll_interval_ms=200,
+    )
+    consumer.close()
+
+
+def test_pgmq_consumer_uses_broker_visibility_timeout_for_reads(monkeypatch):
+    def _fake_start_listener(self):
+        self._listener_available = False
+
+    monkeypatch.setattr("remoulade.brokers.pgmq._PgmqConsumer._start_listener", _fake_start_listener)
+
+    broker = PgmqBroker(url=TEST_PGMQ_URL, middleware=[], visibility_timeout=17)
+    broker.queues["default"] = None
+
+    message = Message(queue_name="default", actor_name="do_work", args=(5,), kwargs={}, options={})
+    payload = _expected_payload(message)
+    broker.client.read = Mock(return_value=None)
+    broker.client.read_with_poll = Mock(return_value=[Mock(msg_id=5, message=payload)])
+
+    consumer = broker.consume("default", prefetch=1, timeout=200)
+    consumed = next(consumer)
+
+    assert consumed is not None
+    broker.client.read_with_poll.assert_called_once_with(
+        "default",
+        vt=17,
         qty=1,
         max_poll_seconds=1,
         poll_interval_ms=200,
@@ -222,7 +254,7 @@ def test_pgmq_consumer_falls_back_to_polling_when_listener_stops_during_wait(mon
 
     monkeypatch.setattr("remoulade.brokers.pgmq._PgmqConsumer._start_listener", _fake_start_listener)
 
-    broker = PgmqBroker(url="postgresql://pgmq-user@localhost/pgmq", middleware=[])
+    broker = PgmqBroker(url=TEST_PGMQ_URL, middleware=[])
     broker.queues["default"] = None
 
     message = Message(queue_name="default", actor_name="do_work", args=(3,), kwargs={}, options={})
@@ -242,13 +274,53 @@ def test_pgmq_consumer_falls_back_to_polling_when_listener_stops_during_wait(mon
 
     assert consumed is not None
     assert consumed.message_id == message.message_id
-    broker.client.read.assert_called_once_with("default", qty=1)
+    broker.client.read.assert_called_once_with("default", vt=30, qty=1)
     broker.client.read_with_poll.assert_called_once_with(
         "default",
+        vt=30,
         qty=1,
         max_poll_seconds=1,
         poll_interval_ms=200,
     )
+    consumer.close()
+
+
+def test_pgmq_consumer_heartbeat_extends_inflight_message_visibility(monkeypatch):
+    def _fake_start_listener(self):
+        self._listener_available = False
+
+    monkeypatch.setattr("remoulade.brokers.pgmq._PgmqConsumer._start_listener", _fake_start_listener)
+
+    broker = PgmqBroker(
+        url=TEST_PGMQ_URL,
+        middleware=[],
+        visibility_timeout=2,
+        heartbeat_interval=0.05,
+    )
+    broker.queues["default"] = None
+
+    message = Message(queue_name="default", actor_name="do_work", args=(7,), kwargs={}, options={})
+    payload = _expected_payload(message)
+    broker.client.read = Mock(return_value=None)
+    broker.client.read_with_poll = Mock(return_value=[Mock(msg_id=7, message=payload)])
+    broker.client.set_vt = Mock()
+    broker.client.archive = Mock()
+
+    consumer = broker.consume("default", prefetch=1, timeout=200)
+    consumed = next(consumer)
+    assert consumed is not None
+
+    deadline = time.monotonic() + 1.0
+    while broker.client.set_vt.call_count == 0 and time.monotonic() < deadline:
+        time.sleep(0.01)
+
+    assert broker.client.set_vt.call_count >= 1
+    queue_name, msg_ids, vt = broker.client.set_vt.call_args.args
+    assert queue_name == "default"
+    assert msg_ids == [7]
+    assert vt == 2
+
+    consumer.ack(consumed)
     consumer.close()
 
 
@@ -261,7 +333,7 @@ def test_pgmq_consumer_decodes_payload_with_global_encoder(monkeypatch, pydantic
 
     monkeypatch.setattr("remoulade.brokers.pgmq._PgmqConsumer._start_listener", _fake_start_listener)
 
-    broker = PgmqBroker(url="postgresql://pgmq-user@localhost/pgmq", middleware=[])
+    broker = PgmqBroker(url=TEST_PGMQ_URL, middleware=[])
     remoulade.set_broker(broker)
     broker.client.validate_queue_name = Mock()
     broker.client.create_queue = Mock()
