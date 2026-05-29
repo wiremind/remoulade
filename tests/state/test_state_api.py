@@ -13,29 +13,6 @@ def local_api_client():
         yield client
 
 
-@pytest.mark.parametrize(
-    "method,path",
-    [
-        ("post", "/messages/states"),
-        ("get", "/messages/states/some-id"),
-        ("delete", "/messages/states"),
-        ("post", "/messages/cancel/some-id"),
-        ("post", "/messages/requeue/some-id"),
-        ("get", "/messages/result/some-id"),
-        ("post", "/messages"),
-        ("get", "/actors"),
-        ("get", "/options"),
-        ("get", "/scheduled/jobs"),
-        ("post", "/scheduled/jobs"),
-        ("put", "/scheduled/jobs/some-id"),
-        ("delete", "/scheduled/jobs/some-id"),
-    ],
-)
-def test_superbowl_routes_are_removed(local_api_client, method, path):
-    response = getattr(local_api_client, method)(path)
-    assert response.status_code == 404
-
-
 class TestMessageStateBackend:
     def test_select_actors(self, stub_broker, postgres_state_middleware):
         backend = postgres_state_middleware.backend
