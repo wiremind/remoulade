@@ -15,9 +15,27 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+import warnings
+
 from .local import LocalBroker
-from .pgmq import PgmqBroker
-from .rabbitmq import RabbitmqBroker
 from .stub import StubBroker
 
 __all__ = ["LocalBroker", "PgmqBroker", "RabbitmqBroker", "StubBroker"]
+
+try:
+    from .pgmq import PgmqBroker
+except ImportError:  # pragma: no cover
+    warnings.warn(
+        "PgmqBroker is not available.  Run `pip install remoulade[pgmq]` to add support for that broker.",
+        ImportWarning,
+        stacklevel=2,
+    )
+
+try:
+    from .rabbitmq import RabbitmqBroker
+except ImportError:  # pragma: no cover
+    warnings.warn(
+        "RabbitmqBroker is not available.  Run `pip install remoulade[rabbitmq]` to add support for that broker.",
+        ImportWarning,
+        stacklevel=2,
+    )
