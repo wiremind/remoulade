@@ -106,7 +106,7 @@ class PgmqBroker(Broker):
         self.sessionmaker = sqlalchemy_sessionmaker(bind=self.engine)
         self.supports_native_delay = True
 
-        self.client = SQLAlchemyPGMQueue(engine=self.engine, init_extension=True, vt=self.visibility_timeout)
+        self.client = SQLAlchemyPGMQueue(engine=self.engine, init_extension=False, vt=self.visibility_timeout)
 
     @contextmanager
     def tx(self) -> Iterator[None]:
