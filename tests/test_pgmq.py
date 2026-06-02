@@ -18,7 +18,7 @@ TEST_PGMQ_URL = os.getenv("REMOULADE_TEST_DB_URL") or "postgresql://remoulade@lo
 
 def _count_messages(broker, queue_name="default"):
     queue_table = Table(f"q_{queue_name}", MetaData(), Column("msg_id", Integer), schema="pgmq")
-    with broker.sessionmaker.begin() as session:
+    with broker.client.session() as session:
         return session.execute(select(func.count()).select_from(queue_table)).scalar_one()
 
 
@@ -30,19 +30,19 @@ def _first_payload(broker, queue_name="default"):
         Column("message", JSON),
         schema="pgmq",
     )
-    with broker.sessionmaker.begin() as session:
+    with broker.client.session() as session:
         row = session.execute(select(queue_table.c.message).order_by(queue_table.c.msg_id).limit(1)).one()
     return row[0]
 
 
 def _count_archived_messages(broker, queue_name="default"):
     archive_table = Table(f"a_{queue_name}", MetaData(), Column("msg_id", Integer), schema="pgmq")
-    with broker.sessionmaker.begin() as session:
+    with broker.client.session() as session:
         return session.execute(select(func.count()).select_from(archive_table)).scalar_one()
 
 
 def _queue_exists(broker, queue_name):
-    with broker.sessionmaker.begin() as session:
+    with broker.client.session() as session:
         query = text("SELECT EXISTS(SELECT 1 FROM pgmq.list_queues() WHERE queue_name = :queue_name)")
         return session.execute(query, {"queue_name": queue_name}).scalar_one()
 
@@ -62,7 +62,6 @@ def test_pgmq_broker_partitions_archive_table_on_postgresql_queue_init():
     broker = PgmqBroker(
         url=TEST_PGMQ_URL,
         middleware=[],
-        partition_archive_on_queue_init=True,
     )
     broker.client.validate_queue_name = Mock()
     broker.client.create_partitioned_queue = Mock()
@@ -79,43 +78,54 @@ def test_pgmq_broker_partitions_archive_table_on_postgresql_queue_init():
     broker.client.create_queue.assert_not_called()
 
 
-def test_pgmq_broker_uses_non_partitioned_queue_creation_when_disabled():
-    broker = PgmqBroker(
-        url=TEST_PGMQ_URL,
-        middleware=[],
-        partition_archive_on_queue_init=False,
-    )
-    broker.client.validate_queue_name = Mock()
-    broker.client.create_partitioned_queue = Mock()
-    broker.client.create_queue = Mock()
-
-    broker.declare_queue("default")
-
-    broker.client.create_queue.assert_called_once_with("default", conn=None)
-    broker.client.create_partitioned_queue.assert_not_called()
-
-
 def test_pgmq_broker_enables_notify_on_postgresql_queue_init():
     broker = PgmqBroker(url=TEST_PGMQ_URL, middleware=[])
     broker.client.validate_queue_name = Mock()
-    broker.client.create_queue = Mock()
+    broker.client.create_partitioned_queue = Mock()
     broker.client.enable_notify = Mock()
 
     broker.declare_queue("default")
 
+    broker.client.create_partitioned_queue.assert_called_once_with(
+        "default",
+        partition_interval="1 day",
+        retention_interval="7 days",
+        conn=None,
+    )
     broker.client.enable_notify.assert_called_once_with("default", throttle_interval_ms=250, conn=None)
 
 
 def test_pgmq_broker_does_not_fail_when_enable_notify_raises(caplog):
     broker = PgmqBroker(url=TEST_PGMQ_URL, middleware=[])
     broker.client.validate_queue_name = Mock()
-    broker.client.create_queue = Mock()
+    broker.client.create_partitioned_queue = Mock()
     broker.client.enable_notify = Mock(side_effect=RuntimeError("notify unavailable"))
 
     broker.declare_queue("default")
 
     assert "default" in broker.queues
     assert "Failed to enable LISTEN/NOTIFY" in caplog.text
+
+
+def test_pgmq_broker_uses_custom_partition_settings_when_provided():
+    broker = PgmqBroker(
+        url=TEST_PGMQ_URL,
+        middleware=[],
+        archive_partition_interval="2 days",
+        archive_retention_interval="14 days",
+    )
+    broker.client.validate_queue_name = Mock()
+    broker.client.create_partitioned_queue = Mock()
+    broker.client.enable_notify = Mock()
+
+    broker.declare_queue("default")
+
+    broker.client.create_partitioned_queue.assert_called_once_with(
+        "default",
+        partition_interval="2 days",
+        retention_interval="14 days",
+        conn=None,
+    )
 
 
 @pytest.mark.usefixtures("pgmq_broker")
@@ -175,7 +185,7 @@ def test_pgmq_consumer_uses_notification_path_when_listener_is_available(monkeyp
 
     message = Message(queue_name="default", actor_name="do_work", args=(1,), kwargs={}, options={})
     payload = _expected_payload(message)
-    broker.client.read = Mock(side_effect=[None, Mock(msg_id=1, message=payload)])
+    broker.client.read = Mock(return_value=Mock(msg_id=1, message=payload))
     broker.client.read_with_poll = Mock(return_value=[])
 
     consumer = broker.consume("default", prefetch=1, timeout=200)
@@ -185,8 +195,9 @@ def test_pgmq_consumer_uses_notification_path_when_listener_is_available(monkeyp
 
     assert consumed is not None
     assert consumed.message_id == message.message_id
-    assert broker.client.read.call_count == 2
+    broker.client.read.assert_called_once_with("default", vt=30, qty=1)
     broker.client.read_with_poll.assert_not_called()
+    assert consumer._listener_available is True
     consumer.close()
 
 
@@ -336,7 +347,7 @@ def test_pgmq_consumer_decodes_payload_with_global_encoder(monkeypatch, pydantic
     broker = PgmqBroker(url=TEST_PGMQ_URL, middleware=[])
     remoulade.set_broker(broker)
     broker.client.validate_queue_name = Mock()
-    broker.client.create_queue = Mock()
+    broker.client.create_partitioned_queue = Mock()
     broker.client.enable_notify = Mock()
 
     @remoulade.actor(actor_name="typed.actor", queue_name="default")

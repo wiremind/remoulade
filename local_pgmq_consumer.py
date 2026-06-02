@@ -12,7 +12,6 @@ ACTOR_NAME = "demo.add"
 broker = PgmqBroker(
     url=URL,
     middleware=[],
-    listen_notify_enabled=True,
 )
 remoulade.set_broker(broker)
 broker.declare_queue(QUEUE_NAME)

@@ -12,10 +12,10 @@ URL = "postgresql://remoulade@localhost:5544/test"
 QUEUE_NAME = "default"
 ACTOR_NAME = "demo.add"
 
+
 broker = PgmqBroker(
     url=URL,
     middleware=[],
-    listen_notify_enabled=True,
 )
 remoulade.set_broker(broker)
 broker.declare_queue(QUEUE_NAME)
@@ -30,7 +30,7 @@ msg: Message = Message(
 )
 broker.enqueue(msg)
 
-with broker.sessionmaker.begin() as session:
+with broker.client.session() as session:
     row = session.execute(text("SELECT msg_id, message FROM pgmq.q_default ORDER BY msg_id DESC LIMIT 1")).one()
     print("msg_id:", row.msg_id)
     print("payload:", row.message)
