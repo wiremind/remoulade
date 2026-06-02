@@ -66,6 +66,8 @@ def check_redis(client):
 def check_pgmq(client):
     try:
         with client.begin() as session:
+            session.execute(text("CREATE SCHEMA IF NOT EXISTS partman"))
+            session.execute(text("CREATE EXTENSION IF NOT EXISTS pg_partman WITH SCHEMA partman"))
             session.execute(text("CREATE EXTENSION IF NOT EXISTS pgmq"))
             session.execute(text("SELECT pgmq.validate_queue_name('remoulade_test_queue')"))
     except Exception as e:
@@ -220,7 +222,7 @@ def state_backends(redis_state_backend, stub_state_backend):
     return {"redis": redis_state_backend, "stub": stub_state_backend}
 
 
-@pytest.fixture(params=["postgres", "redis", "stub"])
+@pytest.fixture(params=["redis", "stub"])
 def state_backend(request, state_backends):
     return state_backends[request.param]
 
@@ -229,14 +231,6 @@ def state_backend(request, state_backends):
 def state_middleware(state_backend):
     broker = remoulade.get_broker()
     middleware = MessageState(backend=state_backend)
-    broker.add_middleware(middleware)
-    return middleware
-
-
-@pytest.fixture
-def postgres_state_middleware(postgres_state_backend):
-    broker = remoulade.get_broker()
-    middleware = MessageState(backend=postgres_state_backend)
     broker.add_middleware(middleware)
     return middleware
 
