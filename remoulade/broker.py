@@ -421,7 +421,11 @@ class Broker:
         raise NotImplementedError
 
     def _apply_delay(self, message: "Message", delay: int | None = None) -> "Message":
-        raise NotImplementedError
+        """If your broker doesn't support native delay, you need to override this method"""
+        if self.supports_native_delay:
+            return message
+        else:
+            raise NotImplementedError("delay is not supported natively, you need to implement it")
 
     def _enqueue(self, message: "Message", *, delay: int | None = None) -> "Message":
         raise NotImplementedError

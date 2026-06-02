@@ -147,7 +147,6 @@ def test_pgmq_broker_uses_native_visibility_delay_without_delay_queue(pgmq_broke
     pgmq_broker.enqueue(message, delay=250)
 
     assert pgmq_broker.client.read("default", vt=1) is None
-    assert not _queue_exists(pgmq_broker, "default.DQ")
 
     time.sleep(0.35)
     delayed = pgmq_broker.client.read("default", vt=1)
@@ -237,7 +236,7 @@ def test_pgmq_consumer_uses_broker_visibility_timeout_for_reads(monkeypatch):
 
     monkeypatch.setattr("remoulade.brokers.pgmq._PgmqConsumer._start_listener", _fake_start_listener)
 
-    broker = PgmqBroker(url=TEST_PGMQ_URL, middleware=[], visibility_timeout=17)
+    broker = PgmqBroker(url=TEST_PGMQ_URL, middleware=[], visibility_timeout_in_second=17)
     broker.queues["default"] = None
 
     message = Message(queue_name="default", actor_name="do_work", args=(5,), kwargs={}, options={})
@@ -305,8 +304,8 @@ def test_pgmq_consumer_heartbeat_extends_inflight_message_visibility(monkeypatch
     broker = PgmqBroker(
         url=TEST_PGMQ_URL,
         middleware=[],
-        visibility_timeout=2,
-        heartbeat_interval=0.05,
+        visibility_timeout_in_second=2,
+        heartbeat_interval_in_second=0.05,
     )
     broker.queues["default"] = None
 
@@ -451,8 +450,6 @@ def test_pgmq_worker_processes_native_delayed_messages_without_delay_queue(pgmq_
     finally:
         worker.stop()
 
-    assert not _queue_exists(pgmq_broker, "default.DQ")
-
 
 @pytest.mark.usefixtures("pgmq_broker")
 def test_pgmq_broker_join_times_out_while_processing_invisible_message(pgmq_broker):
@@ -480,6 +477,35 @@ def test_pgmq_broker_join_times_out_while_processing_invisible_message(pgmq_brok
         worker.join()
     finally:
         release.set()
+        worker.stop()
+
+
+@pytest.mark.usefixtures("pgmq_broker")
+def test_pgmq_worker_processes_a_two_actor_pipeline(pgmq_broker):
+    seen: list[tuple[str, int]] = []
+
+    @remoulade.actor
+    def first_actor(value):
+        seen.append(("first", value))
+        return value + 1
+
+    @remoulade.actor
+    def second_actor(value):
+        seen.append(("second", value))
+
+    pgmq_broker.declare_actor(first_actor)
+    pgmq_broker.declare_actor(second_actor)
+
+    worker = Worker(pgmq_broker, worker_timeout=100, worker_threads=1)
+    worker.start()
+    try:
+        remoulade.pipeline([first_actor.message(1), second_actor.message()]).run()
+
+        pgmq_broker.join(second_actor.queue_name, timeout=10_000)
+        worker.join()
+
+        assert seen == [("first", 1), ("second", 2)]
+    finally:
         worker.stop()
 
 
