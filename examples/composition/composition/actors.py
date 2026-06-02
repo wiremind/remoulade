@@ -8,7 +8,7 @@ from remoulade.encoder import PickleEncoder
 from remoulade.results import Results
 from remoulade.results.backends import RedisBackend
 from remoulade.state import MessageState
-from remoulade.state.backends import PostgresBackend
+from remoulade.state.backends import RedisBackend as RedisStateBackend
 
 encoder = PickleEncoder()
 backend = RedisBackend(encoder=encoder)
@@ -16,7 +16,7 @@ broker = RabbitmqBroker()
 broker.add_middleware(Results(backend=backend))
 remoulade.set_broker(broker)
 remoulade.set_encoder(encoder)
-remoulade.get_broker().add_middleware(MessageState(backend=PostgresBackend()))
+remoulade.get_broker().add_middleware(MessageState(backend=RedisStateBackend()))
 
 
 @remoulade.actor(store_results=True)

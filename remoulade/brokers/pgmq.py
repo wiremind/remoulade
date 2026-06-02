@@ -21,15 +21,13 @@ from collections.abc import Iterable, Iterator
 from contextlib import contextmanager
 from datetime import UTC, datetime, timedelta
 from threading import Event, Lock, Thread, local
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, override
 
 import psycopg
 from pgmq import SQLAlchemyPGMQueue
 from pgmq.messages import Message as PgmqQueueMessage
 from psycopg import sql as psycopg_sql
-from sqlalchemy import Column, Integer, MetaData, Table, bindparam, create_engine, func, select, text
-from sqlalchemy.dialects.postgresql import JSONB
-from sqlalchemy.orm import sessionmaker as sqlalchemy_sessionmaker
+from sqlalchemy import Column, Integer, MetaData, Table, func, select
 
 from ..broker import Broker, Consumer, MessageProxy
 from ..errors import QueueJoinTimeout, QueueNotFound, UnsupportedMessageEncoding
@@ -39,17 +37,6 @@ if TYPE_CHECKING:
     from ..middleware import Middleware
 
 PgmqPayload = dict[str, Any]
-
-DELAYED_SEND_SQL = text(
-    """
-    SELECT *
-    FROM pgmq.send(
-        queue_name => :queue_name,
-        msg => :message,
-        delay => :delay
-    )
-    """
-).bindparams(bindparam("message", type_=JSONB))
 LISTEN_NOTIFY_THROTTLE_MS = 250
 
 
@@ -62,10 +49,8 @@ class PgmqBroker(Broker):
         url: str,
         middleware: list["Middleware"] | None = None,
         group_transaction: bool = False,
-        partition_archive_on_queue_init: bool = False,
-        archive_partition_interval: int | str = "1 day",
-        archive_retention_interval: int | str = "7 days",
-        listen_notify_enabled: bool = True,
+        archive_partition_interval: str = "1 day",
+        archive_retention_interval: str = "7 days",
         visibility_timeout: int = 30,
         heartbeat_interval: float = 10.0,
     ) -> None:
@@ -75,10 +60,8 @@ class PgmqBroker(Broker):
           url(str): PostgreSQL URL in plain format (`postgresql://...`), used both by SQLAlchemy and psycopg.
           middleware(list[Middleware] | None): Middleware stack applied to this broker.
           group_transaction(bool): If True, wraps group and pipeline operations in a single transaction.
-          partition_archive_on_queue_init(bool): If True, creates partitioned queues when declaring queues.
           archive_partition_interval(int | str): Partition interval passed to PGMQ when creating partitioned queues.
           archive_retention_interval(int | str): Retention interval passed to PGMQ for archive partitions.
-          listen_notify_enabled(bool): If True, enables LISTEN/NOTIFY to wake consumers when new messages arrive.
           visibility_timeout(int): Message visibility timeout in seconds after read; must be greater than 0.
           heartbeat_interval(float): Heartbeat interval in seconds used to extend in-flight message visibility;
             must be greater than 0 and lower than visibility_timeout.
@@ -95,28 +78,22 @@ class PgmqBroker(Broker):
         self.url = url
         self.state = local()
         self.group_transaction = group_transaction
-        self.partition_archive_on_queue_init = partition_archive_on_queue_init
         self.archive_partition_interval = archive_partition_interval
         self.archive_retention_interval = archive_retention_interval
-        self.listen_notify_enabled = listen_notify_enabled
         self.visibility_timeout = visibility_timeout
         self.heartbeat_interval = heartbeat_interval
-
-        self.engine = create_engine(self.url, pool_pre_ping=True)
-        self.sessionmaker = sqlalchemy_sessionmaker(bind=self.engine)
         self.supports_native_delay = True
 
-        self.client = SQLAlchemyPGMQueue(engine=self.engine, init_extension=False, vt=self.visibility_timeout)
+        self.client = SQLAlchemyPGMQueue(conn_string=url, init_extension=False, vt=self.visibility_timeout)
 
+    @override
     @contextmanager
     def tx(self) -> Iterator[None]:
-        with self.sessionmaker.begin() as session:
-            self.state.transaction_session = session
-            self.state.transaction_connection = session.connection()
+        with self.client.engine.begin() as connection:
+            self.state.transaction_connection = connection
             try:
                 yield
             finally:
-                self.state.transaction_session = None
                 self.state.transaction_connection = None
 
     @property
@@ -124,9 +101,6 @@ class PgmqBroker(Broker):
         return getattr(self.state, "transaction_connection", None)
 
     def _try_enable_notify(self, queue_name: str) -> None:
-        if not self.listen_notify_enabled:
-            return
-
         try:
             self.client.enable_notify(
                 queue_name,
@@ -140,33 +114,34 @@ class PgmqBroker(Broker):
                 exc_info=True,
             )
 
+    @override
     def close(self) -> None:
-        self.engine.dispose()
+        self.client.dispose()
 
+    @override
     def consume(self, queue_name: str, prefetch: int = 1, timeout: int = 30000) -> "_PgmqConsumer":
         if queue_name not in self.queues:
             raise QueueNotFound(queue_name)
         return _PgmqConsumer(self, queue_name=queue_name, prefetch=prefetch, timeout=timeout)
 
+    @override
     def declare_queue(self, queue_name: str) -> None:
         if queue_name in self.queues:
             return
 
         self.client.validate_queue_name(queue_name, conn=self._current_connection)
         self.emit_before("declare_queue", queue_name)
-        if self.partition_archive_on_queue_init:
-            self.client.create_partitioned_queue(
-                queue_name,
-                partition_interval=self.archive_partition_interval,
-                retention_interval=self.archive_retention_interval,
-                conn=self._current_connection,
-            )
-        else:
-            self.client.create_queue(queue_name, conn=self._current_connection)
+        self.client.create_partitioned_queue(
+            queue_name,
+            partition_interval=self.archive_partition_interval,
+            retention_interval=self.archive_retention_interval,
+            conn=self._current_connection,
+        )
         self._try_enable_notify(queue_name)
         self.queues[queue_name] = None
         self.emit_after("declare_queue", queue_name)
 
+    @override
     def _apply_delay(self, message: "Message", delay: int | None = None) -> "Message":
         return message
 
@@ -183,39 +158,30 @@ class PgmqBroker(Broker):
 
         return payload
 
-    def _send_with_delay(self, queue_name: str, payload: PgmqPayload, delay: int) -> None:
-        visible_at = datetime.now(UTC) + timedelta(milliseconds=delay)
-        parameters = {"queue_name": queue_name, "message": payload, "delay": visible_at}
-
-        if self._current_connection is not None:
-            self._current_connection.execute(DELAYED_SEND_SQL, parameters)
-            return
-
-        with self.sessionmaker.begin() as session:
-            session.connection().execute(DELAYED_SEND_SQL, parameters)
-
+    @override
     def _enqueue(self, message: "Message", *, delay: int | None = None) -> "Message":
         if message.queue_name not in self.queues:
             raise QueueNotFound(message.queue_name)
 
         payload = self._encode_message(message)
-
-        if delay is None:
-            self.client.send(message.queue_name, payload, conn=self._current_connection)
-        else:
-            self._send_with_delay(message.queue_name, payload, delay)
+        visible_at = datetime.now(UTC) + timedelta(milliseconds=delay) if delay is not None else None
+        self.client.send(
+            message.queue_name,
+            payload,
+            conn=self._current_connection,
+            delay=visible_at,
+        )
 
         return message
 
+    @override
     def flush(self, queue_name: str) -> None:
         if queue_name not in self.queues:
             raise QueueNotFound(queue_name)
 
         self.client.purge(queue_name, conn=self._current_connection)
 
-    def purge_queue(self, queue_name: str) -> None:
-        self.flush(queue_name)
-
+    @override
     def flush_all(self) -> None:
         for queue_name in self.queues:
             self.flush(queue_name)
@@ -224,9 +190,10 @@ class PgmqBroker(Broker):
         queue_table = Table(f"q_{queue_name}", MetaData(), Column("msg_id", Integer), schema="pgmq")
         count_query = select(func.count()).select_from(queue_table)
 
-        with self.sessionmaker.begin() as session:
+        with self.client.session() as session:
             return session.execute(count_query).scalar_one()
 
+    @override
     def join(
         self,
         queue_name: str,
@@ -288,8 +255,8 @@ class _PgmqConsumer(Consumer):
         self.broker = broker
         self.client = broker.client
         self.queue_name = queue_name
-        self.prefetch = max(prefetch, 1)
-        self.timeout = max(timeout, 0)
+        self.prefetch = prefetch
+        self.timeout = timeout
         self.visibility_timeout = broker.visibility_timeout
         self.heartbeat_interval = broker.heartbeat_interval
         self.messages: deque[PgmqQueueMessage] = deque()
@@ -303,17 +270,8 @@ class _PgmqConsumer(Consumer):
         self._heartbeat_msg_ids_lock = Lock()
         self._heartbeat_msg_ids: set[int] = set()
 
-        if self.broker.listen_notify_enabled:
-            self._start_listener()
+        self._start_listener()
         self._start_heartbeat()
-
-    @property
-    def max_poll_seconds(self) -> int:
-        return max((self.timeout + 999) // 1000, 1)
-
-    @property
-    def poll_interval_ms(self) -> int:
-        return max(min(self.timeout, 1000), 1)
 
     @property
     def wait_timeout_seconds(self) -> float:
@@ -339,8 +297,8 @@ class _PgmqConsumer(Consumer):
                 self.queue_name,
                 vt=self.visibility_timeout,
                 qty=self.prefetch,
-                max_poll_seconds=self.max_poll_seconds,
-                poll_interval_ms=self.poll_interval_ms,
+                max_poll_seconds=max((self.timeout + 999) // 1000, 1),
+                poll_interval_ms=max(min(self.timeout, 1000), 1),
             )
         )
 
@@ -419,18 +377,21 @@ class _PgmqConsumer(Consumer):
 
         self._listener_available = False
 
+    @override
     def ack(self, message: "MessageProxy") -> None:
         if not isinstance(message, _PgmqMessage):
             raise ValueError("It must be a PgmqMessage")
         self._unregister_heartbeat_msg_id(message._pgmq_message.msg_id)
         self.client.archive(self.queue_name, message._pgmq_message.msg_id)
 
+    @override
     def nack(self, message: "MessageProxy") -> None:
         if not isinstance(message, _PgmqMessage):
             raise ValueError("It must be a PgmqMessage")
         self._unregister_heartbeat_msg_id(message._pgmq_message.msg_id)
         self.client.archive(self.queue_name, message._pgmq_message.msg_id)
 
+    @override
     def requeue(self, messages: Iterable["MessageProxy"]) -> None:
         msg_ids = [message._pgmq_message.msg_id for message in messages if isinstance(message, _PgmqMessage)]
         if msg_ids:
@@ -443,16 +404,18 @@ class _PgmqConsumer(Consumer):
         self._register_heartbeat_msg(message)
         return message
 
+    @override
     def __next__(self) -> "_PgmqMessage | None":
         if self.messages:
             return self._build_message(self.messages.popleft())
 
         if self._listener_available:
-            self._notify_event.clear()
+            self._notify_event.wait(self.wait_timeout_seconds)
             messages = self._read_immediate()
             if not messages:
-                self._notify_event.wait(self.wait_timeout_seconds)
-                messages = self._read_with_poll() if not self._listener_available else self._read_immediate()
+                messages = self._read_with_poll()
+                self._listener_available = False
+            self._notify_event.clear()
         else:
             messages = self._read_with_poll()
 
@@ -462,6 +425,7 @@ class _PgmqConsumer(Consumer):
         self.messages.extend(messages)
         return self._build_message(self.messages.popleft())
 
+    @override
     def close(self) -> None:
         self._listener_stop.set()
         self._heartbeat_stop.set()

@@ -10,7 +10,6 @@ import pytest
 import redis
 from freezegun import freeze_time
 from sqlalchemy.engine import create_engine
-from sqlalchemy.inspection import inspect
 from sqlalchemy.orm.session import sessionmaker
 from sqlalchemy.pool import NullPool
 from sqlalchemy.sql import text
@@ -34,7 +33,6 @@ from remoulade.state import (
     MessageState,
     backends as st_backends,
 )
-from remoulade.state.backends.postgres import DB_VERSION, StateVersion
 
 logfmt = "[%(asctime)s] [%(threadName)s] [%(name)s] [%(levelname)s] %(message)s"
 logging.basicConfig(level=logging.INFO, format=logfmt)
@@ -65,16 +63,6 @@ def check_redis(client):
     client.flushall()
 
 
-def check_postgres(client):
-    with client.begin() as session:
-        insp = inspect(session.get_bind())
-        version_exists = insp.has_table("version")
-        states_exists = insp.has_table("states")
-        if version_exists:
-            versions = session.query(StateVersion).all()
-        return version_exists and states_exists and len(versions) == 1 and versions[0].version == DB_VERSION
-
-
 def check_pgmq(client):
     try:
         with client.begin() as session:
@@ -89,13 +77,6 @@ def cleanup_pgmq_queues(client):
         queue_names = [row[0] for row in session.execute(text("SELECT queue_name FROM pgmq.list_queues()")).all()]
         for queue_name in queue_names:
             session.execute(text("SELECT pgmq.drop_queue(:queue_name)"), {"queue_name": queue_name})
-
-
-@pytest.fixture
-def check_postgres_begin():
-    client = remoulade.get_broker().get_state_backend().client
-    if not check_postgres(client):
-        pytest.skip("Postgres Database is not in the proper state. Database initialisation is probably incorrect.")
 
 
 @pytest.fixture()
@@ -235,16 +216,8 @@ def stub_state_backend():
 
 
 @pytest.fixture
-def postgres_state_backend():
-    db_string = os.getenv("REMOULADE_TEST_DB_URL") or "postgresql://remoulade@localhost:5544/test"
-    backend = st_backends.PostgresBackend(client=sessionmaker(create_engine(db_string, poolclass=NullPool)))
-    backend.clean()
-    return backend
-
-
-@pytest.fixture
-def state_backends(postgres_state_backend, redis_state_backend, stub_state_backend):
-    return {"postgres": postgres_state_backend, "redis": redis_state_backend, "stub": stub_state_backend}
+def state_backends(redis_state_backend, stub_state_backend):
+    return {"redis": redis_state_backend, "stub": stub_state_backend}
 
 
 @pytest.fixture(params=["postgres", "redis", "stub"])
