@@ -41,7 +41,11 @@ LISTEN_NOTIFY_THROTTLE_MS: Final[int] = 250
 
 
 class PgmqBroker(Broker):
-    """A broker backed by PostgreSQL via the PGMQ extension."""
+    """A broker backed by PostgreSQL via the PGMQ extension.
+
+    PGMQ handles delayed messages natively, so delayed sends stay in
+    PostgreSQL instead of being staged in worker memory.
+    """
 
     def __init__(
         self,
@@ -122,6 +126,10 @@ class PgmqBroker(Broker):
                 exc_info=True,
             )
 
+    def _queue_exists(self, queue_name: str) -> bool:
+        """Return whether the queue already exists in PostgreSQL."""
+        return queue_name in [queue.queue_name for queue in self.client.list_queues()]
+
     @override
     def close(self) -> None:
         """Dispose the underlying PGMQ client."""
@@ -145,6 +153,10 @@ class PgmqBroker(Broker):
             return
 
         self.client.validate_queue_name(queue_name, conn=self._current_connection)
+        if self._queue_exists(queue_name):
+            self.queues[queue_name] = None
+            return
+
         self.emit_before("declare_queue", queue_name)
         self.client.create_partitioned_queue(
             queue_name,
@@ -508,6 +520,7 @@ class _PgmqMessage(MessageProxy):
             message = Message.decode(json.dumps(payload, separators=(",", ":")).encode("utf-8"))
         except TypeError as exc:
             raise UnsupportedMessageEncoding("PGMQ message payload is not a valid Remoulade message envelope.") from exc
-
+        if message.options.get("eta", None) is not None:
+            raise UnsupportedMessageEncoding("eta option isn't supported with pgmq broker")
         super().__init__(message)
         self._pgmq_message = pgmq_message

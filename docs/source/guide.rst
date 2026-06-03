@@ -331,6 +331,11 @@ milliseconds)::
 Keep in mind that *your message broker is not a database*.  Scheduled
 messages should represent a small subset of all your messages.
 
+On brokers that emulate delay in worker memory, the enqueued message
+will carry an ``eta`` option.  ``PgmqBroker`` stores delayed messages in
+PostgreSQL natively instead, so the message it returns does not include
+``eta``.
+
 
 Prioritizing Messages
 ---------------------
@@ -381,7 +386,7 @@ Message Brokers
 ---------------
 
 Remoulade abstracts over the notion of a message broker and currently
-supports RabbitMQ out of the box.
+supports RabbitMQ and PostgreSQL/PGMQ out of the box.
 
 RabbitMQ Broker
 ^^^^^^^^^^^^^^^
@@ -396,6 +401,25 @@ execution::
 
   rabbitmq_broker = RabbitmqBroker(url="rabbitmq")
   remoulade.set_broker(rabbitmq_broker)
+
+
+PGMQ Broker
+^^^^^^^^^^^
+
+To configure PostgreSQL/PGMQ, install ``remoulade[postgres]`` and
+instantiate a ``PgmqBroker`` with a PostgreSQL URL as early as possible
+during your program's execution::
+
+  import remoulade
+
+  from remoulade.brokers.pgmq import PgmqBroker
+
+  pgmq_broker = PgmqBroker(url="postgresql://remoulade@localhost:5432/remoulade")
+  remoulade.set_broker(pgmq_broker)
+
+PGMQ handles delayed messages natively, so ``send_with_options(delay=...)``
+does not create a worker-side delay queue or add an ``eta`` option to
+the message.
 
 
 Local Broker
@@ -472,4 +496,3 @@ synchronously by calling them as you would normal functions.
 
 .. _pytest fixtures: https://docs.pytest.org/en/latest/fixture.html
 .. _priority documentation: https://www.rabbitmq.com/priority.html
-
