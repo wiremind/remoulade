@@ -66,6 +66,7 @@ def test_pgmq_broker_partitions_archive_table_on_postgresql_queue_init():
     broker.client.validate_queue_name = Mock()
     broker.client.create_partitioned_queue = Mock()
     broker.client.create_queue = Mock()
+    broker._queue_exists = Mock(return_value=False)
 
     broker.declare_queue("default")
 
@@ -83,6 +84,7 @@ def test_pgmq_broker_enables_notify_on_postgresql_queue_init():
     broker.client.validate_queue_name = Mock()
     broker.client.create_partitioned_queue = Mock()
     broker.client.enable_notify = Mock()
+    broker._queue_exists = Mock(return_value=False)
 
     broker.declare_queue("default")
 
@@ -100,11 +102,26 @@ def test_pgmq_broker_does_not_fail_when_enable_notify_raises(caplog):
     broker.client.validate_queue_name = Mock()
     broker.client.create_partitioned_queue = Mock()
     broker.client.enable_notify = Mock(side_effect=RuntimeError("notify unavailable"))
+    broker._queue_exists = Mock(return_value=False)
 
     broker.declare_queue("default")
 
     assert "default" in broker.queues
     assert "Failed to enable LISTEN/NOTIFY" in caplog.text
+
+
+def test_pgmq_broker_declare_queue_is_idempotent_when_queue_already_exists():
+    broker = PgmqBroker(url=TEST_PGMQ_URL, middleware=[])
+    broker.client.validate_queue_name = Mock()
+    broker.client.create_partitioned_queue = Mock()
+    broker.client.enable_notify = Mock()
+    broker._queue_exists = Mock(return_value=True)
+
+    broker.declare_queue("default")
+
+    broker.client.create_partitioned_queue.assert_not_called()
+    broker.client.enable_notify.assert_not_called()
+    assert "default" in broker.queues
 
 
 def test_pgmq_broker_uses_custom_partition_settings_when_provided():
@@ -117,6 +134,7 @@ def test_pgmq_broker_uses_custom_partition_settings_when_provided():
     broker.client.validate_queue_name = Mock()
     broker.client.create_partitioned_queue = Mock()
     broker.client.enable_notify = Mock()
+    broker._queue_exists = Mock(return_value=False)
 
     broker.declare_queue("default")
 
