@@ -16,4 +16,4 @@ services:
       POSTGRES_HOST_AUTH_METHOD: trust
       POSTGRES_DB: test
     volumes:
-      - ./docker/postgres/01-create-pgmq-extension.sql:/docker-entrypoint-initdb.d/01-create-pgmq-extension.sql:ro
+      - ./docker/postgres/01-create-postgres-extension.sql:/docker-entrypoint-initdb.d/01-create-postgres-extension.sql:ro

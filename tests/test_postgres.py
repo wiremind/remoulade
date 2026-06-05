@@ -11,9 +11,9 @@ from sqlalchemy.sql import select, text
 
 import remoulade
 from remoulade import Message, QueueJoinTimeout, Worker
-from remoulade.brokers.pgmq import PgmqBroker
+from remoulade.brokers.postgres import PostgresBroker
 
-TEST_PGMQ_URL = os.getenv("REMOULADE_TEST_DB_URL") or "postgresql://remoulade@localhost:5544/test"
+TEST_POSTGRES_URL = os.getenv("REMOULADE_TEST_DB_URL") or "postgresql://remoulade@localhost:5544/test"
 
 
 def _count_messages(broker, queue_name="default"):
@@ -51,16 +51,16 @@ def _expected_payload(message):
     return json.loads(message.encode().decode("utf-8"))
 
 
-def test_pgmq_broker_uses_provided_url():
-    broker_url = TEST_PGMQ_URL
-    broker = PgmqBroker(url=broker_url)
+def test_postgres_broker_uses_provided_url():
+    broker_url = TEST_POSTGRES_URL
+    broker = PostgresBroker(url=broker_url)
 
     assert broker.url == broker_url
 
 
-def test_pgmq_broker_partitions_archive_table_on_postgresql_queue_init():
-    broker = PgmqBroker(
-        url=TEST_PGMQ_URL,
+def test_postgres_broker_partitions_archive_table_on_postgresql_queue_init():
+    broker = PostgresBroker(
+        url=TEST_POSTGRES_URL,
         middleware=[],
     )
     broker.client.validate_queue_name = Mock()
@@ -79,8 +79,8 @@ def test_pgmq_broker_partitions_archive_table_on_postgresql_queue_init():
     broker.client.create_queue.assert_not_called()
 
 
-def test_pgmq_broker_enables_notify_on_postgresql_queue_init():
-    broker = PgmqBroker(url=TEST_PGMQ_URL, middleware=[])
+def test_postgres_broker_enables_notify_on_postgresql_queue_init():
+    broker = PostgresBroker(url=TEST_POSTGRES_URL, middleware=[])
     broker.client.validate_queue_name = Mock()
     broker.client.create_partitioned_queue = Mock()
     broker.client.enable_notify = Mock()
@@ -97,8 +97,8 @@ def test_pgmq_broker_enables_notify_on_postgresql_queue_init():
     broker.client.enable_notify.assert_called_once_with("default", throttle_interval_ms=250, conn=None)
 
 
-def test_pgmq_broker_does_not_fail_when_enable_notify_raises(caplog):
-    broker = PgmqBroker(url=TEST_PGMQ_URL, middleware=[])
+def test_postgres_broker_does_not_fail_when_enable_notify_raises(caplog):
+    broker = PostgresBroker(url=TEST_POSTGRES_URL, middleware=[])
     broker.client.validate_queue_name = Mock()
     broker.client.create_partitioned_queue = Mock()
     broker.client.enable_notify = Mock(side_effect=RuntimeError("notify unavailable"))
@@ -110,8 +110,8 @@ def test_pgmq_broker_does_not_fail_when_enable_notify_raises(caplog):
     assert "Failed to enable LISTEN/NOTIFY" in caplog.text
 
 
-def test_pgmq_broker_declare_queue_is_idempotent_when_queue_already_exists():
-    broker = PgmqBroker(url=TEST_PGMQ_URL, middleware=[])
+def test_postgres_broker_declare_queue_is_idempotent_when_queue_already_exists():
+    broker = PostgresBroker(url=TEST_POSTGRES_URL, middleware=[])
     broker.client.validate_queue_name = Mock()
     broker.client.create_partitioned_queue = Mock()
     broker.client.enable_notify = Mock()
@@ -124,9 +124,9 @@ def test_pgmq_broker_declare_queue_is_idempotent_when_queue_already_exists():
     assert "default" in broker.queues
 
 
-def test_pgmq_broker_uses_custom_partition_settings_when_provided():
-    broker = PgmqBroker(
-        url=TEST_PGMQ_URL,
+def test_postgres_broker_uses_custom_partition_settings_when_provided():
+    broker = PostgresBroker(
+        url=TEST_POSTGRES_URL,
         middleware=[],
         archive_partition_interval="2 days",
         archive_retention_interval="14 days",
@@ -146,58 +146,58 @@ def test_pgmq_broker_uses_custom_partition_settings_when_provided():
     )
 
 
-@pytest.mark.usefixtures("pgmq_broker")
-def test_pgmq_broker_enqueue_stores_a_standard_remoulade_payload_as_jsonb(pgmq_broker):
+@pytest.mark.usefixtures("postgres_broker")
+def test_postgres_broker_enqueue_stores_a_standard_remoulade_payload_as_jsonb(postgres_broker):
     message = Message(queue_name="default", actor_name="do_work", args=(1, 2), kwargs={"debug": True}, options={})
-    pgmq_broker.declare_queue(message.queue_name)
+    postgres_broker.declare_queue(message.queue_name)
 
-    pgmq_broker.enqueue(message)
+    postgres_broker.enqueue(message)
 
-    assert _count_messages(pgmq_broker) == 1
-    assert _first_payload(pgmq_broker) == _expected_payload(message)
+    assert _count_messages(postgres_broker) == 1
+    assert _first_payload(postgres_broker) == _expected_payload(message)
 
 
-@pytest.mark.usefixtures("pgmq_broker")
-def test_pgmq_broker_uses_native_visibility_delay_without_delay_queue(pgmq_broker):
+@pytest.mark.usefixtures("postgres_broker")
+def test_postgres_broker_uses_native_visibility_delay_without_delay_queue(postgres_broker):
     message = Message(queue_name="default", actor_name="do_work", args=(), kwargs={}, options={})
-    pgmq_broker.declare_queue(message.queue_name)
+    postgres_broker.declare_queue(message.queue_name)
 
-    pgmq_broker.enqueue(message, delay=250)
+    postgres_broker.enqueue(message, delay=250)
 
-    assert pgmq_broker.client.read("default", vt=1) is None
+    assert postgres_broker.client.read("default", vt=1) is None
 
     time.sleep(0.35)
-    delayed = pgmq_broker.client.read("default", vt=1)
+    delayed = postgres_broker.client.read("default", vt=1)
 
     assert delayed is not None
     assert delayed.message == _expected_payload(message)
 
 
-@pytest.mark.usefixtures("pgmq_broker")
-def test_pgmq_broker_transactions_commit_and_rollback_messages(pgmq_broker):
+@pytest.mark.usefixtures("postgres_broker")
+def test_postgres_broker_transactions_commit_and_rollback_messages(postgres_broker):
     @remoulade.actor
     def do_work():
         return 1
 
-    pgmq_broker.declare_actor(do_work)
+    postgres_broker.declare_actor(do_work)
 
-    with pgmq_broker.tx():
+    with postgres_broker.tx():
         do_work.send()
 
-    with pytest.raises(ValueError), pgmq_broker.tx():
+    with pytest.raises(ValueError), postgres_broker.tx():
         do_work.send()
         raise ValueError("rollback")
 
-    assert _count_messages(pgmq_broker) == 1
+    assert _count_messages(postgres_broker) == 1
 
 
-def test_pgmq_consumer_uses_notification_path_when_listener_is_available(monkeypatch):
+def test_postgres_consumer_uses_notification_path_when_listener_is_available(monkeypatch):
     def _fake_start_listener(self):
         self._listener_available = True
 
-    monkeypatch.setattr("remoulade.brokers.pgmq._PgmqConsumer._start_listener", _fake_start_listener)
+    monkeypatch.setattr("remoulade.brokers.postgres._PostgresConsumer._start_listener", _fake_start_listener)
 
-    broker = PgmqBroker(url=TEST_PGMQ_URL, middleware=[])
+    broker = PostgresBroker(url=TEST_POSTGRES_URL, middleware=[])
     broker.queues["default"] = None
 
     message = Message(queue_name="default", actor_name="do_work", args=(1,), kwargs={}, options={})
@@ -218,13 +218,13 @@ def test_pgmq_consumer_uses_notification_path_when_listener_is_available(monkeyp
     consumer.close()
 
 
-def test_pgmq_consumer_falls_back_to_polling_when_listener_is_unavailable(monkeypatch):
+def test_postgres_consumer_falls_back_to_polling_when_listener_is_unavailable(monkeypatch):
     def _fake_start_listener(self):
         self._listener_available = False
 
-    monkeypatch.setattr("remoulade.brokers.pgmq._PgmqConsumer._start_listener", _fake_start_listener)
+    monkeypatch.setattr("remoulade.brokers.postgres._PostgresConsumer._start_listener", _fake_start_listener)
 
-    broker = PgmqBroker(url=TEST_PGMQ_URL, middleware=[])
+    broker = PostgresBroker(url=TEST_POSTGRES_URL, middleware=[])
     broker.queues["default"] = None
 
     message = Message(queue_name="default", actor_name="do_work", args=(2,), kwargs={}, options={})
@@ -248,13 +248,13 @@ def test_pgmq_consumer_falls_back_to_polling_when_listener_is_unavailable(monkey
     consumer.close()
 
 
-def test_pgmq_consumer_uses_broker_visibility_timeout_for_reads(monkeypatch):
+def test_postgres_consumer_uses_broker_visibility_timeout_for_reads(monkeypatch):
     def _fake_start_listener(self):
         self._listener_available = False
 
-    monkeypatch.setattr("remoulade.brokers.pgmq._PgmqConsumer._start_listener", _fake_start_listener)
+    monkeypatch.setattr("remoulade.brokers.postgres._PostgresConsumer._start_listener", _fake_start_listener)
 
-    broker = PgmqBroker(url=TEST_PGMQ_URL, middleware=[], visibility_timeout_in_second=17)
+    broker = PostgresBroker(url=TEST_POSTGRES_URL, middleware=[], visibility_timeout_ms=17_000)
     broker.queues["default"] = None
 
     message = Message(queue_name="default", actor_name="do_work", args=(5,), kwargs={}, options={})
@@ -276,13 +276,13 @@ def test_pgmq_consumer_uses_broker_visibility_timeout_for_reads(monkeypatch):
     consumer.close()
 
 
-def test_pgmq_consumer_falls_back_to_polling_when_listener_stops_during_wait(monkeypatch):
+def test_postgres_consumer_falls_back_to_polling_when_listener_stops_during_wait(monkeypatch):
     def _fake_start_listener(self):
         self._listener_available = True
 
-    monkeypatch.setattr("remoulade.brokers.pgmq._PgmqConsumer._start_listener", _fake_start_listener)
+    monkeypatch.setattr("remoulade.brokers.postgres._PostgresConsumer._start_listener", _fake_start_listener)
 
-    broker = PgmqBroker(url=TEST_PGMQ_URL, middleware=[])
+    broker = PostgresBroker(url=TEST_POSTGRES_URL, middleware=[])
     broker.queues["default"] = None
 
     message = Message(queue_name="default", actor_name="do_work", args=(3,), kwargs={}, options={})
@@ -313,17 +313,17 @@ def test_pgmq_consumer_falls_back_to_polling_when_listener_stops_during_wait(mon
     consumer.close()
 
 
-def test_pgmq_consumer_heartbeat_extends_inflight_message_visibility(monkeypatch):
+def test_postgres_consumer_heartbeat_extends_inflight_message_visibility(monkeypatch):
     def _fake_start_listener(self):
         self._listener_available = False
 
-    monkeypatch.setattr("remoulade.brokers.pgmq._PgmqConsumer._start_listener", _fake_start_listener)
+    monkeypatch.setattr("remoulade.brokers.postgres._PostgresConsumer._start_listener", _fake_start_listener)
 
-    broker = PgmqBroker(
-        url=TEST_PGMQ_URL,
+    broker = PostgresBroker(
+        url=TEST_POSTGRES_URL,
         middleware=[],
-        visibility_timeout_in_second=2,
-        heartbeat_interval_in_second=0.05,
+        visibility_timeout_ms=2_000,
+        heartbeat_interval_ms=50,
     )
     broker.queues["default"] = None
 
@@ -352,16 +352,16 @@ def test_pgmq_consumer_heartbeat_extends_inflight_message_visibility(monkeypatch
     consumer.close()
 
 
-def test_pgmq_consumer_decodes_payload_with_global_encoder(monkeypatch, pydantic_encoder):
+def test_postgres_consumer_decodes_payload_with_global_encoder(monkeypatch, pydantic_encoder):
     class InputSchema(BaseModel):
         value: int
 
     def _fake_start_listener(self):
         self._listener_available = False
 
-    monkeypatch.setattr("remoulade.brokers.pgmq._PgmqConsumer._start_listener", _fake_start_listener)
+    monkeypatch.setattr("remoulade.brokers.postgres._PostgresConsumer._start_listener", _fake_start_listener)
 
-    broker = PgmqBroker(url=TEST_PGMQ_URL, middleware=[])
+    broker = PostgresBroker(url=TEST_POSTGRES_URL, middleware=[])
     remoulade.set_broker(broker)
     broker.client.validate_queue_name = Mock()
     broker.client.create_partitioned_queue = Mock()
@@ -393,13 +393,13 @@ def test_pgmq_consumer_decodes_payload_with_global_encoder(monkeypatch, pydantic
     consumer.close()
 
 
-@pytest.mark.usefixtures("pgmq_broker")
-def test_pgmq_consumer_reads_messages_and_acks_with_delete(pgmq_broker):
+@pytest.mark.usefixtures("postgres_broker")
+def test_postgres_consumer_reads_messages_and_acks_with_delete(postgres_broker):
     message = Message(queue_name="default", actor_name="do_work", args=(42,), kwargs={}, options={})
-    pgmq_broker.declare_queue(message.queue_name)
-    pgmq_broker.enqueue(message)
+    postgres_broker.declare_queue(message.queue_name)
+    postgres_broker.enqueue(message)
 
-    consumer = pgmq_broker.consume("default", prefetch=2, timeout=200)
+    consumer = postgres_broker.consume("default", prefetch=2, timeout=200)
     consumed_message = next(consumer)
     assert consumed_message is not None
     assert consumed_message.message_id == message.message_id
@@ -407,33 +407,33 @@ def test_pgmq_consumer_reads_messages_and_acks_with_delete(pgmq_broker):
     consumer.ack(consumed_message)
     consumer.close()
 
-    assert _count_messages(pgmq_broker) == 0
+    assert _count_messages(postgres_broker) == 0
 
 
-@pytest.mark.usefixtures("pgmq_broker")
-def test_pgmq_consumer_nack_archives_messages(pgmq_broker):
+@pytest.mark.usefixtures("postgres_broker")
+def test_postgres_consumer_nack_archives_messages(postgres_broker):
     message = Message(queue_name="default", actor_name="do_work", args=(), kwargs={}, options={})
-    pgmq_broker.declare_queue(message.queue_name)
-    pgmq_broker.enqueue(message)
+    postgres_broker.declare_queue(message.queue_name)
+    postgres_broker.enqueue(message)
 
-    consumer = pgmq_broker.consume("default", prefetch=1, timeout=200)
+    consumer = postgres_broker.consume("default", prefetch=1, timeout=200)
     consumed_message = next(consumer)
 
     assert consumed_message is not None
     consumer.nack(consumed_message)
     consumer.close()
 
-    assert _count_messages(pgmq_broker) == 0
-    assert _count_archived_messages(pgmq_broker) == 1
+    assert _count_messages(postgres_broker) == 0
+    assert _count_archived_messages(postgres_broker) == 1
 
 
-@pytest.mark.usefixtures("pgmq_broker")
-def test_pgmq_consumer_requeue_restores_visibility_with_set_vt(pgmq_broker):
+@pytest.mark.usefixtures("postgres_broker")
+def test_postgres_consumer_requeue_restores_visibility_with_set_vt(postgres_broker):
     message = Message(queue_name="default", actor_name="do_work", args=(), kwargs={}, options={})
-    pgmq_broker.declare_queue(message.queue_name)
-    pgmq_broker.enqueue(message)
+    postgres_broker.declare_queue(message.queue_name)
+    postgres_broker.enqueue(message)
 
-    consumer = pgmq_broker.consume("default", prefetch=1, timeout=200)
+    consumer = postgres_broker.consume("default", prefetch=1, timeout=200)
     consumed_message = next(consumer)
 
     assert consumed_message is not None
@@ -446,31 +446,31 @@ def test_pgmq_consumer_requeue_restores_visibility_with_set_vt(pgmq_broker):
     consumer.ack(replayed_message)
     consumer.close()
 
-    assert _count_messages(pgmq_broker) == 0
+    assert _count_messages(postgres_broker) == 0
 
 
-@pytest.mark.usefixtures("pgmq_broker")
-def test_pgmq_worker_processes_native_delayed_messages_without_delay_queue(pgmq_broker):
+@pytest.mark.usefixtures("postgres_broker")
+def test_postgres_worker_processes_native_delayed_messages_without_delay_queue(postgres_broker):
     seen = []
 
     @remoulade.actor
     def do_work(value):
         seen.append(value)
 
-    pgmq_broker.declare_actor(do_work)
-    worker = Worker(pgmq_broker, worker_timeout=100, worker_threads=2)
+    postgres_broker.declare_actor(do_work)
+    worker = Worker(postgres_broker, worker_timeout=100, worker_threads=2)
     worker.start()
     try:
         do_work.send_with_options(args=(3,), delay=150)
-        pgmq_broker.join(do_work.queue_name, timeout=10_000)
+        postgres_broker.join(do_work.queue_name, timeout=10_000)
         assert seen == [3]
         worker.join()
     finally:
         worker.stop()
 
 
-@pytest.mark.usefixtures("pgmq_broker")
-def test_pgmq_broker_join_times_out_while_processing_invisible_message(pgmq_broker):
+@pytest.mark.usefixtures("postgres_broker")
+def test_postgres_broker_join_times_out_while_processing_invisible_message(postgres_broker):
     started = threading.Event()
     release = threading.Event()
 
@@ -479,27 +479,27 @@ def test_pgmq_broker_join_times_out_while_processing_invisible_message(pgmq_brok
         started.set()
         release.wait(timeout=5)
 
-    pgmq_broker.declare_actor(do_work)
+    postgres_broker.declare_actor(do_work)
 
-    worker = Worker(pgmq_broker, worker_timeout=100, worker_threads=1)
+    worker = Worker(postgres_broker, worker_timeout=100, worker_threads=1)
     worker.start()
     try:
         do_work.send()
         assert started.wait(timeout=2)
 
         with pytest.raises(QueueJoinTimeout):
-            pgmq_broker.join(do_work.queue_name, timeout=100)
+            postgres_broker.join(do_work.queue_name, timeout=100)
 
         release.set()
-        pgmq_broker.join(do_work.queue_name, timeout=5_000)
+        postgres_broker.join(do_work.queue_name, timeout=5_000)
         worker.join()
     finally:
         release.set()
         worker.stop()
 
 
-@pytest.mark.usefixtures("pgmq_broker")
-def test_pgmq_worker_processes_a_two_actor_pipeline(pgmq_broker):
+@pytest.mark.usefixtures("postgres_broker")
+def test_postgres_worker_processes_a_two_actor_pipeline(postgres_broker):
     seen: list[tuple[str, int]] = []
 
     @remoulade.actor
@@ -511,15 +511,15 @@ def test_pgmq_worker_processes_a_two_actor_pipeline(pgmq_broker):
     def second_actor(value):
         seen.append(("second", value))
 
-    pgmq_broker.declare_actor(first_actor)
-    pgmq_broker.declare_actor(second_actor)
+    postgres_broker.declare_actor(first_actor)
+    postgres_broker.declare_actor(second_actor)
 
-    worker = Worker(pgmq_broker, worker_timeout=100, worker_threads=1)
+    worker = Worker(postgres_broker, worker_timeout=100, worker_threads=1)
     worker.start()
     try:
         remoulade.pipeline([first_actor.message(1), second_actor.message()]).run()
 
-        pgmq_broker.join(second_actor.queue_name, timeout=10_000)
+        postgres_broker.join(second_actor.queue_name, timeout=10_000)
         worker.join()
 
         assert seen == [("first", 1), ("second", 2)]
@@ -527,11 +527,11 @@ def test_pgmq_worker_processes_a_two_actor_pipeline(pgmq_broker):
         worker.stop()
 
 
-@pytest.mark.usefixtures("pgmq_broker")
-def test_pgmq_consumer_listener_wakes_on_enqueue_with_listen_notify(pgmq_broker):
+@pytest.mark.usefixtures("postgres_broker")
+def test_postgres_consumer_listener_wakes_on_enqueue_with_listen_notify(postgres_broker):
     message = Message(queue_name="default", actor_name="do_work", args=(99,), kwargs={}, options={})
-    pgmq_broker.declare_queue(message.queue_name)
-    consumer = pgmq_broker.consume(message.queue_name, prefetch=1, timeout=1500)
+    postgres_broker.declare_queue(message.queue_name)
+    consumer = postgres_broker.consume(message.queue_name, prefetch=1, timeout=1500)
 
     if not consumer._listener_available:
         pytest.skip("LISTEN/NOTIFY listener unavailable in this environment.")
@@ -545,7 +545,7 @@ def test_pgmq_consumer_listener_wakes_on_enqueue_with_listen_notify(pgmq_broker)
     thread.start()
     try:
         time.sleep(0.15)
-        pgmq_broker.enqueue(message)
+        postgres_broker.enqueue(message)
         thread.join(timeout=3)
         assert not thread.is_alive()
         assert consumed_messages
