@@ -18,7 +18,7 @@ import remoulade
 from remoulade import Worker
 from remoulade.api import app
 from remoulade.brokers.local import LocalBroker
-from remoulade.brokers.pgmq import PgmqBroker
+from remoulade.brokers.postgres import PostgresBroker
 from remoulade.brokers.rabbitmq import RabbitmqBroker
 from remoulade.brokers.stub import StubBroker
 from remoulade.cancel import backends as cl_backends
@@ -63,7 +63,7 @@ def check_redis(client):
     client.flushall()
 
 
-def check_pgmq(client):
+def check_postgres(client):
     try:
         with client.begin() as session:
             session.execute(text("CREATE SCHEMA IF NOT EXISTS partman"))
@@ -74,7 +74,7 @@ def check_pgmq(client):
         raise e from e if CI else pytest.skip("No connection to PostgreSQL/PGMQ server.")
 
 
-def cleanup_pgmq_queues(client):
+def cleanup_postgres_queues(client):
     with client.begin() as session:
         queue_names = [row[0] for row in session.execute(text("SELECT queue_name FROM pgmq.list_queues()")).all()]
         for queue_name in queue_names:
@@ -115,18 +115,18 @@ def rabbitmq_broker(request):
 
 
 @pytest.fixture()
-def pgmq_broker():
+def postgres_broker():
     db_string = os.getenv("REMOULADE_TEST_DB_URL") or "postgresql://remoulade@localhost:5544/test"
     engine = create_engine(db_string, poolclass=NullPool)
     client = sessionmaker(bind=engine)
-    check_pgmq(client)
-    cleanup_pgmq_queues(client)
+    check_postgres(client)
+    cleanup_postgres_queues(client)
 
-    broker = PgmqBroker(url=db_string)
+    broker = PostgresBroker(url=db_string)
     broker.emit_after("process_boot")
     remoulade.set_broker(broker)
     yield broker
-    cleanup_pgmq_queues(client)
+    cleanup_postgres_queues(client)
     broker.emit_before("process_stop")
     broker.close()
 

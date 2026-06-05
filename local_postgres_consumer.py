@@ -2,14 +2,14 @@ import time
 
 import remoulade
 from remoulade import Worker
-from remoulade.brokers.pgmq import PgmqBroker
+from remoulade.brokers.postgres import PostgresBroker
 
-# Same DSN as local_pgmq_broker.py
+# Same DSN as local_postgres_broker.py
 URL = "postgresql://remoulade@localhost:5544/test"
 QUEUE_NAME = "default"
 ACTOR_NAME = "demo.add"
 
-broker = PgmqBroker(
+broker = PostgresBroker(
     url=URL,
     middleware=[],
 )
@@ -34,7 +34,7 @@ if __name__ == "__main__":
 
     worker = Worker(broker, queues={QUEUE_NAME}, worker_threads=1, worker_timeout=30_000)
     worker.start()
-    print(f"PGMQ local consumer started on queue '{QUEUE_NAME}' ({listener_mode}). Press Ctrl+C to stop.")
+    print(f"Postgres local consumer started on queue '{QUEUE_NAME}' ({listener_mode}). Press Ctrl+C to stop.")
     try:
         while True:
             time.sleep(1)

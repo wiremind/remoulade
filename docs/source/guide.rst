@@ -170,7 +170,7 @@ actor an invalid URL.  Let's try it::
 
 
 Message Retries
----------------
+^^^^^^^^^^^^^^^
 
 If an error occurs during message processing, it will be terminated with a failure message.
 Alternatively, you can add the |Retries| Middleware to the broker and set the max_retries or retry_when option to automatically retry your message on failure.
@@ -203,12 +203,12 @@ If you want to use a different strategy than the default exponential backoff to 
 The following retry options are configurable on a per-actor basis:
 
 max_retries
-^^^^^^^^^^^
+---------------
 
 The maximum number of times a message should be retried. Default to ``0``.
 
 min_backoff
-^^^^^^^^^^^
+^^^^^^^^^^^^^^^
 
 The minimum number of milliseconds of backoff to apply between retries.  Must be greater than 100 milliseconds. Defaults to 15 seconds.
 
@@ -332,7 +332,7 @@ Keep in mind that *your message broker is not a database*.  Scheduled
 messages should represent a small subset of all your messages.
 
 On brokers that emulate delay in worker memory, the enqueued message
-will carry an ``eta`` option.  ``PgmqBroker`` stores delayed messages in
+will carry an ``eta`` option.  ``PostgresBroker`` stores delayed messages in
 PostgreSQL natively instead, so the message it returns does not include
 ``eta``.
 
@@ -403,19 +403,20 @@ execution::
   remoulade.set_broker(rabbitmq_broker)
 
 
-PGMQ Broker
-^^^^^^^^^^^
+Postgres Broker
+^^^^^^^^^^^^^^^
 
 To configure PostgreSQL/PGMQ, install ``remoulade[postgres]`` and
-instantiate a ``PgmqBroker`` with a PostgreSQL URL as early as possible
-during your program's execution::
+instantiate a ``PostgresBroker`` with a PostgreSQL URL as early as possible
+during your program's execution. This broker be used with a user postgresql who can create and
+delete tables::
 
   import remoulade
 
-  from remoulade.brokers.pgmq import PgmqBroker
+  from remoulade.brokers.postgres import PostgresBroker
 
-  pgmq_broker = PgmqBroker(url="postgresql://remoulade@localhost:5432/remoulade")
-  remoulade.set_broker(pgmq_broker)
+  postgres_broker = PostgresBroker(url="postgresql://remoulade@localhost:5432/remoulade")
+  remoulade.set_broker(postgres_broker)
 
 PGMQ handles delayed messages natively, so ``send_with_options(delay=...)``
 does not create a worker-side delay queue or add an ``eta`` option to

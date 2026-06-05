@@ -5,7 +5,7 @@ from sqlalchemy import text
 
 import remoulade
 from remoulade import Message
-from remoulade.brokers.pgmq import PgmqBroker
+from remoulade.brokers.postgres import PostgresBroker
 
 # Just for local test
 URL = "postgresql://remoulade@localhost:5544/test"
@@ -13,7 +13,7 @@ QUEUE_NAME = "default"
 ACTOR_NAME = "demo.add"
 
 
-broker = PgmqBroker(
+broker = PostgresBroker(
     url=URL,
     middleware=[],
 )
