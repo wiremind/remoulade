@@ -58,7 +58,7 @@ def test_postgres_broker_uses_provided_url():
     assert broker.url == broker_url
 
 
-def test_postgres_broker_partitions_archive_table_on_postgresql_queue_init():
+def test_postgres_broker_creates_partitioned_queue_with_default_intervals():
     broker = PostgresBroker(
         url=TEST_POSTGRES_URL,
         middleware=[],
@@ -66,17 +66,55 @@ def test_postgres_broker_partitions_archive_table_on_postgresql_queue_init():
     broker.client.validate_queue_name = Mock()
     broker.client.create_partitioned_queue = Mock()
     broker.client.create_queue = Mock()
+    broker.client.enable_notify = Mock()
     broker._queue_exists = Mock(return_value=False)
 
     broker.declare_queue("default")
 
+    broker.client.validate_queue_name.assert_called_once_with("default", conn=None)
     broker.client.create_partitioned_queue.assert_called_once_with(
         "default",
         partition_interval="1 day",
         retention_interval="7 days",
         conn=None,
     )
+    broker.client.enable_notify.assert_called_once_with("default", throttle_interval_ms=250, conn=None)
     broker.client.create_queue.assert_not_called()
+
+
+def test_postgres_broker_uses_current_transaction_connection_for_queue_creation():
+    broker = PostgresBroker(url=TEST_POSTGRES_URL, middleware=[])
+    broker.client.validate_queue_name = Mock()
+    broker.client.create_partitioned_queue = Mock()
+    broker.client.enable_notify = Mock()
+    broker._queue_exists = Mock(return_value=False)
+
+    transaction_connection = object()
+
+    class _DummyTransaction:
+        def __enter__(self):
+            return transaction_connection
+
+        def __exit__(self, exc_type, exc, tb):
+            return None
+
+    broker.client.engine.begin = Mock(return_value=_DummyTransaction())
+
+    with broker.tx():
+        broker.declare_queue("default")
+
+    broker.client.validate_queue_name.assert_called_once_with("default", conn=transaction_connection)
+    broker.client.create_partitioned_queue.assert_called_once_with(
+        "default",
+        partition_interval="1 day",
+        retention_interval="7 days",
+        conn=transaction_connection,
+    )
+    broker.client.enable_notify.assert_called_once_with(
+        "default",
+        throttle_interval_ms=250,
+        conn=transaction_connection,
+    )
 
 
 def test_postgres_broker_enables_notify_on_postgresql_queue_init():
@@ -366,6 +404,7 @@ def test_postgres_consumer_decodes_payload_with_global_encoder(monkeypatch, pyda
     broker.client.validate_queue_name = Mock()
     broker.client.create_partitioned_queue = Mock()
     broker.client.enable_notify = Mock()
+    broker._queue_exists = Mock(return_value=False)
 
     @remoulade.actor(actor_name="typed.actor", queue_name="default")
     def typed_actor(payload: InputSchema):

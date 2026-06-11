@@ -40,6 +40,7 @@ if TYPE_CHECKING:
 
 PostgresPayload = dict[str, Any]
 LISTEN_NOTIFY_THROTTLE_MS: Final[int] = 250
+FUTURE_PARTITION_HORIZON: Final[str] = "2 months"
 
 
 def _milliseconds_to_seconds(milliseconds: int) -> int:
@@ -142,7 +143,7 @@ class PostgresBroker(Broker):
 
     def _queue_exists(self, queue_name: str) -> bool:
         """Return whether the queue already exists in PostgreSQL."""
-        return queue_name in [queue.queue_name for queue in self.client.list_queues()]
+        return queue_name in {queue.queue_name for queue in self.client.list_queues()}
 
     @override
     def close(self) -> None:
@@ -167,20 +168,22 @@ class PostgresBroker(Broker):
             return
 
         self.client.validate_queue_name(queue_name, conn=self._current_connection)
-        if self._queue_exists(queue_name):
-            self.queues[queue_name] = None
-            return
+        queue_exists = self._queue_exists(queue_name)
 
-        self.emit_before("declare_queue", queue_name)
-        self.client.create_partitioned_queue(
-            queue_name,
-            partition_interval=self.archive_partition_interval,
-            retention_interval=self.archive_retention_interval,
-            conn=self._current_connection,
-        )
-        self._try_enable_notify(queue_name)
+        if not queue_exists:
+            self.emit_before("declare_queue", queue_name)
+            self.client.create_partitioned_queue(
+                queue_name,
+                partition_interval=self.archive_partition_interval,
+                retention_interval=self.archive_retention_interval,
+                conn=self._current_connection,
+            )
+            self._try_enable_notify(queue_name)
+
         self.queues[queue_name] = None
-        self.emit_after("declare_queue", queue_name)
+
+        if not queue_exists:
+            self.emit_after("declare_queue", queue_name)
 
     def _encode_message(self, message: "Message") -> PostgresPayload:
         """Decode a Remoulade message into a JSON object payload for PGMQ.
