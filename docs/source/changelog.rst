@@ -5,6 +5,23 @@ Changelog
 
 All notable changes to this project will be documented in this file.
 
+`7.0.0`_ -- 2026-06-15
+------------
+Breaking changes
+^^^^^^^^^^^^^^^^
+* Remove the legacy PostgreSQL state backend.
+* Rework the broker API around the new PostgreSQL/PGMQ implementation.
+
+Feat
+^^^^
+* Add a PostgreSQL/PGMQ broker with partitioned queues, native delayed messages, ``LISTEN/NOTIFY`` wakeups, and queue join support.
+* Add the ``PgmqBroker`` alias for the PostgreSQL-backed broker.
+
+Changed
+^^^^^^^
+* Restore the main APIs after the broker refactor.
+* Update the documentation, examples, CI, and test suite for the new stack.
+
 =======
 `6.2.0`_ -- 2026-05-18
 -------------
