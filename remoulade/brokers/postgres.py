@@ -535,7 +535,7 @@ class _PostgresMessage(MessageProxy):
         try:
             # Re-run the global message decoder so custom encoders (e.g. PydanticEncoder)
             # can rehydrate actor args/kwargs to their typed schemas.
-            message = Message.decode(json.dumps(payload, separators=(",", ":")).encode("utf-8"))
+            message = Message.decode(json.dumps(payload).encode("utf-8"))
         except TypeError as exc:
             raise UnsupportedMessageEncoding("PGMQ message payload is not a valid Remoulade message envelope.") from exc
         if message.options.get("eta", None) is not None:
