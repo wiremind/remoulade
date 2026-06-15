@@ -89,6 +89,32 @@ def test_compositions_are_canceled_on_actor_failure(stub_broker, stub_worker, ca
     assert cancel_backend.is_canceled("", "mocked_composition_id") == cancel
 
 
+def test_compositions_are_canceled_on_message_cancel(stub_broker, cancel_backend, state_middleware, api_client):
+    # Given a cancel backend
+    # And a broker with the cancel middleware
+    stub_broker.add_middleware(Cancel(backend=cancel_backend))
+
+    # And an actor
+    @remoulade.actor
+    def do_work(arg=None):
+        return 1
+
+    # And those actors are declared
+    stub_broker.declare_actor(do_work)
+
+    message_to_cancel = do_work.message()
+
+    # And a group that I enqueue
+    g = group([message_to_cancel | do_work.message(), do_work.message()], cancel_on_error=True)
+    g.run()
+
+    # When I cancel a message of this group
+    api_client.post("messages/cancel/" + message_to_cancel.message_id)
+
+    # The whole composition should be canceled
+    assert cancel_backend.is_canceled("", g.group_id)
+
+
 def test_cannot_cancel_on_error_if_no_cancel(stub_broker):
     # Given an actor
     @remoulade.actor()
@@ -162,3 +188,13 @@ def test_composition_can_be_canceled(stub_broker, stub_worker, cancel_backend):
 
     # It messages should not have runMessageSchema
     assert calls_count == 0
+
+
+def test_raise_error_if_unknown_id(stub_broker, cancel_backend, api_client):
+    # Given a cancel middleware
+    stub_broker.add_middleware(Cancel(backend=cancel_backend))
+
+    # If I try to cancel a id that is not a id of a message or composition
+    res = api_client.post("messages/cancel/invalid_id")
+
+    assert res.status_code == 400
