@@ -99,7 +99,7 @@ class StubBroker(Broker):
         if queue_name not in self.queues:
             raise QueueNotFound(queue_name)
 
-        self.queues[queue_name].put(message.encode())
+        self.queues[queue_name].put(message.encode_in_bytes())
         return message
 
     def flush(self, queue_name):
@@ -165,7 +165,7 @@ class _StubConsumer(Consumer):
     def __next__(self):
         try:
             data = self.queue.get(timeout=self.timeout / 1000)
-            message = Message.decode(data)
+            message = Message.decode_bytes(data)
             return MessageProxy(message)
         except Empty:
             return None
