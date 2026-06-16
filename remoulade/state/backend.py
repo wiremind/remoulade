@@ -99,7 +99,7 @@ class State(
 
             for key in (item for item in ["args", "kwargs", "options"] if item in as_dict):
                 try:
-                    as_dict[key] = get_encoder().encode(as_dict[key]).decode("utf-8")
+                    as_dict[key] = get_encoder().encode_in_bytes(as_dict[key]).decode("utf-8")
                 except (UnicodeDecodeError, TypeError):
                     as_dict[key] = "encoded_data"
         return as_dict
@@ -201,16 +201,16 @@ class StateBackend:
         """Return the (keys, values) of a dictionary encoded"""
         encoded_data = {}
         for key, value in data.items():
-            encoded_value = self.encoder.encode(value)
+            encoded_value = self.encoder.encode_in_bytes(value)
             if sys.getsizeof(encoded_value) <= self.max_size:
-                encoded_data[self.encoder.encode(key)] = self.encoder.encode(value)
+                encoded_data[self.encoder.encode_in_bytes(key)] = self.encoder.encode_in_bytes(value)
         return encoded_data
 
     def _decode_dict(self, data):
         """Return the (keys, values) of a dictionary decoded"""
         decoded_data = {}
         for key, value in data.items():
-            decoded_data[self.encoder.decode(key)] = self.encoder.decode(value)
+            decoded_data[self.encoder.decode_bytes(key)] = self.encoder.decode_bytes(value)
         return decoded_data
 
     def clean(self, max_age: int | None = None, not_started: bool = False):

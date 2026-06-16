@@ -193,14 +193,17 @@ class PostgresBroker(Broker):
             or is not a JSON object.
         """
         try:
-            payload = json.loads(message.encode().decode("utf-8"))
-        except (UnicodeDecodeError, json.JSONDecodeError) as e:
-            raise UnsupportedMessageEncoding(
-                "PostgresBroker only supports encoders that serialize messages as JSON objects."
-            ) from e
+            payload = message.encode_in_json()
+        except (TypeError, ValueError, UnsupportedMessageEncoding) as exc:
+            raise UnsupportedMessageEncoding("PGMQ messages must contain JSON objects.") from exc
 
         if not isinstance(payload, dict):
-            raise UnsupportedMessageEncoding("PostgresBroker requires message encoders to produce JSON objects.")
+            raise UnsupportedMessageEncoding("PGMQ messages must contain JSON objects.")
+
+        try:
+            json.dumps(payload)
+        except (TypeError, ValueError) as exc:
+            raise UnsupportedMessageEncoding("PGMQ messages must contain JSON objects.") from exc
 
         return payload
 
@@ -535,7 +538,7 @@ class _PostgresMessage(MessageProxy):
         try:
             # Re-run the global message decoder so custom encoders (e.g. PydanticEncoder)
             # can rehydrate actor args/kwargs to their typed schemas.
-            message = Message.decode(json.dumps(payload).encode("utf-8"))
+            message = Message.decode_json(payload)
         except TypeError as exc:
             raise UnsupportedMessageEncoding("PGMQ message payload is not a valid Remoulade message envelope.") from exc
         if message.options.get("eta", None) is not None:

@@ -350,7 +350,7 @@ class RabbitmqBroker(Broker):
                 self.logger.debug("Enqueueing message %r on queue %r.", message.message_id, queue_name)
                 with self._get_channel(confirm_delivery) as channel:
                     confirmation = channel.basic.publish(
-                        exchange="", routing_key=queue_name, body=message.encode(), properties=properties
+                        exchange="", routing_key=queue_name, body=message.encode_in_bytes(), properties=properties
                     )
                     if confirm_delivery and not confirmation:
                         raise MessageNotDelivered("Message could not be delivered")
@@ -515,7 +515,7 @@ class _RabbitmqConsumer(Consumer):
 
 class _RabbitmqMessage(MessageProxy):
     def __init__(self, rabbitmq_message):
-        super().__init__(Message.decode(rabbitmq_message.body))
+        super().__init__(Message.decode_bytes(rabbitmq_message.body))
 
         self._rabbitmq_message = rabbitmq_message
 

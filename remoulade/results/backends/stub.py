@@ -36,17 +36,17 @@ class StubBackend(ResultBackend):
         if forget:
             data, expiration = self.results.get(message_key, (None, None))
             if data is not None:
-                self.results[message_key] = self.encoder.encode(ForgottenResult.asdict()), expiration
+                self.results[message_key] = self.encoder.encode_in_bytes(ForgottenResult.asdict()), expiration
         else:
             data, expiration = self.results.get(message_key, (None, None))
 
         if data is not None and time.monotonic() < expiration:
-            return self.encoder.decode(data)
+            return self.encoder.decode_bytes(data)
         return Missing
 
     def _store(self, message_keys, results, ttl):
         for message_key, result in zip(message_keys, results, strict=False):
-            result_data = self.encoder.encode(result)
+            result_data = self.encoder.encode_in_bytes(result)
             expiration = time.monotonic() + int(ttl / 1000)
             self.results[message_key] = (result_data, expiration)
 

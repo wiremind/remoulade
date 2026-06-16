@@ -15,8 +15,6 @@ Breaking changes
 Feat
 ^^^^
 * Add a PostgreSQL/PGMQ broker with partitioned queues, native delayed messages, ``LISTEN/NOTIFY`` wakeups, and queue join support.
-* Add the ``PgmqBroker`` alias for the PostgreSQL-backed broker.
-
 Changed
 ^^^^^^^
 * Restore the main APIs after the broker refactor.

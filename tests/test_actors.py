@@ -103,7 +103,7 @@ def test_actors_can_be_sent_messages(stub_broker):
     # I expect it to enqueue a message
     enqueued_message = add.send(1, 2)
     enqueued_message_data = stub_broker.queues["default"].get(timeout=1)
-    assert enqueued_message == Message.decode(enqueued_message_data)
+    assert enqueued_message == Message.decode_bytes(enqueued_message_data)
 
 
 def test_actors_no_broker():

@@ -10,8 +10,9 @@ from sqlalchemy import JSON, Column, Integer, MetaData, Table, func
 from sqlalchemy.sql import select, text
 
 import remoulade
-from remoulade import Message, QueueJoinTimeout, Worker
+from remoulade import Message, QueueJoinTimeout, UnsupportedMessageEncoding, Worker
 from remoulade.brokers.postgres import PostgresBroker
+from remoulade.encoder import Encoder, MessageData
 
 TEST_POSTGRES_URL = os.getenv("REMOULADE_TEST_DB_URL") or "postgresql://remoulade@localhost:5544/test"
 
@@ -48,7 +49,7 @@ def _queue_exists(broker, queue_name):
 
 
 def _expected_payload(message):
-    return json.loads(message.encode().decode("utf-8"))
+    return json.loads(message.encode_in_bytes().decode("utf-8"))
 
 
 def test_postgres_broker_uses_provided_url():
@@ -182,6 +183,53 @@ def test_postgres_broker_uses_custom_partition_settings_when_provided():
         retention_interval="14 days",
         conn=None,
     )
+
+
+def test_postgres_broker_rejects_non_json_message_encoders():
+    broker = PostgresBroker(url=TEST_POSTGRES_URL, middleware=[])
+
+    class _MessageWithInvalidJson(Encoder):
+        def _encode_in_json(self, data):
+            raise TypeError("not json")
+
+        def decode_json(self, data):
+            return data
+
+        def encode_in_bytes(self, data: MessageData) -> bytes:
+            return b""
+
+        def decode_bytes(self, data: bytes) -> MessageData:
+            return {}
+
+    with pytest.raises(UnsupportedMessageEncoding):
+        broker._encode_message(_MessageWithInvalidJson())
+
+
+def test_postgres_broker_rejects_nested_non_json_safe_payloads():
+    broker = PostgresBroker(url=TEST_POSTGRES_URL, middleware=[])
+    old_encoder = remoulade.get_encoder()
+
+    class _NestedInvalidJsonEncoder(Encoder):
+        def _encode_in_json(self, data):
+            return {**data, "options": {"nested": {1}}}
+
+        def decode_json(self, data):
+            return data
+
+        def encode_in_bytes(self, data: MessageData) -> bytes:
+            return b""
+
+        def decode_bytes(self, data: bytes) -> MessageData:
+            return {}
+
+    remoulade.set_encoder(_NestedInvalidJsonEncoder())
+    try:
+        message = Message(queue_name="default", actor_name="do_work", args=(), kwargs={}, options={})
+
+        with pytest.raises(UnsupportedMessageEncoding):
+            broker._encode_message(message)
+    finally:
+        remoulade.set_encoder(old_encoder)
 
 
 @pytest.mark.usefixtures("postgres_broker")

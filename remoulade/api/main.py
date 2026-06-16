@@ -114,7 +114,7 @@ def get_results(message_id):
     max_size = 1e4
     try:
         result = Result[Any](message_id=message_id).get()
-        encoded_result = get_encoder().encode(result).decode("utf-8")
+        encoded_result = get_encoder().encode_in_bytes(result).decode("utf-8")
         size_result = sys.getsizeof(encoded_result)
         if size_result >= max_size:
             encoded_result = f"The result is too big {size_result / 1e6}M"

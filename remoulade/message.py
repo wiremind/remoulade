@@ -89,13 +89,22 @@ class Message[ResultT: Result[Any]]:
         return attr.asdict(self, recurse=False)
 
     @classmethod
-    def decode(cls, data):
+    def decode_bytes(cls, data: bytes):
         """Convert a bytestring to a message."""
-        return cls(**global_encoder.decode(data))
+        return cls(**global_encoder.decode_bytes(data))
 
-    def encode(self):
+    def encode_in_bytes(self):
         """Convert this message to a bytestring."""
-        return global_encoder.encode(self.asdict())
+        return global_encoder.encode_in_bytes(self.asdict())
+
+    @classmethod
+    def decode_json(cls, data: dict[str, Any]):
+        """Convert a bytestring to a message."""
+        return cls(**global_encoder.decode_json(data))
+
+    def encode_in_json(self):
+        """Convert this message to a bytestring."""
+        return global_encoder.encode_in_json(self.asdict())
 
     def copy(self, **attributes):
         """Create a copy of this message."""
