@@ -292,7 +292,7 @@ def test_postgres_consumer_uses_notification_path_when_listener_is_available(mon
     broker.client.read_with_poll = Mock(return_value=[])
 
     consumer = broker.consume("default", prefetch=1, timeout=200)
-    consumer._notify_event.set()
+    consumer._notify_event.wait = Mock(return_value=False)
 
     consumed = next(consumer)
 
@@ -300,6 +300,7 @@ def test_postgres_consumer_uses_notification_path_when_listener_is_available(mon
     assert consumed.message_id == message.message_id
     broker.client.read.assert_called_once_with("default", vt=30, qty=1)
     broker.client.read_with_poll.assert_not_called()
+    consumer._notify_event.wait.assert_not_called()
     assert consumer._listener_available is True
     consumer.close()
 
@@ -331,6 +332,31 @@ def test_postgres_consumer_falls_back_to_polling_when_listener_is_unavailable(mo
         max_poll_seconds=1,
         poll_interval_ms=200,
     )
+    consumer.close()
+
+
+def test_postgres_consumer_keeps_listener_path_after_an_empty_cycle(monkeypatch):
+    def _fake_start_listener(self):
+        self._listener_available = True
+
+    monkeypatch.setattr("remoulade.brokers.postgres._PostgresConsumer._start_listener", _fake_start_listener)
+
+    broker = PostgresBroker(url=TEST_POSTGRES_URL, middleware=[])
+    broker.queues["default"] = None
+
+    broker.client.read = Mock(return_value=None)
+    broker.client.read_with_poll = Mock(return_value=[])
+
+    consumer = broker.consume("default", prefetch=1, timeout=200)
+    consumer._notify_event.wait = Mock(return_value=False)
+
+    consumed = next(consumer)
+
+    assert consumed is None
+    assert consumer._listener_available is True
+    assert broker.client.read.call_count == 2
+    broker.client.read_with_poll.assert_not_called()
+    consumer._notify_event.wait.assert_called_once_with(0.2)
     consumer.close()
 
 

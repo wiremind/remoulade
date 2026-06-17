@@ -370,6 +370,20 @@ class _PostgresConsumer(Consumer):
             )
         )
 
+    def _read_next_batch(self) -> list[PostgresQueueMessage]:
+        """Read the next batch, favoring LISTEN/NOTIFY when available."""
+        if not self._listener_available:
+            return self._read_with_poll()
+
+        messages = self._read_immediate()
+        if messages:
+            self._notify_event.clear()
+            return messages
+
+        self._notify_event.wait(self.wait_timeout_seconds)
+        self._notify_event.clear()
+        return self._read_immediate() if self._listener_available else self._read_with_poll()
+
     def _start_heartbeat(self) -> None:
         """Start the background visibility-timeout renewal thread."""
         self._heartbeat_thread = Thread(
@@ -501,15 +515,7 @@ class _PostgresConsumer(Consumer):
         if self.messages:
             return self._build_message(self.messages.popleft())
 
-        if self._listener_available:
-            self._notify_event.wait(self.wait_timeout_seconds)
-            messages = self._read_immediate()
-            if not messages:
-                messages = self._read_with_poll()
-                self._listener_available = False
-            self._notify_event.clear()
-        else:
-            messages = self._read_with_poll()
+        messages = self._read_next_batch()
 
         if not messages:
             return None
