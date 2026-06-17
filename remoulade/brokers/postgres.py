@@ -109,7 +109,7 @@ class PostgresBroker(Broker):
             raise ValueError("interval_in_day must be greater than 0")
         if interval_in_day == 1:
             return "1 day"
-        return f"{interval_in_day}  days"
+        return f"{interval_in_day} days"
 
     @override
     @contextmanager
@@ -329,8 +329,8 @@ class _PostgresConsumer(Consumer):
         self._listener_available = False
         self._heartbeat_stop = Event()
         self._heartbeat_thread: Thread | None = None
-        self._heartbeat_msg_ids_lock = Lock()
-        self._heartbeat_msg_ids: set[int] = set()
+        self._heartbeat_message_ids_lock = Lock()
+        self._heartbeat_message_ids: set[int] = set()
 
         self._start_listener()
         self._start_heartbeat()
@@ -393,12 +393,12 @@ class _PostgresConsumer(Consumer):
         requeued. Failures are logged and retried on the next heartbeat tick.
         """
         while not self._heartbeat_stop.wait(self.heartbeat_interval_seconds):
-            with self._heartbeat_msg_ids_lock:
-                msg_ids = list(self._heartbeat_msg_ids)
-            if not msg_ids:
+            with self._heartbeat_message_ids_lock:
+                message_ids = list(self._heartbeat_message_ids)
+            if not message_ids:
                 continue
             try:
-                self.client.set_vt(self.queue_name, msg_ids, self.visibility_timeout_seconds)
+                self.client.set_vt(self.queue_name, message_ids, self.visibility_timeout_seconds)
             except Exception as e:
                 self.broker.logger.warning(
                     "Failed to extend visibility timeout heartbeat for queue %s. Error: ",
@@ -407,15 +407,17 @@ class _PostgresConsumer(Consumer):
                     exc_info=True,
                 )
 
-    def _register_heartbeat_msg(self, message: "_PostgresMessage") -> None:
-        """Track a message so the heartbeat can renew it."""
-        with self._heartbeat_msg_ids_lock:
-            self._heartbeat_msg_ids.add(message._postgres_message.msg_id)
-
-    def _unregister_heartbeat_msg_id(self, msg_id: int) -> None:
+    def _unregister_heartbeat_message_id(self, message_id: int) -> None:
         """Stop tracking a message for heartbeat renewal."""
-        with self._heartbeat_msg_ids_lock:
-            self._heartbeat_msg_ids.discard(msg_id)
+        with self._heartbeat_message_ids_lock:
+            self._heartbeat_message_ids.discard(message_id)
+
+    def _requeue_message_ids(self, message_ids: list[int]) -> None:
+        """Make a batch of message ids visible again immediately."""
+        for message_id in message_ids:
+            self._unregister_heartbeat_message_id(message_id)
+        if len(message_ids) > 0:
+            self.client.set_vt(self.queue_name, message_ids, 0)
 
     def _start_listener(self) -> None:
         """Start a LISTEN/NOTIFY listener for the queue when available."""
@@ -470,7 +472,7 @@ class _PostgresConsumer(Consumer):
         """Archive a processed message."""
         if not isinstance(message, _PostgresMessage):
             raise ValueError("It must be a PostgresMessage")
-        self._unregister_heartbeat_msg_id(message._postgres_message.msg_id)
+        self._unregister_heartbeat_message_id(message._postgres_message.msg_id)
         self.client.archive(self.queue_name, message._postgres_message.msg_id)
 
     @override
@@ -478,23 +480,20 @@ class _PostgresConsumer(Consumer):
         """Archive a failed message."""
         if not isinstance(message, _PostgresMessage):
             raise ValueError("It must be a PostgresMessage")
-        self._unregister_heartbeat_msg_id(message._postgres_message.msg_id)
+        self._unregister_heartbeat_message_id(message._postgres_message.msg_id)
         self.client.archive(self.queue_name, message._postgres_message.msg_id)
 
     @override
     def requeue(self, messages: Iterable["MessageProxy"]) -> None:
         """Make messages visible again immediately by resetting their visibility timeout."""
-        msg_ids = [message._postgres_message.msg_id for message in messages if isinstance(message, _PostgresMessage)]
-        if msg_ids:
-            for msg_id in msg_ids:
-                self._unregister_heartbeat_msg_id(msg_id)
-            self.client.set_vt(self.queue_name, msg_ids, 0)
+        message_ids = [
+            message._postgres_message.msg_id for message in messages if isinstance(message, _PostgresMessage)
+        ]
+        self._requeue_message_ids(message_ids)
 
     def _build_message(self, postgres_message: PostgresQueueMessage) -> "_PostgresMessage":
-        """Wrap a raw PGMQ row and register it for heartbeat renewal."""
-        message = _PostgresMessage(postgres_message)
-        self._register_heartbeat_msg(message)
-        return message
+        """Wrap a raw PGMQ row as a Remoulade message proxy."""
+        return _PostgresMessage(postgres_message)
 
     @override
     def __next__(self) -> "_PostgresMessage | None":
@@ -514,7 +513,9 @@ class _PostgresConsumer(Consumer):
 
         if not messages:
             return None
-
+        message_ids = [message.msg_id for message in messages]
+        with self._heartbeat_message_ids_lock:
+            self._heartbeat_message_ids.update(message_ids)
         self.messages.extend(messages)
         return self._build_message(self.messages.popleft())
 
@@ -531,10 +532,12 @@ class _PostgresConsumer(Consumer):
                 self.broker.logger.error("Listener not joinable: %s", str(e))
             finally:
                 self._listener_connection = None
-        if self._listener_thread is not None:
-            self._listener_thread.join(timeout=1)
         if self._heartbeat_thread is not None:
             self._heartbeat_thread.join(timeout=1)
+        self._requeue_message_ids([message.msg_id for message in self.messages])
+        self.messages.clear()
+        if self._listener_thread is not None:
+            self._listener_thread.join(timeout=1)
         return
 
 

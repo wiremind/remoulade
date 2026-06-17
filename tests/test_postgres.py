@@ -167,8 +167,8 @@ def test_postgres_broker_uses_custom_partition_settings_when_provided():
     broker = PostgresBroker(
         url=TEST_POSTGRES_URL,
         middleware=[],
-        archive_partition_interval="2 days",
-        archive_retention_interval="14 days",
+        archive_partition_interval_in_days=2,
+        archive_retention_interval_in_days=14,
     )
     broker.client.validate_queue_name = Mock()
     broker.client.create_partitioned_queue = Mock()
@@ -360,6 +360,76 @@ def test_postgres_consumer_uses_broker_visibility_timeout_for_reads(monkeypatch)
         poll_interval_ms=200,
     )
     consumer.close()
+
+
+def test_postgres_consumer_tracks_all_prefetched_messages_for_heartbeat(monkeypatch):
+    def _fake_start_listener(self):
+        self._listener_available = False
+
+    def _fake_start_heartbeat(self):
+        self._heartbeat_thread = None
+
+    monkeypatch.setattr("remoulade.brokers.postgres._PostgresConsumer._start_listener", _fake_start_listener)
+    monkeypatch.setattr("remoulade.brokers.postgres._PostgresConsumer._start_heartbeat", _fake_start_heartbeat)
+
+    broker = PostgresBroker(url=TEST_POSTGRES_URL, middleware=[])
+    broker.queues["default"] = None
+
+    first_message = Message(queue_name="default", actor_name="do_work", args=(1,), kwargs={}, options={})
+    second_message = Message(queue_name="default", actor_name="do_work", args=(2,), kwargs={}, options={})
+    broker.client.read = Mock(return_value=None)
+    broker.client.read_with_poll = Mock(
+        return_value=[
+            Mock(msg_id=1, message=_expected_payload(first_message)),
+            Mock(msg_id=2, message=_expected_payload(second_message)),
+        ]
+    )
+    broker.client.set_vt = Mock()
+
+    consumer = broker.consume("default", prefetch=2, timeout=200)
+    consumed = next(consumer)
+
+    assert consumed is not None
+    assert consumed.message_id == first_message.message_id
+    with consumer._heartbeat_message_ids_lock:
+        assert consumer._heartbeat_message_ids == {1, 2}
+
+    consumer.close()
+
+
+def test_postgres_consumer_close_requeues_buffered_prefetched_messages(monkeypatch):
+    def _fake_start_listener(self):
+        self._listener_available = False
+
+    def _fake_start_heartbeat(self):
+        self._heartbeat_thread = None
+
+    monkeypatch.setattr("remoulade.brokers.postgres._PostgresConsumer._start_listener", _fake_start_listener)
+    monkeypatch.setattr("remoulade.brokers.postgres._PostgresConsumer._start_heartbeat", _fake_start_heartbeat)
+
+    broker = PostgresBroker(url=TEST_POSTGRES_URL, middleware=[])
+    broker.queues["default"] = None
+
+    first_message = Message(queue_name="default", actor_name="do_work", args=(1,), kwargs={}, options={})
+    second_message = Message(queue_name="default", actor_name="do_work", args=(2,), kwargs={}, options={})
+    broker.client.read = Mock(return_value=None)
+    broker.client.read_with_poll = Mock(
+        return_value=[
+            Mock(msg_id=1, message=_expected_payload(first_message)),
+            Mock(msg_id=2, message=_expected_payload(second_message)),
+        ]
+    )
+    broker.client.set_vt = Mock()
+
+    consumer = broker.consume("default", prefetch=2, timeout=200)
+    consumed = next(consumer)
+
+    assert consumed is not None
+    assert consumed.message_id == first_message.message_id
+
+    consumer.close()
+
+    broker.client.set_vt.assert_called_once_with("default", [2], 0)
 
 
 def test_postgres_consumer_falls_back_to_polling_when_listener_stops_during_wait(monkeypatch):
