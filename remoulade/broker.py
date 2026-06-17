@@ -194,12 +194,13 @@ class Broker:
         overwrite when they are declared.
     """
 
+    supports_native_delay = False
+
     def __init__(self, middleware: "Iterable[Middleware] | None" = None):
         self.logger = get_logger(__name__, type(self))
         self.actors: dict[str, Actor] = {}
         self.queues: dict[str, Queue | None] = {}
         self.delay_queues: set[str] = set()
-        self.supports_native_delay = False
 
         self.actor_options: set[str] = set()
         self.middleware: list[Middleware] = []
