@@ -55,14 +55,16 @@ class PostgresBroker(Broker):
     PostgreSQL instead of being staged in worker memory.
     """
 
+    supports_native_delay = True
+
     def __init__(
         self,
         *,
         url: str,
         middleware: list["Middleware"] | None = None,
         group_transaction: bool = False,
-        archive_partition_interval: str = "1 day",
-        archive_retention_interval: str = "7 days",
+        archive_partition_interval_in_days: int = 1,
+        archive_retention_interval_in_days: int = 7,
         visibility_timeout_ms: int = 30_000,
         heartbeat_interval_ms: int = 10_000,
     ) -> None:
@@ -73,8 +75,8 @@ class PostgresBroker(Broker):
           The url must be the creds for a user who can create and delete tables
           middleware(list[Middleware] | None): Middleware stack applied to this broker.
           group_transaction(bool): If True, wraps group and pipeline operations in a single transaction.
-          archive_partition_interval(str): Partition interval passed to PGMQ when creating partitioned queues.
-          archive_retention_interval(str): Retention interval passed to PGMQ for archive partitions.
+          archive_partition_interval_in_days(int): Partition interval passed to PGMQ when creating partitioned queues.
+          archive_retention_interval_in_days(int): Retention interval passed to PGMQ for archive partitions.
           visibility_timeout_ms(int): Message visibility timeout in milliseconds after read; must be greater than 0.
           heartbeat_interval_ms(int): Heartbeat interval in milliseconds used to extend in-flight message visibility
             must be greater than 0 and lower than visibility_timeout_ms.
@@ -88,19 +90,26 @@ class PostgresBroker(Broker):
         self.url = urlparse(url).geturl()
         self.state = local()
         self.group_transaction = group_transaction
-        self.archive_partition_interval = archive_partition_interval
-        self.archive_retention_interval = archive_retention_interval
+        self.archive_partition_interval = self.convert_days_in_partman_syntax(archive_partition_interval_in_days)
+        self.archive_retention_interval = self.convert_days_in_partman_syntax(archive_retention_interval_in_days)
         self.visibility_timeout_ms = visibility_timeout_ms
         self.heartbeat_interval_ms = heartbeat_interval_ms
         self.visibility_timeout_seconds = _milliseconds_to_seconds(visibility_timeout_ms)
         self.heartbeat_interval_seconds = heartbeat_interval_ms / 1000
-        self.supports_native_delay = True
 
         self.client = SQLAlchemyPGMQueue(
             conn_string=url,
             init_extension=False,
             vt=self.visibility_timeout_seconds,
         )
+
+    def convert_days_in_partman_syntax(self, interval_in_day: int) -> str:
+        """Convert int into partman syntax"""
+        if interval_in_day <= 0:
+            raise ValueError("interval_in_day must be greater than 0")
+        if interval_in_day == 1:
+            return "1 day"
+        return f"{interval_in_day}  days"
 
     @override
     @contextmanager
