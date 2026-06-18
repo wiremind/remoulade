@@ -59,7 +59,7 @@ class Encoder(abc.ABC):
 
     @abc.abstractmethod
     def _encode_in_json(self, data: MessageData) -> JsonData:
-        return data
+        raise NotImplementedError
 
     @abc.abstractmethod
     def decode_json(self, data: JsonData) -> MessageData:
