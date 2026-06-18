@@ -52,6 +52,33 @@ def _expected_payload(message):
     return json.loads(message.encode_in_bytes().decode("utf-8"))
 
 
+class _FakeListener:
+    """Stand-in for the broker's shared LISTEN/NOTIFY listener.
+
+    Lets tests control listener availability deterministically without opening
+    a real psycopg connection or starting the dispatch thread.
+    """
+
+    def __init__(self, available):
+        self.available = available
+
+    def register(self, queue_name, event):
+        pass
+
+    def unregister(self, queue_name):
+        pass
+
+    def close(self):
+        pass
+
+
+def _install_listener(broker, *, available):
+    """Replace the broker's shared listener with a controllable fake."""
+    listener = _FakeListener(available)
+    broker._listener = listener
+    return listener
+
+
 def test_postgres_broker_uses_provided_url():
     broker_url = TEST_POSTGRES_URL
     broker = PostgresBroker(url=broker_url)
@@ -161,6 +188,64 @@ def test_postgres_broker_declare_queue_is_idempotent_when_queue_already_exists()
     broker.client.create_partitioned_queue.assert_not_called()
     broker.client.enable_notify.assert_not_called()
     assert "default" in broker.queues
+
+
+def test_postgres_broker_poll_only_mode_opens_no_listener_and_skips_enable_notify():
+    broker = PostgresBroker(url=TEST_POSTGRES_URL, middleware=[], enable_listen_notify=False)
+    broker.client.validate_queue_name = Mock()
+    broker.client.create_partitioned_queue = Mock()
+    broker.client.enable_notify = Mock()
+    broker._queue_exists = Mock(return_value=False)
+
+    broker.declare_queue("default")
+
+    assert broker._listener is None
+    broker.client.enable_notify.assert_not_called()
+
+
+def test_postgres_broker_poll_only_consumer_never_reports_listener_available():
+    broker = PostgresBroker(url=TEST_POSTGRES_URL, middleware=[], enable_listen_notify=False)
+    broker.queues["default"] = None
+
+    message = Message(queue_name="default", actor_name="do_work", args=(9,), kwargs={}, options={})
+    broker.client.read = Mock(return_value=None)
+    broker.client.read_with_poll = Mock(return_value=[Mock(msg_id=9, message=_expected_payload(message))])
+
+    consumer = broker.consume("default", prefetch=1, timeout=200)
+    consumed = next(consumer)
+
+    assert consumed is not None
+    assert consumer._listener_available is False
+    broker.client.read.assert_not_called()
+    broker.client.read_with_poll.assert_called_once()
+    consumer.close()
+
+
+def test_postgres_broker_shares_a_single_listener_across_consumers():
+    broker = PostgresBroker(url=TEST_POSTGRES_URL, middleware=[])
+    broker.queues["first"] = None
+    broker.queues["second"] = None
+    listener = _install_listener(broker, available=True)
+    listener.register = Mock()
+    listener.unregister = Mock()
+
+    first = broker.consume("first", prefetch=1, timeout=0)
+    second = broker.consume("second", prefetch=1, timeout=0)
+
+    assert first.broker._listener is second.broker._listener
+    assert listener.register.call_count == 2
+    registered_queues = {call.args[0] for call in listener.register.call_args_list}
+    assert registered_queues == {"first", "second"}
+
+    first.close()
+    second.close()
+    assert listener.unregister.call_count == 2
+
+
+def test_postgres_broker_forwards_pool_size_to_client():
+    broker = PostgresBroker(url=TEST_POSTGRES_URL, middleware=[], pool_size=3)
+
+    assert broker.client.engine.pool.size() == 3
 
 
 def test_postgres_broker_uses_custom_partition_settings_when_provided():
@@ -277,14 +362,10 @@ def test_postgres_broker_transactions_commit_and_rollback_messages(postgres_brok
     assert _count_messages(postgres_broker) == 1
 
 
-def test_postgres_consumer_uses_notification_path_when_listener_is_available(monkeypatch):
-    def _fake_start_listener(self):
-        self._listener_available = True
-
-    monkeypatch.setattr("remoulade.brokers.postgres._PostgresConsumer._start_listener", _fake_start_listener)
-
+def test_postgres_consumer_uses_notification_path_when_listener_is_available():
     broker = PostgresBroker(url=TEST_POSTGRES_URL, middleware=[])
     broker.queues["default"] = None
+    _install_listener(broker, available=True)
 
     message = Message(queue_name="default", actor_name="do_work", args=(1,), kwargs={}, options={})
     payload = _expected_payload(message)
@@ -305,14 +386,10 @@ def test_postgres_consumer_uses_notification_path_when_listener_is_available(mon
     consumer.close()
 
 
-def test_postgres_consumer_falls_back_to_polling_when_listener_is_unavailable(monkeypatch):
-    def _fake_start_listener(self):
-        self._listener_available = False
-
-    monkeypatch.setattr("remoulade.brokers.postgres._PostgresConsumer._start_listener", _fake_start_listener)
-
+def test_postgres_consumer_falls_back_to_polling_when_listener_is_unavailable():
     broker = PostgresBroker(url=TEST_POSTGRES_URL, middleware=[])
     broker.queues["default"] = None
+    _install_listener(broker, available=False)
 
     message = Message(queue_name="default", actor_name="do_work", args=(2,), kwargs={}, options={})
     payload = _expected_payload(message)
@@ -335,14 +412,10 @@ def test_postgres_consumer_falls_back_to_polling_when_listener_is_unavailable(mo
     consumer.close()
 
 
-def test_postgres_consumer_keeps_listener_path_after_an_empty_cycle(monkeypatch):
-    def _fake_start_listener(self):
-        self._listener_available = True
-
-    monkeypatch.setattr("remoulade.brokers.postgres._PostgresConsumer._start_listener", _fake_start_listener)
-
+def test_postgres_consumer_keeps_listener_path_after_an_empty_cycle():
     broker = PostgresBroker(url=TEST_POSTGRES_URL, middleware=[])
     broker.queues["default"] = None
+    _install_listener(broker, available=True)
 
     broker.client.read = Mock(return_value=None)
     broker.client.read_with_poll = Mock(return_value=[])
@@ -360,14 +433,10 @@ def test_postgres_consumer_keeps_listener_path_after_an_empty_cycle(monkeypatch)
     consumer.close()
 
 
-def test_postgres_consumer_uses_broker_visibility_timeout_for_reads(monkeypatch):
-    def _fake_start_listener(self):
-        self._listener_available = False
-
-    monkeypatch.setattr("remoulade.brokers.postgres._PostgresConsumer._start_listener", _fake_start_listener)
-
+def test_postgres_consumer_uses_broker_visibility_timeout_for_reads():
     broker = PostgresBroker(url=TEST_POSTGRES_URL, middleware=[], visibility_timeout_ms=17_000)
     broker.queues["default"] = None
+    _install_listener(broker, available=False)
 
     message = Message(queue_name="default", actor_name="do_work", args=(5,), kwargs={}, options={})
     payload = _expected_payload(message)
@@ -389,17 +458,14 @@ def test_postgres_consumer_uses_broker_visibility_timeout_for_reads(monkeypatch)
 
 
 def test_postgres_consumer_tracks_all_prefetched_messages_for_heartbeat(monkeypatch):
-    def _fake_start_listener(self):
-        self._listener_available = False
-
     def _fake_start_heartbeat(self):
         self._heartbeat_thread = None
 
-    monkeypatch.setattr("remoulade.brokers.postgres._PostgresConsumer._start_listener", _fake_start_listener)
     monkeypatch.setattr("remoulade.brokers.postgres._PostgresConsumer._start_heartbeat", _fake_start_heartbeat)
 
     broker = PostgresBroker(url=TEST_POSTGRES_URL, middleware=[])
     broker.queues["default"] = None
+    _install_listener(broker, available=False)
 
     first_message = Message(queue_name="default", actor_name="do_work", args=(1,), kwargs={}, options={})
     second_message = Message(queue_name="default", actor_name="do_work", args=(2,), kwargs={}, options={})
@@ -424,17 +490,14 @@ def test_postgres_consumer_tracks_all_prefetched_messages_for_heartbeat(monkeypa
 
 
 def test_postgres_consumer_close_requeues_buffered_prefetched_messages(monkeypatch):
-    def _fake_start_listener(self):
-        self._listener_available = False
-
     def _fake_start_heartbeat(self):
         self._heartbeat_thread = None
 
-    monkeypatch.setattr("remoulade.brokers.postgres._PostgresConsumer._start_listener", _fake_start_listener)
     monkeypatch.setattr("remoulade.brokers.postgres._PostgresConsumer._start_heartbeat", _fake_start_heartbeat)
 
     broker = PostgresBroker(url=TEST_POSTGRES_URL, middleware=[])
     broker.queues["default"] = None
+    _install_listener(broker, available=False)
 
     first_message = Message(queue_name="default", actor_name="do_work", args=(1,), kwargs={}, options={})
     second_message = Message(queue_name="default", actor_name="do_work", args=(2,), kwargs={}, options={})
@@ -458,14 +521,10 @@ def test_postgres_consumer_close_requeues_buffered_prefetched_messages(monkeypat
     broker.client.set_vt.assert_called_once_with("default", [2], 0)
 
 
-def test_postgres_consumer_falls_back_to_polling_when_listener_stops_during_wait(monkeypatch):
-    def _fake_start_listener(self):
-        self._listener_available = True
-
-    monkeypatch.setattr("remoulade.brokers.postgres._PostgresConsumer._start_listener", _fake_start_listener)
-
+def test_postgres_consumer_falls_back_to_polling_when_listener_stops_during_wait():
     broker = PostgresBroker(url=TEST_POSTGRES_URL, middleware=[])
     broker.queues["default"] = None
+    listener = _install_listener(broker, available=True)
 
     message = Message(queue_name="default", actor_name="do_work", args=(3,), kwargs={}, options={})
     payload = _expected_payload(message)
@@ -475,7 +534,7 @@ def test_postgres_consumer_falls_back_to_polling_when_listener_stops_during_wait
     consumer = broker.consume("default", prefetch=1, timeout=200)
 
     def _wait_and_stop(_timeout):
-        consumer._listener_available = False
+        listener.available = False
         return False
 
     consumer._notify_event.wait = Mock(side_effect=_wait_and_stop)
@@ -495,12 +554,7 @@ def test_postgres_consumer_falls_back_to_polling_when_listener_stops_during_wait
     consumer.close()
 
 
-def test_postgres_consumer_heartbeat_extends_inflight_message_visibility(monkeypatch):
-    def _fake_start_listener(self):
-        self._listener_available = False
-
-    monkeypatch.setattr("remoulade.brokers.postgres._PostgresConsumer._start_listener", _fake_start_listener)
-
+def test_postgres_consumer_heartbeat_extends_inflight_message_visibility():
     broker = PostgresBroker(
         url=TEST_POSTGRES_URL,
         middleware=[],
@@ -508,6 +562,7 @@ def test_postgres_consumer_heartbeat_extends_inflight_message_visibility(monkeyp
         heartbeat_interval_ms=50,
     )
     broker.queues["default"] = None
+    _install_listener(broker, available=False)
 
     message = Message(queue_name="default", actor_name="do_work", args=(7,), kwargs={}, options={})
     payload = _expected_payload(message)
@@ -534,14 +589,9 @@ def test_postgres_consumer_heartbeat_extends_inflight_message_visibility(monkeyp
     consumer.close()
 
 
-def test_postgres_consumer_decodes_payload_with_global_encoder(monkeypatch, pydantic_encoder):
+def test_postgres_consumer_decodes_payload_with_global_encoder(pydantic_encoder):
     class InputSchema(BaseModel):
         value: int
-
-    def _fake_start_listener(self):
-        self._listener_available = False
-
-    monkeypatch.setattr("remoulade.brokers.postgres._PostgresConsumer._start_listener", _fake_start_listener)
 
     broker = PostgresBroker(url=TEST_POSTGRES_URL, middleware=[])
     remoulade.set_broker(broker)
@@ -549,6 +599,7 @@ def test_postgres_consumer_decodes_payload_with_global_encoder(monkeypatch, pyda
     broker.client.create_partitioned_queue = Mock()
     broker.client.enable_notify = Mock()
     broker._queue_exists = Mock(return_value=False)
+    _install_listener(broker, available=False)
 
     @remoulade.actor(actor_name="typed.actor", queue_name="default")
     def typed_actor(payload: InputSchema):

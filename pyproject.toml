@@ -24,7 +24,7 @@ rabbitmq = ["amqpstorm>=2.6,<3"]
 redis = ["redis>=7.0.0"]
 server = ["flask~=2.3.3", "marshmallow>=3,<4", "flask-apispec"]
 postgres = ["sqlalchemy>=2.0,<3", "psycopg>=3.2", "pgmq[sqlalchemy]>=1.1.1,<2"]
-pydantic = ["pydantic>=2.12", "simplejson"]
+pydantic = ["pydantic>=2.12"]
 limits = ["limits~=5.3.0"]
 tracing = ["opentelemetry-api>=1.20"]
 
@@ -35,11 +35,9 @@ dev = [
   "marshmallow>=3,<4",
   "flask-apispec",
   "sqlalchemy>=2.0,<3",
-  "psycopg2>=2.9.11",
   "pgmq[sqlalchemy]>=1.1.1",
   "psycopg>=3.2",
   "pydantic>=2.12",
-  "simplejson",
   "limits~=5.3.0",
   # Docs
   "alabaster",
@@ -53,7 +51,6 @@ dev = [
   "sqlalchemy[mypy]>=2.0,<3",
   "types-redis",
   "types-python-dateutil",
-  "types-simplejson",
   "types-requests",
   # Misc
   "pre-commit",
@@ -99,8 +96,6 @@ include = ["remoulade*"]
 testpaths = ["tests"]
 asyncio_mode = "auto"
 markers = ["confirm_delivery", "group_transaction"]
-filterwarnings = [
-]
 
 [tool.ruff]
 target-version = "py312"

@@ -14,7 +14,7 @@
 #
 # You should have received a copy of the GNU Lesser General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
-import json
+import logging
 import math
 import time
 from collections import deque
@@ -36,6 +36,8 @@ from ..errors import QueueJoinTimeout, QueueNotFound, UnsupportedMessageEncoding
 from ..message import Message
 
 if TYPE_CHECKING:
+    from sqlalchemy import Engine
+
     from ..middleware import Middleware
 
 PostgresPayload = dict[str, Any]
@@ -53,6 +55,17 @@ class PostgresBroker(Broker):
 
     PGMQ handles delayed messages natively, so delayed sends stay in
     PostgreSQL instead of being staged in worker memory.
+
+    Connection budget (per worker process):
+      * the shared SQLAlchemy pool (``pool_size``), used by reads, acks and
+        the heartbeat, bounded regardless of the number of consumed queues;
+      * a single shared LISTEN/NOTIFY connection (one per process, not one per
+        queue) when ``enable_listen_notify`` is True.
+
+    Set ``enable_listen_notify=False`` for a poll-only mode that opens no
+    dedicated listener connection. This is required behind a connection pooler
+    in transaction pooling mode (e.g. pgbouncer), where LISTEN/NOTIFY is not
+    supported, and useful to cap connections on very large fan-outs.
     """
 
     supports_native_delay = True
@@ -67,6 +80,9 @@ class PostgresBroker(Broker):
         archive_retention_interval_in_days: int = 7,
         visibility_timeout_ms: int = 30_000,
         heartbeat_interval_ms: int = 10_000,
+        enable_listen_notify: bool = True,
+        pool_size: int = 10,
+        engine: "Engine | None" = None,
     ) -> None:
         """Initialize a PostgreSQL-backed broker using the PGMQ extension.
 
@@ -80,6 +96,12 @@ class PostgresBroker(Broker):
           visibility_timeout_ms(int): Message visibility timeout in milliseconds after read; must be greater than 0.
           heartbeat_interval_ms(int): Heartbeat interval in milliseconds used to extend in-flight message visibility
             must be greater than 0 and lower than visibility_timeout_ms.
+          enable_listen_notify(bool): If True (default), consumers are woken by a single process-wide LISTEN/NOTIFY
+            connection. If False, consumers poll only and no dedicated listener connection is opened (required behind
+            a transaction-pooling connection pooler such as pgbouncer).
+          pool_size(int): Size of the shared SQLAlchemy connection pool. Ignored when ``engine`` is provided.
+          engine(Engine | None): A pre-configured SQLAlchemy engine to reuse instead of letting PGMQ build one, so
+            the pool can be sized and shared by the caller.
         """
         super().__init__(middleware=middleware)
         if visibility_timeout_ms <= 0:
@@ -96,12 +118,17 @@ class PostgresBroker(Broker):
         self.heartbeat_interval_ms = heartbeat_interval_ms
         self.visibility_timeout_seconds = _milliseconds_to_seconds(visibility_timeout_ms)
         self.heartbeat_interval_seconds = heartbeat_interval_ms / 1000
+        self.enable_listen_notify = enable_listen_notify
 
         self.client = SQLAlchemyPGMQueue(
             conn_string=url,
             init_extension=False,
             vt=self.visibility_timeout_seconds,
+            pool_size=pool_size,
+            engine=engine,
         )
+
+        self._listener = _PostgresListener(self.url, self.logger) if enable_listen_notify else None
 
     def convert_days_in_partman_syntax(self, interval_in_day: int) -> str:
         """Convert int into partman syntax"""
@@ -156,7 +183,9 @@ class PostgresBroker(Broker):
 
     @override
     def close(self) -> None:
-        """Dispose the underlying PGMQ client."""
+        """Stop the shared listener and dispose the underlying PGMQ client."""
+        if self._listener is not None:
+            self._listener.close()
         self.client.dispose()
 
     @override
@@ -187,7 +216,8 @@ class PostgresBroker(Broker):
                 retention_interval=self.archive_retention_interval,
                 conn=self._current_connection,
             )
-            self._try_enable_notify(queue_name)
+            if self.enable_listen_notify:
+                self._try_enable_notify(queue_name)
 
         self.queues[queue_name] = None
 
@@ -195,7 +225,11 @@ class PostgresBroker(Broker):
             self.emit_after("declare_queue", queue_name)
 
     def _encode_message(self, message: "Message") -> PostgresPayload:
-        """Decode a Remoulade message into a JSON object payload for PGMQ.
+        """Encode a Remoulade message into a JSON object payload for PGMQ.
+
+        The encoder is responsible for validating that the payload is valid
+        JSON; here we only enforce the PGMQ-specific requirement that it be a
+        JSON object.
 
         Raises:
           UnsupportedMessageEncoding: If the encoded payload is not valid JSON
@@ -208,11 +242,6 @@ class PostgresBroker(Broker):
 
         if not isinstance(payload, dict):
             raise UnsupportedMessageEncoding("PGMQ messages must contain JSON objects.")
-
-        try:
-            json.dumps(payload)
-        except (TypeError, ValueError) as exc:
-            raise UnsupportedMessageEncoding("PGMQ messages must contain JSON objects.") from exc
 
         return payload
 
@@ -303,6 +332,134 @@ class PostgresBroker(Broker):
             time.sleep(idle_time / 1000)
 
 
+class _PostgresListener:
+    """Process-wide LISTEN/NOTIFY dispatcher shared by all consumers of a broker.
+
+    A single psycopg connection LISTENs on every consumed queue's
+    ``pgmq.q_<name>.INSERT`` channel and a single background thread routes each
+    notification to the matching consumer's wake event. This keeps the number
+    of dedicated listener connections at one per process instead of one per
+    consumed queue.
+
+    The connection is opened lazily on the first registration. If it cannot be
+    opened, or if the listener thread later crashes, ``available`` flips to
+    False and consumers transparently fall back to polling.
+    """
+
+    def __init__(self, url: str, logger: logging.Logger) -> None:
+        self._url = url
+        self._logger = logger
+        self._lock = Lock()
+        self._stop = Event()
+        self._connection: psycopg.Connection[Any] | None = None
+        self._thread: Thread | None = None
+        self._started = False
+        self.available = False
+        self._events: dict[str, Event] = {}
+        self._channel_to_queue: dict[str, str] = {}
+        self._pending_listen: set[str] = set()
+
+    @staticmethod
+    def _channel_for(queue_name: str) -> str:
+        return f"pgmq.q_{queue_name}.INSERT"
+
+    def register(self, queue_name: str, event: Event) -> None:
+        """Register a consumer's wake event and ensure its channel is listened to."""
+        with self._lock:
+            self._events[queue_name] = event
+            self._channel_to_queue[self._channel_for(queue_name)] = queue_name
+            self._pending_listen.add(queue_name)
+            if not self._started:
+                self._start_locked()
+
+    def unregister(self, queue_name: str) -> None:
+        """Stop routing notifications to a consumer that is shutting down."""
+        with self._lock:
+            self._events.pop(queue_name, None)
+            self._channel_to_queue.pop(self._channel_for(queue_name), None)
+            self._pending_listen.discard(queue_name)
+
+    def _start_locked(self) -> None:
+        """Open the shared connection and start the dispatch thread (under lock)."""
+        self._started = True
+        try:
+            self._connection = psycopg.connect(self._url, autocommit=True)
+        except Exception as e:
+            self.available = False
+            self._connection = None
+            self._logger.warning(
+                "Failed to start shared LISTEN/NOTIFY listener; consumers will fall back to polling. Error: %s",
+                str(e),
+                exc_info=True,
+            )
+            return
+        self.available = True
+        self._thread = Thread(target=self._run, name="postgres-listener", daemon=True)
+        self._thread.start()
+
+    def _drain_pending_listen(self) -> None:
+        """Issue LISTEN for queues registered since the last loop (listener thread only)."""
+        with self._lock:
+            pending = list(self._pending_listen)
+            self._pending_listen.clear()
+        if self._connection is None:
+            return
+        for queue_name in pending:
+            channel = self._channel_for(queue_name)
+            self._connection.execute(psycopg_sql.SQL("LISTEN {}").format(psycopg_sql.Identifier(channel)))
+
+    def _wake_channel(self, channel: str) -> None:
+        """Wake the single consumer registered for a notification channel."""
+        with self._lock:
+            queue_name = self._channel_to_queue.get(channel)
+            event = self._events.get(queue_name) if queue_name is not None else None
+        if event is not None:
+            event.set()
+
+    def _wake_all(self) -> None:
+        """Wake every registered consumer (used on shutdown or listener failure)."""
+        with self._lock:
+            events = list(self._events.values())
+        for event in events:
+            event.set()
+
+    def _run(self) -> None:
+        """Route notifications to consumer events, falling back to polling on errors."""
+        while not self._stop.is_set():
+            try:
+                if self._connection is None:
+                    break
+                self._drain_pending_listen()
+                for notify in self._connection.notifies(timeout=0.5, stop_after=1):
+                    self._wake_channel(notify.channel)
+            except Exception as e:
+                if self._stop.is_set():
+                    break
+                self.available = False
+                self._wake_all()
+                self._logger.warning(
+                    "Shared LISTEN/NOTIFY listener crashed; consumers will fall back to polling. Error: %s",
+                    str(e),
+                    exc_info=True,
+                )
+                break
+
+        self.available = False
+
+    def close(self) -> None:
+        """Stop the dispatch thread and close the shared connection."""
+        self._stop.set()
+        if self._connection is not None:
+            try:
+                self._connection.close()
+            except Exception as e:
+                self._logger.error("Failed to close shared listener connection: %s", str(e))
+        self._wake_all()
+        if self._thread is not None:
+            self._thread.join(timeout=1)
+        self.available = False
+
+
 class _PostgresConsumer(Consumer):
     def __init__(self, broker: PostgresBroker, *, queue_name: str, prefetch: int, timeout: int) -> None:
         """Initialize a consumer for a PGMQ queue.
@@ -323,22 +480,24 @@ class _PostgresConsumer(Consumer):
         self.heartbeat_interval_seconds = broker.heartbeat_interval_seconds
         self.messages: deque[PostgresQueueMessage] = deque()
         self._notify_event = Event()
-        self._listener_stop = Event()
-        self._listener_thread: Thread | None = None
-        self._listener_connection: psycopg.Connection[Any] | None = None
-        self._listener_available = False
         self._heartbeat_stop = Event()
         self._heartbeat_thread: Thread | None = None
         self._heartbeat_message_ids_lock = Lock()
         self._heartbeat_message_ids: set[int] = set()
 
-        self._start_listener()
+        if broker._listener is not None:
+            broker._listener.register(queue_name, self._notify_event)
         self._start_heartbeat()
 
     @property
     def wait_timeout_seconds(self) -> float:
         """Return the listener wait timeout in seconds."""
         return self.timeout / 1000 if self.timeout > 0 else 0
+
+    @property
+    def _listener_available(self) -> bool:
+        """Whether the broker's shared LISTEN/NOTIFY listener is currently usable."""
+        return self.broker._listener is not None and self.broker._listener.available
 
     def _normalize_messages(
         self, messages: PostgresQueueMessage | list[PostgresQueueMessage] | None
@@ -415,7 +574,7 @@ class _PostgresConsumer(Consumer):
                 self.client.set_vt(self.queue_name, message_ids, self.visibility_timeout_seconds)
             except Exception as e:
                 self.broker.logger.warning(
-                    "Failed to extend visibility timeout heartbeat for queue %s. Error: ",
+                    "Failed to extend visibility timeout heartbeat for queue %s. Error: %s",
                     self.queue_name,
                     str(e),
                     exc_info=True,
@@ -432,54 +591,6 @@ class _PostgresConsumer(Consumer):
             self._unregister_heartbeat_message_id(message_id)
         if len(message_ids) > 0:
             self.client.set_vt(self.queue_name, message_ids, 0)
-
-    def _start_listener(self) -> None:
-        """Start a LISTEN/NOTIFY listener for the queue when available."""
-        channel = f"pgmq.q_{self.queue_name}.INSERT"
-        try:
-            self._listener_connection = psycopg.connect(self.broker.url, autocommit=True)
-            self._listener_connection.execute(psycopg_sql.SQL("LISTEN {}").format(psycopg_sql.Identifier(channel)))
-            self._listener_available = True
-        except Exception as e:
-            self._listener_available = False
-            self._listener_connection = None
-            self.broker.logger.warning(
-                "Failed to start LISTEN/NOTIFY listener for queue %s; falling back to polling. Error: %s",
-                self.queue_name,
-                str(e),
-                exc_info=True,
-            )
-            return
-
-        self._listener_thread = Thread(
-            target=self._run_listener,
-            name=f"postgres-listener-{self.queue_name}",
-            daemon=True,
-        )
-        self._listener_thread.start()
-
-    def _run_listener(self) -> None:
-        """Wake the consumer when a notification arrives, or disable the listener on errors."""
-        while not self._listener_stop.is_set():
-            try:
-                if self._listener_connection is None:
-                    break
-                for _ in self._listener_connection.notifies(timeout=0.5, stop_after=1):
-                    self._notify_event.set()
-            except Exception as e:
-                if self._listener_stop.is_set():
-                    break
-                self._listener_available = False
-                self._notify_event.set()
-                self.broker.logger.warning(
-                    "LISTEN/NOTIFY listener crashed for queue %s; falling back to polling. Error: %s",
-                    self.queue_name,
-                    str(e),
-                    exc_info=True,
-                )
-                break
-
-        self._listener_available = False
 
     @override
     def ack(self, message: "MessageProxy") -> None:
@@ -527,24 +638,15 @@ class _PostgresConsumer(Consumer):
 
     @override
     def close(self) -> None:
-        """Stop background threads and close the listener connection."""
-        self._listener_stop.set()
+        """Stop the heartbeat, unregister from the shared listener and requeue buffered messages."""
         self._heartbeat_stop.set()
         self._notify_event.set()
-        if self._listener_connection is not None:
-            try:
-                self._listener_connection.close()
-            except Exception as e:
-                self.broker.logger.error("Listener not joinable: %s", str(e))
-            finally:
-                self._listener_connection = None
+        if self.broker._listener is not None:
+            self.broker._listener.unregister(self.queue_name)
         if self._heartbeat_thread is not None:
             self._heartbeat_thread.join(timeout=1)
         self._requeue_message_ids([message.msg_id for message in self.messages])
         self.messages.clear()
-        if self._listener_thread is not None:
-            self._listener_thread.join(timeout=1)
-        return
 
 
 class _PostgresMessage(MessageProxy):
