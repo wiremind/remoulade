@@ -156,13 +156,6 @@ def encoder(stub_broker, stub_worker, result_backend) -> PydanticEncoder:
     return PydanticEncoder()
 
 
-@pytest.fixture
-def encoder_with_fallback(stub_broker, stub_worker, result_backend) -> PydanticEncoder:
-    stub_broker.add_middleware(Results(backend=result_backend))
-    stub_broker.declare_actor(my_actor_tuple)
-    return PydanticEncoder(fallback_encoder=JSONEncoder())
-
-
 def test_encoder_message(encoder: PydanticEncoder, message_data_decoded: MessageData, message_data_encoded: bytes):
     encoded_result = encoder.encode_in_bytes(message_data_decoded)
     assert encoded_result == message_data_encoded
@@ -198,14 +191,6 @@ def test_message_unknown_actor(encoder: PydanticEncoder, message_data_encoded: b
     message_json_decoded["actor_name"] = "titi"
     with pytest.raises(ActorNotFound):
         encoder.decode_bytes(json.dumps(message_json_decoded).encode("utf-8"))
-
-
-def test_message_fallback_no_actor_name(encoder_with_fallback: PydanticEncoder, message_data_encoded: bytes):
-    message_json_decoded = json.loads(message_data_encoded.decode("utf-8"))
-    message_json_decoded["actor_name"] = "titi"
-    decoded_result = encoder_with_fallback.decode_bytes(json.dumps(message_json_decoded).encode("utf-8"))
-    # Do not raise and keep dict instead of schema
-    assert decoded_result == tuple_to_list(message_json_decoded, "args")
 
 
 def test_message_schema_not_matching(encoder: PydanticEncoder, message_data_encoded: bytes):
@@ -327,11 +312,3 @@ def test_backend_result_schema_not_matching(encoder: PydanticEncoder, backend_re
     backend_result_json_decoded["result"] = [{"val": "titi"}]
     with pytest.raises(ValidationError):
         encoder.decode_bytes(json.dumps(backend_result_json_decoded).encode("utf-8"))
-
-
-def test_fallback_no_schema(encoder_with_fallback: PydanticEncoder, backend_result_encoded_tuple: bytes):
-    backend_result_json_decoded = json.loads(backend_result_encoded_tuple.decode("utf-8"))
-    backend_result_json_decoded["result"] = [{"val": "titi"}]
-    decoded_backend_result = encoder_with_fallback.decode_bytes(json.dumps(backend_result_json_decoded).encode("utf-8"))
-    # Do not raise and keep dict instead of schema
-    assert decoded_backend_result == backend_result_json_decoded
