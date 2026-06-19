@@ -1,4 +1,5 @@
 import json
+import logging
 import os
 import threading
 import time
@@ -11,7 +12,7 @@ from sqlalchemy.sql import select, text
 
 import remoulade
 from remoulade import Message, QueueJoinTimeout, UnsupportedMessageEncoding, Worker
-from remoulade.brokers.postgres import PostgresBroker
+from remoulade.brokers.postgres import PostgresBroker, _PostgresListener
 from remoulade.encoder import Encoder, MessageData
 
 TEST_POSTGRES_URL = os.getenv("REMOULADE_TEST_DB_URL") or "postgresql://remoulade@localhost:5544/test"
@@ -789,3 +790,110 @@ def test_postgres_consumer_listener_wakes_on_enqueue_with_listen_notify(postgres
         consumer.ack(consumed)
     finally:
         consumer.close()
+
+
+class _FakeConnection:
+    """Minimal psycopg connection stand-in for listener reconnection tests."""
+
+    def __init__(self, *, raise_on_notify=False, on_notify=None):
+        self.raise_on_notify = raise_on_notify
+        self.on_notify = on_notify
+        self.listened = []
+        self.closed = False
+
+    def execute(self, statement):
+        self.listened.append(statement)
+
+    def notifies(self, timeout=0.5, stop_after=1):
+        if self.raise_on_notify:
+            self.raise_on_notify = False
+            raise RuntimeError("connection lost")
+        if self.on_notify is not None:
+            self.on_notify()
+        return []
+
+    def close(self):
+        self.closed = True
+
+
+def test_listener_open_connection_relistens_every_registered_channel(monkeypatch):
+    listener = _PostgresListener("postgresql://localhost/test", logging.getLogger("test"))
+    listener._channel_to_queue = {
+        listener._channel_for("first"): "first",
+        listener._channel_for("second"): "second",
+    }
+    connection = _FakeConnection()
+    monkeypatch.setattr("remoulade.brokers.postgres.psycopg.connect", Mock(return_value=connection))
+
+    assert listener._open_connection() is True
+    assert listener.available is True
+    assert listener._connection is connection
+    assert len(connection.listened) == 2
+
+
+def test_listener_open_connection_failure_keeps_listener_unavailable(monkeypatch, caplog):
+    listener = _PostgresListener("postgresql://localhost/test", logging.getLogger("test"))
+    monkeypatch.setattr("remoulade.brokers.postgres.psycopg.connect", Mock(side_effect=OSError("database is down")))
+
+    with caplog.at_level(logging.WARNING):
+        assert listener._open_connection() is False
+
+    assert listener.available is False
+    assert listener._connection is None
+    assert "Failed to open shared LISTEN/NOTIFY connection" in caplog.text
+
+
+def test_listener_reconnects_after_a_connection_drop(monkeypatch):
+    monkeypatch.setattr("remoulade.brokers.postgres.LISTENER_RECONNECT_BACKOFF_MIN_S", 0.01)
+    monkeypatch.setattr("remoulade.brokers.postgres.LISTENER_RECONNECT_BACKOFF_MAX_S", 0.01)
+
+    recovered = threading.Event()
+    healthy_connection = _FakeConnection(on_notify=recovered.set)
+    connections = [_FakeConnection(raise_on_notify=True), healthy_connection]
+    connect = Mock(side_effect=connections)
+    monkeypatch.setattr("remoulade.brokers.postgres.psycopg.connect", connect)
+
+    listener = _PostgresListener("postgresql://localhost/test", logging.getLogger("test"))
+    listener.register("default", threading.Event())
+    try:
+        assert recovered.wait(timeout=2)
+        assert listener.available is True
+        assert connect.call_count >= 2
+        assert connections[0].closed is True
+        assert len(healthy_connection.listened) == 1
+    finally:
+        listener.close()
+
+
+def test_listener_recovers_when_initial_connection_fails(monkeypatch):
+    monkeypatch.setattr("remoulade.brokers.postgres.LISTENER_RECONNECT_BACKOFF_MIN_S", 0.01)
+    monkeypatch.setattr("remoulade.brokers.postgres.LISTENER_RECONNECT_BACKOFF_MAX_S", 0.01)
+
+    recovered = threading.Event()
+    healthy_connection = _FakeConnection(on_notify=recovered.set)
+    connect = Mock(side_effect=[OSError("database is down"), healthy_connection])
+    monkeypatch.setattr("remoulade.brokers.postgres.psycopg.connect", connect)
+
+    listener = _PostgresListener("postgresql://localhost/test", logging.getLogger("test"))
+    listener.register("default", threading.Event())
+    try:
+        assert recovered.wait(timeout=2)
+        assert listener.available is True
+        assert connect.call_count >= 2
+    finally:
+        listener.close()
+
+
+def test_listener_close_stops_the_dispatch_thread(monkeypatch):
+    connection = _FakeConnection()
+    monkeypatch.setattr("remoulade.brokers.postgres.psycopg.connect", Mock(return_value=connection))
+
+    listener = _PostgresListener("postgresql://localhost/test", logging.getLogger("test"))
+    listener.register("default", threading.Event())
+
+    listener.close()
+
+    assert listener.available is False
+    assert connection.closed is True
+    assert listener._thread is not None
+    assert listener._thread.is_alive() is False
