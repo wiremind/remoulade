@@ -356,10 +356,20 @@ class _PostgresListener:
         self._connection: psycopg.Connection[Any] | None = None
         self._thread: Thread | None = None
         self._started = False
-        self.available = False
-        self._events: dict[str, Event] = {}
+        # An Event rather than a bare bool so reads from consumer threads and
+        # writes from the dispatch thread are synchronized without relying on
+        # CPython's GIL making attribute access atomic.
+        self._available = Event()
+        # Several consumers may register on the same queue, so map each queue to
+        # the set of their wake events instead of a single one.
+        self._events: dict[str, set[Event]] = {}
         self._channel_to_queue: dict[str, str] = {}
         self._pending_listen: set[str] = set()
+
+    @property
+    def available(self) -> bool:
+        """Whether the shared LISTEN/NOTIFY connection is currently usable."""
+        return self._available.is_set()
 
     @staticmethod
     def _channel_for(queue_name: str) -> str:
@@ -368,7 +378,7 @@ class _PostgresListener:
     def register(self, queue_name: str, event: Event) -> None:
         """Register a consumer's wake event and ensure its channel is listened to."""
         with self._lock:
-            self._events[queue_name] = event
+            self._events.setdefault(queue_name, set()).add(event)
             self._channel_to_queue[self._channel_for(queue_name)] = queue_name
             self._pending_listen.add(queue_name)
             starting = not self._started
@@ -379,12 +389,22 @@ class _PostgresListener:
         if starting:
             self._start()
 
-    def unregister(self, queue_name: str) -> None:
-        """Stop routing notifications to a consumer that is shutting down."""
+    def unregister(self, queue_name: str, event: Event) -> None:
+        """Stop routing notifications to a consumer that is shutting down.
+
+        Only the queue's channel routing is dropped once its last consumer
+        leaves, so a closing consumer never stops notifications for a sibling
+        still consuming the same queue.
+        """
         with self._lock:
-            self._events.pop(queue_name, None)
-            self._channel_to_queue.pop(self._channel_for(queue_name), None)
-            self._pending_listen.discard(queue_name)
+            events = self._events.get(queue_name)
+            if events is None:
+                return
+            events.discard(event)
+            if not events:
+                self._events.pop(queue_name, None)
+                self._channel_to_queue.pop(self._channel_for(queue_name), None)
+                self._pending_listen.discard(queue_name)
 
     def _start(self) -> None:
         """Open the shared connection (best effort) and start the dispatch thread.
@@ -434,7 +454,7 @@ class _PostgresListener:
                     self._logger.debug("Failed to close partially-opened listener connection", exc_info=True)
             return False
         self._connection = connection
-        self.available = True
+        self._available.set()
         return True
 
     def _drop_connection(self) -> None:
@@ -443,7 +463,7 @@ class _PostgresListener:
         Waiting consumers are woken so they fall back to polling immediately
         instead of blocking on their wake event for the full timeout.
         """
-        self.available = False
+        self._available.clear()
         self._wake_all()
         if self._connection is not None:
             try:
@@ -464,17 +484,17 @@ class _PostgresListener:
             self._connection.execute(psycopg_sql.SQL("LISTEN {}").format(psycopg_sql.Identifier(channel)))
 
     def _wake_channel(self, channel: str) -> None:
-        """Wake the single consumer registered for a notification channel."""
+        """Wake every consumer registered for a notification channel."""
         with self._lock:
             queue_name = self._channel_to_queue.get(channel)
-            event = self._events.get(queue_name) if queue_name is not None else None
-        if event is not None:
+            events = list(self._events.get(queue_name, ())) if queue_name is not None else []
+        for event in events:
             event.set()
 
     def _wake_all(self) -> None:
         """Wake every registered consumer (used on shutdown or listener failure)."""
         with self._lock:
-            events = list(self._events.values())
+            events = [event for queue_events in self._events.values() for event in queue_events]
         for event in events:
             event.set()
 
@@ -730,7 +750,7 @@ class _PostgresConsumer(Consumer):
         self._heartbeat_stop.set()
         self._notify_event.set()
         if self.broker._listener is not None:
-            self.broker._listener.unregister(self.queue_name)
+            self.broker._listener.unregister(self.queue_name, self._notify_event)
         if self._heartbeat_thread is not None:
             self._heartbeat_thread.join(timeout=1)
         self._requeue_message_ids([message.msg_id for message in self.messages])
