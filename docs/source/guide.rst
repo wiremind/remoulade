@@ -203,7 +203,7 @@ If you want to use a different strategy than the default exponential backoff to 
 The following retry options are configurable on a per-actor basis:
 
 max_retries
----------------
+^^^^^^^^^^^
 
 The maximum number of times a message should be retried. Default to ``0``.
 
