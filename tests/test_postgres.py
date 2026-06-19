@@ -234,6 +234,16 @@ def test_postgres_consumer_rejects_negative_timeout():
     broker.close()
 
 
+def test_postgres_consumer_rejects_prefetch_below_one():
+    broker = PostgresBroker(url=TEST_POSTGRES_URL, middleware=[], enable_listen_notify=False)
+    broker.queues["default"] = None
+
+    with pytest.raises(ValueError, match="prefetch must be greater than or equal to 1"):
+        broker.consume("default", prefetch=0, timeout=200)
+
+    broker.close()
+
+
 def test_postgres_poll_only_consumer_reads_immediately_when_timeout_is_zero():
     broker = PostgresBroker(url=TEST_POSTGRES_URL, middleware=[], enable_listen_notify=False)
     broker.queues["default"] = None
