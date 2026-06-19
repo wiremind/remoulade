@@ -70,12 +70,14 @@ class JSONEncoder(Encoder):
     """Encodes messages as JSON.  This is the default encoder."""
 
     @override
-    def encode_in_bytes(self, data: MessageData) -> bytes:  # pragma: no cover
+    def encode_in_bytes(self, data: MessageData) -> bytes:
         """Convert message metadata into a bytestring."""
-        return json.dumps(self.encode_in_json(data), separators=(",", ":")).encode("utf-8")
+        # Serialize directly: routing through encode_in_json would add a
+        # throwaway json.dumps validation pass on top of this one.
+        return json.dumps(data, separators=(",", ":")).encode("utf-8")
 
     @override
-    def decode_bytes(self, data: bytes) -> MessageData:  # pragma: no cover
+    def decode_bytes(self, data: bytes) -> MessageData:
         """Convert a bytestring into message metadata."""
         return self.decode_json(json.loads(data.decode("utf-8")))
 
@@ -136,7 +138,7 @@ class PydanticEncoder(Encoder):
     @override
     def encode_in_bytes(self, data: MessageData) -> bytes:
         try:
-            return json.dumps(self.encode_in_json(data)).encode("utf-8")
+            return json.dumps(self._encode_in_json(data)).encode("utf-8")
         except Exception as e:
             if self.fallback_encoder is not None:
                 return self.fallback_encoder.encode_in_bytes(data)
