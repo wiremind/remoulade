@@ -11,9 +11,11 @@ from sqlalchemy import JSON, Column, Integer, MetaData, Table, func
 from sqlalchemy.sql import select, text
 
 import remoulade
-from remoulade import Message, QueueJoinTimeout, UnsupportedMessageEncoding, Worker
+from remoulade import Message, QueueJoinTimeout, UnsupportedMessageEncoding, Worker, group
 from remoulade.brokers.postgres import PostgresBroker, _PostgresListener
 from remoulade.encoder import Encoder, MessageData
+from remoulade.results import Results
+from remoulade.results.backends import StubBackend
 
 TEST_POSTGRES_URL = os.getenv("REMOULADE_TEST_DB_URL") or "postgresql://remoulade@localhost:5544/test"
 
@@ -897,3 +899,112 @@ def test_listener_close_stops_the_dispatch_thread(monkeypatch):
     assert connection.closed is True
     assert listener._thread is not None
     assert listener._thread.is_alive() is False
+
+
+# End-to-end tests running a real Worker against PGMQ, exercising the
+# middleware-driven behaviours (retries, results, groups) that the unit tests
+# above stub out. These validate the broker's ack/nack/requeue/heartbeat
+# interplay through the full message lifecycle, not just in isolation.
+
+
+@pytest.mark.usefixtures("postgres_broker")
+def test_postgres_worker_retries_failed_message_then_succeeds(postgres_broker):
+    attempts = []
+
+    @remoulade.actor(max_retries=3, min_backoff=50, max_backoff=50, jitter=False)
+    def flaky():
+        attempts.append(1)
+        if len(attempts) < 2:
+            raise RuntimeError("boom")
+
+    postgres_broker.declare_actor(flaky)
+
+    worker = Worker(postgres_broker, worker_timeout=100, worker_threads=1)
+    worker.start()
+    try:
+        flaky.send()
+        postgres_broker.join(flaky.queue_name, timeout=10_000)
+        worker.join()
+
+        # The actor ran twice: the failed attempt, then the retry that succeeded.
+        assert len(attempts) == 2
+        # The failed attempt is archived (acked) and a delayed retry enqueued;
+        # the successful retry is archived too. Nothing is left in the queue.
+        assert _count_messages(postgres_broker) == 0
+        assert _count_archived_messages(postgres_broker) == 2
+    finally:
+        worker.stop()
+
+
+@pytest.mark.usefixtures("postgres_broker")
+def test_postgres_worker_archives_message_when_retries_exhausted(postgres_broker):
+    attempts = []
+
+    @remoulade.actor(max_retries=1, min_backoff=50, max_backoff=50, jitter=False)
+    def always_fails():
+        attempts.append(1)
+        raise RuntimeError("boom")
+
+    postgres_broker.declare_actor(always_fails)
+
+    worker = Worker(postgres_broker, worker_timeout=100, worker_threads=1)
+    worker.start()
+    try:
+        always_fails.send()
+        postgres_broker.join(always_fails.queue_name, timeout=10_000)
+        worker.join()
+
+        # max_retries=1 -> one initial attempt plus one retry, then it is failed.
+        assert len(attempts) == 2
+        # Both the acked retry-source and the nacked exhausted message end up
+        # archived; an empty queue proves the nack does not leave the message
+        # invisible to be redelivered forever (PostgresBroker has no DLQ).
+        assert _count_messages(postgres_broker) == 0
+        assert _count_archived_messages(postgres_broker) == 2
+    finally:
+        worker.stop()
+
+
+@pytest.mark.usefixtures("postgres_broker")
+def test_postgres_worker_stores_and_retrieves_actor_result(postgres_broker):
+    postgres_broker.add_middleware(Results(backend=StubBackend()))
+
+    @remoulade.actor(store_results=True)
+    def do_work():
+        return 42
+
+    postgres_broker.declare_actor(do_work)
+
+    worker = Worker(postgres_broker, worker_timeout=100, worker_threads=1)
+    worker.start()
+    try:
+        message = do_work.send()
+        postgres_broker.join(do_work.queue_name, timeout=10_000)
+        worker.join()
+
+        assert message.result.get(block=True) == 42
+    finally:
+        worker.stop()
+
+
+@pytest.mark.usefixtures("postgres_broker")
+def test_postgres_worker_runs_group_with_results(postgres_broker):
+    postgres_broker.add_middleware(Results(backend=StubBackend()))
+
+    @remoulade.actor(store_results=True)
+    def square(value):
+        return value * value
+
+    postgres_broker.declare_actor(square)
+
+    worker = Worker(postgres_broker, worker_timeout=100, worker_threads=4)
+    worker.start()
+    try:
+        g = group([square.message(value) for value in range(4)])
+        g.run()
+        postgres_broker.join(square.queue_name, timeout=10_000)
+        worker.join()
+
+        assert sorted(g.results.get(block=True)) == [0, 1, 4, 9]
+    finally:
+        worker.stop()
