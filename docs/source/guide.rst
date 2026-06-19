@@ -408,8 +408,8 @@ Postgres Broker
 
 To configure PostgreSQL/PGMQ, install ``remoulade[postgres]`` and
 instantiate a ``PostgresBroker`` with a PostgreSQL URL as early as possible
-during your program's execution. This broker be used with a user postgresql who can create and
-delete tables::
+during your program's execution. This broker must be used with a PostgreSQL
+user allowed to create and delete tables::
 
   import remoulade
 
@@ -421,6 +421,31 @@ delete tables::
 PGMQ handles delayed messages natively, so ``send_with_options(delay=...)``
 does not create a worker-side delay queue or add an ``eta`` option to
 the message.
+
+Each queue is created as a **partitioned** PGMQ queue (through
+``pgmq.create_partitioned``), which relies on the PostgreSQL ``pg_partman``
+extension. Messages are stored in time-based partitions of the queue table,
+and once a message is acked or nacked it is moved to the queue's archive
+table, which is partitioned the same way. Two broker parameters control this:
+
+``archive_partition_interval_in_days`` (default ``1``)
+  The time span covered by a single partition. Smaller values create more,
+  smaller partitions; larger values create fewer, larger ones.
+
+``archive_retention_interval_in_days`` (default ``7``)
+  How long a partition is kept before ``pg_partman`` drops it. Archived
+  messages older than this window are removed together with their partition,
+  so set it comfortably above your longest expected processing and retry
+  window.
+
+.. note::
+
+   Partitioning is maintained by ``pg_partman``: its maintenance routine
+   (``partman.run_maintenance_proc()``) must run periodically — through the
+   ``pg_partman`` background worker or a ``pg_cron`` job — to create upcoming
+   partitions ahead of time and drop expired ones. The official PGMQ Docker
+   image (``ghcr.io/pgmq/pg18-pgmq``) ships ``pg_partman`` and schedules this
+   for you; on a self-managed or hosted PostgreSQL you must enable it yourself.
 
 
 Local Broker

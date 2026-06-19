@@ -42,7 +42,6 @@ if TYPE_CHECKING:
 
 PostgresPayload = dict[str, Any]
 LISTEN_NOTIFY_THROTTLE_MS: Final[int] = 250
-FUTURE_PARTITION_HORIZON: Final[str] = "2 months"
 LISTENER_RECONNECT_BACKOFF_MIN_S: Final[float] = 0.5
 LISTENER_RECONNECT_BACKOFF_MAX_S: Final[float] = 30.0
 
