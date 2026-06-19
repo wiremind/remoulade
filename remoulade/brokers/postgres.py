@@ -527,9 +527,15 @@ class _PostgresConsumer(Consumer):
           broker(PostgresBroker): Broker instance that owns the queue and database client.
           queue_name(str): Name of the declared queue to consume from.
           prefetch(int): Maximum number of messages fetched per read call; values lower than 1 are coerced to 1.
-          timeout(int): Idle wait timeout in milliseconds when polling for messages; values lower than 0 are coerced to
-          0. A value of 0 performs non-blocking reads.
+          timeout(int): Idle wait timeout in milliseconds when polling for messages; must be greater than or equal to 0.
+            A value of 0 performs non-blocking reads.
+
+        Raises:
+          ValueError: If ``timeout`` is negative.
         """
+        if timeout < 0:
+            raise ValueError("timeout must be greater than or equal to 0")
+
         self.broker = broker
         self.client = broker.client
         self.queue_name = queue_name
@@ -577,7 +583,13 @@ class _PostgresConsumer(Consumer):
         )
 
     def _read_with_poll(self) -> list[PostgresQueueMessage]:
-        """Read up to ``prefetch`` messages using PGMQ polling."""
+        """Read up to ``prefetch`` messages using PGMQ polling.
+
+        A zero timeout means non-blocking: do a single immediate read instead
+        of polling for the rounded-up one-second minimum.
+        """
+        if self.timeout == 0:
+            return self._read_immediate()
         return self._normalize_messages(
             self.client.read_with_poll(
                 self.queue_name,
