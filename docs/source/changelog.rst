@@ -15,6 +15,7 @@ Breaking changes
 * Rework the broker API around the new PostgreSQL/PGMQ implementation.
 * Rename ``Encoder.encode``/``Encoder.decode`` to ``Encoder.encode_in_bytes``/``Encoder.decode_bytes``; custom encoders must now also implement ``Encoder._encode_in_json`` and ``Encoder.decode_json``.
 * Rename ``Message.encode``/``Message.decode`` to ``Message.encode_in_bytes``/``Message.decode_bytes``.
+* Repurpose the ``postgres`` extra: it now installs the PGMQ broker dependencies (``sqlalchemy>=2``, ``psycopg>=3``, ``pgmq``) instead of the legacy state backend dependencies (``sqlalchemy<2``, ``psycopg2``).
 
 Feat
 ^^^^
