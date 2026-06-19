@@ -12,7 +12,6 @@ By the end of this tutorial, you will be able to do the following:
 * :ref:`create a pipeline of tasks that will sequentially process data<getting_started:Creating a Pipeline of tasks>`
 * :ref:`use the result middleware to wait and get actor results<getting_started:Using the Result Middleware>`
 * :ref:`use the remoulade scheduler to periodically run tasks<getting_started:Scheduling Messages>`
-* :ref:`use SuperBowl to monitor and manage your tasks<getting_started:Monitoring and Managing your tasks>`
 
 Prerequisites
 -------------
@@ -340,55 +339,6 @@ Let's get back to our ``get_weather`` function and add a scheduler to update the
 To set up the scheduler, we instantiate it, set it as the global scheduler, and finally start it.
 
 If you run this script and get back to the worker terminal, you will see ``get_weather`` being executed every 10 seconds.
-
-Monitoring and Managing your tasks
-----------------------------------
-
-To monitor and manage your tasks, you can use the Superbowl_ dashboard.
-
-.. _Superbowl: https://github.com/wiremind/super-bowl
-
-First, you will need to install Node.js_. Then, clone Superbowl_ in another directory, install its dependencies and run it::
-
-   $ cd ..
-   $ git clone https://github.com/wiremind/super-bowl.git
-   $ npm install
-   $ npm run serve
-
-.. _Node.js: https://nodejs.org/en/download/
-
-Now, if you open ``localhost:8080`` in your browser, you will see the SuperBowl dashboard, but you will not see your messages yet. In order to see and manage them, you will have to modify the ``get_weather.py`` script to serve the remoulade api.
-
-.. code-block:: python
-   :caption: get_weather.py
-   :emphasize-lines: 4, 22, 23
-
-   import requests
-   import remoulade
-   from remoulade.brokers.rabbitmq import RabbitmqBroker
-   from remoulade.api.main import app
-
-
-   @remoulade.actor
-   def get_weather(city):
-       url = f"https://goweather.herokuapp.com/weather/{city}"
-
-       response = requests.get(url).json()
-
-       url_endpoint = <url_endpoint>
-       text = f'{city}: {response["description"]}'
-       requests.post(url_endpoint, json=text)
-
-
-   rabbitmq_broker = RabbitmqBroker()
-   remoulade.set_broker(rabbitmq_broker)
-   remoulade.declare_actors([get_weather])
-
-   if __name__ == "__main__":
-       app.run(host="localhost", port=5005)
-
-Now you can use the Enqueue tab to enqueue messages with custom arguments, and then see their progress in the messages tab. 
-Additionally, if you run groups or scheduled jobs in your script, you will be able to see them in their respective tabs.
 
 Next Steps
 ----------
