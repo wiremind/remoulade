@@ -1,7 +1,7 @@
 """This file describe the API to get the state of messages"""
 
 import sys
-from typing import Any, TypedDict
+from typing import Any
 
 from flask import Flask
 from flask_apispec import marshal_with
@@ -135,11 +135,6 @@ def enqueue_message(**kwargs):
     options = kwargs.pop("options") or {}
     actor.send_with_options(**kwargs, **options)
     return {"result": "ok"}
-
-
-class GroupMessagesT(TypedDict):
-    group_id: str
-    messages: list[dict]
 
 
 @app.route("/actors")

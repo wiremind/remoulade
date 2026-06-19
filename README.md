@@ -91,12 +91,6 @@ If you want to contribute to the project. First make a Pull request and get appr
 
 This will trigger a CI/CD pipeline that publish the package
 
-## Dashboard
-
-Check out [SuperBowl](https://github.com/wiremind/super-bowl) a dashboard for real-time monitoring and administrating all your Remoulade tasks.
-***See the current progress, enqueue, requeue, cancel and more ...***
-Super easy to use !.
-
 ## Kubernetes
 
 Remoulade is tailored to run transparently in containers on [Kubernetes](https://kubernetes.io/) and to make the most of their features. This does not mean it cannot run outside of Kubernetes ;)

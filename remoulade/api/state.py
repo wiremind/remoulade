@@ -11,15 +11,6 @@ from .apispec import validate_schema
 messages_bp = Blueprint("messages", __name__, url_prefix="/messages")
 
 
-class DeleteSchema(Schema):
-    """
-    Class to validate delete body data in /messages/states
-    """
-
-    max_age = fields.Int(allow_none=True)
-    not_started = fields.Bool(load_default=False)
-
-
 class StatesParamsSchema(Schema):
     """
     Class to validate the state search parameters

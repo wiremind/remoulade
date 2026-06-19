@@ -108,16 +108,6 @@ def delete_job(scheduler, job_hash):
     scheduler.delete_job(job_hash)
 
 
-@scheduler_bp.route("/jobs/<job_hash>", methods=["PUT"])
-@doc(tags=["scheduler"])
-@marshal_with(ScheduleResponseSchema)
-@validate_schema(ScheduledJobSchema)
-@with_scheduler
-def update_job(scheduler, job_hash, **kwargs):
-    scheduler.delete_job(job_hash)
-    scheduler.add_job(ScheduledJob(**kwargs))
-
-
 @scheduler_bp.route("/jobs", methods=["PUT"])
 @doc(tags=["scheduler"])
 @marshal_with(ScheduleResponseSchema)
@@ -129,4 +119,4 @@ def update_jobs(scheduler, **kwargs):
         scheduler.add_job(ScheduledJob(**job_dict))
 
 
-scheduler_routes = [get_jobs, add_job, delete_job, update_job, update_jobs]
+scheduler_routes = [get_jobs, add_job, delete_job, update_jobs]

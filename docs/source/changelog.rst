@@ -10,6 +10,8 @@ All notable changes to this project will be documented in this file.
 Breaking changes
 ^^^^^^^^^^^^^^^^
 * Remove the legacy PostgreSQL state backend.
+* Remove the ``DELETE /messages/states`` API route, which only worked with the removed PostgreSQL state backend.
+* Remove the ``PUT /scheduled/jobs/<job_hash>`` API route (single-job update); use ``PUT /scheduled/jobs`` instead.
 * Rework the broker API around the new PostgreSQL/PGMQ implementation.
 
 Feat
