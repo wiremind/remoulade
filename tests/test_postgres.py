@@ -224,6 +224,32 @@ def test_postgres_broker_poll_only_consumer_never_reports_listener_available():
     consumer.close()
 
 
+def test_postgres_consumer_rejects_negative_timeout():
+    broker = PostgresBroker(url=TEST_POSTGRES_URL, middleware=[], enable_listen_notify=False)
+    broker.queues["default"] = None
+
+    with pytest.raises(ValueError, match="timeout must be greater than or equal to 0"):
+        broker.consume("default", prefetch=1, timeout=-1)
+
+    broker.close()
+
+
+def test_postgres_poll_only_consumer_reads_immediately_when_timeout_is_zero():
+    broker = PostgresBroker(url=TEST_POSTGRES_URL, middleware=[], enable_listen_notify=False)
+    broker.queues["default"] = None
+    broker.client.read = Mock(return_value=None)
+    broker.client.read_with_poll = Mock(return_value=None)
+
+    consumer = broker.consume("default", prefetch=1, timeout=0)
+
+    # A zero timeout is non-blocking: the polling fallback must do a single
+    # immediate read and return None at once instead of polling for ~1s.
+    assert next(consumer) is None
+    broker.client.read.assert_called_once()
+    broker.client.read_with_poll.assert_not_called()
+    consumer.close()
+
+
 def test_postgres_broker_shares_a_single_listener_across_consumers():
     broker = PostgresBroker(url=TEST_POSTGRES_URL, middleware=[])
     broker.queues["first"] = None
