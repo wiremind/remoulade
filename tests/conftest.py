@@ -117,7 +117,11 @@ def rabbitmq_broker(request):
 @pytest.fixture()
 def postgres_broker():
     db_string = os.getenv("REMOULADE_TEST_DB_URL") or "postgresql://remoulade@localhost:5544/test"
-    engine = create_engine(db_string, poolclass=NullPool)
+    # Force the psycopg (v3) driver for the raw SQLAlchemy engine: SQLAlchemy defaults
+    # `postgresql://` to psycopg2, which the project does not depend on. This mirrors the driver
+    # swap PGMQ does internally for the broker. The plain `db_string` is kept for PostgresBroker,
+    # whose listener opens a raw psycopg.connect() connection that does not understand `+psycopg`.
+    engine = create_engine(db_string.replace("postgresql://", "postgresql+psycopg://", 1), poolclass=NullPool)
     client = sessionmaker(bind=engine)
     check_postgres(client)
     cleanup_postgres_queues(client)
