@@ -29,7 +29,7 @@ import psycopg
 from pgmq import SQLAlchemyPGMQueue
 from pgmq.messages import Message as PostgresQueueMessage
 from psycopg import sql as psycopg_sql
-from sqlalchemy import Column, Connection, Integer, MetaData, Table, func, select
+from sqlalchemy import Connection
 
 from ..broker import Broker, Consumer, MessageProxy
 from ..errors import QueueJoinTimeout, QueueNotFound, UnsupportedMessageEncoding
@@ -278,12 +278,8 @@ class PostgresBroker(Broker):
             self.flush(queue_name)
 
     def _count_enqueued_messages(self, queue_name: str) -> int:
-        """Count rows in the underlying PGMQ queue table."""
-        queue_table = Table(f"q_{queue_name}", MetaData(), Column("msg_id", Integer), schema="pgmq")
-        count_query = select(func.count()).select_from(queue_table)
-
-        with self.client.session() as session:
-            return session.execute(count_query).scalar_one()
+        """Count every message stored in the queue."""
+        return self.client.metrics(queue_name).queue_length
 
     @override
     def join(
