@@ -68,7 +68,7 @@ class _FakeListener:
     def register(self, queue_name, event):
         pass
 
-    def unregister(self, queue_name):
+    def unregister(self, queue_name, event):
         pass
 
     def close(self):
@@ -1044,3 +1044,32 @@ def test_postgres_worker_runs_group_with_results(postgres_broker):
         assert sorted(g.results.get(block=True)) == [0, 1, 4, 9]
     finally:
         worker.stop()
+
+
+def test_listener_wakes_all_consumers_on_a_queue_and_unregister_spares_siblings():
+    listener = _PostgresListener("postgresql://localhost/test", logging.getLogger("test"))
+    # Skip starting the dispatch thread: this test only exercises wake routing.
+    listener._started = True
+
+    first, second = threading.Event(), threading.Event()
+    listener.register("default", first)
+    listener.register("default", second)
+    channel = listener._channel_for("default")
+
+    # A notification on the shared queue wakes every registered consumer.
+    listener._wake_channel(channel)
+    assert first.is_set()
+    assert second.is_set()
+    first.clear()
+    second.clear()
+
+    # One consumer leaving must not stop notifications for its sibling.
+    listener.unregister("default", first)
+    listener._wake_channel(channel)
+    assert not first.is_set()
+    assert second.is_set()
+
+    # The channel routing is dropped only once the last consumer leaves.
+    listener.unregister("default", second)
+    assert channel not in listener._channel_to_queue
+    assert "default" not in listener._events
