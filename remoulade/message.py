@@ -99,11 +99,11 @@ class Message[ResultT: Result[Any]]:
 
     @classmethod
     def decode_json(cls, data: dict[str, Any]):
-        """Convert a bytestring to a message."""
+        """Convert a JSON object to a message."""
         return cls(**global_encoder.decode_json(data))
 
     def encode_in_json(self):
-        """Convert this message to a bytestring."""
+        """Convert this message to a JSON object."""
         return global_encoder.encode_in_json(self.asdict())
 
     def copy(self, **attributes):

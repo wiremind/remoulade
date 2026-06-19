@@ -131,7 +131,8 @@ class PostgresBroker(Broker):
 
         self._listener = _PostgresListener(self.url, self.logger) if enable_listen_notify else None
 
-    def convert_days_in_partman_syntax(self, interval_in_day: int) -> str:
+    @staticmethod
+    def convert_days_in_partman_syntax(interval_in_day: int) -> str:
         """Convert int into partman syntax"""
         if interval_in_day <= 0:
             raise ValueError("interval_in_day must be greater than 0")
@@ -526,13 +527,13 @@ class _PostgresConsumer(Consumer):
         Parameters:
           broker(PostgresBroker): Broker instance that owns the queue and database client.
           queue_name(str): Name of the declared queue to consume from.
-          prefetch(int): Maximum number of messages fetched per read call; values lower than 1 are coerced to 1.
+          prefetch(int): Maximum number of messages fetched per read call; must be greater than or equal to 1.
           timeout(int): Idle wait timeout in milliseconds when polling for messages; must be greater than or equal to 0.
             A value of 0 performs non-blocking reads.
 
-        Raises:
-          ValueError: If ``timeout`` is negative.
         """
+        if prefetch < 1:
+            raise ValueError("prefetch must be greater than or equal to 1")
         if timeout < 0:
             raise ValueError("timeout must be greater than or equal to 0")
 
