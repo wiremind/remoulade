@@ -13,6 +13,8 @@ Breaking changes
 * Remove the ``DELETE /messages/states`` API route, which only worked with the removed PostgreSQL state backend.
 * Remove the ``PUT /scheduled/jobs/<job_hash>`` API route (single-job update); use ``PUT /scheduled/jobs`` instead.
 * Rework the broker API around the new PostgreSQL/PGMQ implementation.
+* Rename ``Encoder.encode``/``Encoder.decode`` to ``Encoder.encode_in_bytes``/``Encoder.decode_bytes``; custom encoders must now also implement ``Encoder._encode_in_json`` and ``Encoder.decode_json``.
+* Rename ``Message.encode``/``Message.decode`` to ``Message.encode_in_bytes``/``Message.decode_bytes``.
 
 Feat
 ^^^^
