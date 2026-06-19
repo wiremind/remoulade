@@ -131,27 +131,16 @@ class PydanticEncoder(Encoder):
         return MyActorOutputSchema()
     """
 
-    def __init__(self, fallback_encoder: Encoder | None = None):
-        self.fallback_encoder = fallback_encoder
+    def __init__(self):
         self.json_adapter = TypeAdapter(object)
 
     @override
     def encode_in_bytes(self, data: MessageData) -> bytes:
-        try:
-            return json.dumps(self._encode_in_json(data)).encode("utf-8")
-        except Exception as e:
-            if self.fallback_encoder is not None:
-                return self.fallback_encoder.encode_in_bytes(data)
-            raise e
+        return json.dumps(self._encode_in_json(data)).encode("utf-8")
 
     @override
     def decode_bytes(self, data: bytes) -> MessageData:
-        try:
-            return self.decode_json(json.loads(data.decode("utf-8")))
-        except Exception:
-            if self.fallback_encoder is not None:
-                return self.fallback_encoder.decode_bytes(data)
-            raise
+        return self.decode_json(json.loads(data.decode("utf-8")))
 
     @override
     def _encode_in_json(self, data: MessageData) -> JsonData:
@@ -161,49 +150,42 @@ class PydanticEncoder(Encoder):
     def decode_json(self, data: JsonData) -> MessageData:
         from remoulade import get_broker
 
-        try:
-            actor_name = data["actor_name"]
-            actor_fn = get_broker().get_actor(actor_name).fn
+        actor_name = data["actor_name"]
+        actor_fn = get_broker().get_actor(actor_name).fn
 
-            # Retrieve the Pydantic schemas from typing
-            schemas_by_param_name: dict[str, TypeAdapter] = {}
-            for param_name, type_hint in get_type_hints(actor_fn).items():
-                schemas_by_param_name[param_name] = TypeAdapter(
-                    Annotated[
-                        type_hint,
-                        WithJsonSchema(
-                            {"type": type_hint, "description": f"{param_name}_schema"}, mode="serialization"
-                        ),
-                    ]
-                )
+        # Retrieve the Pydantic schemas from typing
+        schemas_by_param_name: dict[str, TypeAdapter] = {}
+        for param_name, type_hint in get_type_hints(actor_fn).items():
+            schemas_by_param_name[param_name] = TypeAdapter(
+                Annotated[
+                    type_hint,
+                    WithJsonSchema({"type": type_hint, "description": f"{param_name}_schema"}, mode="serialization"),
+                ]
+            )
 
-            # Override message_data with Pydantic schema when it matches.
-            parsed_message: dict[str, Any] = {}
-            for key, values in data.items():
-                if key == "kwargs":
-                    if not isinstance(values, dict):
-                        raise TypeError(f"Expected `values` to be a dict, got {type(values).__name__}")
-                    parsed_message[key] = {
-                        param_name: schemas_by_param_name[param_name].validate_python(raw_value)
-                        for param_name, raw_value in values.items()
-                    }
-                elif key == "args":
-                    if not isinstance(values, list):
-                        raise TypeError(f"Expected `values` to be a list, got {type(values).__name__}")
-                    schemas = list(schemas_by_param_name.values())
-                    parsed_message[key] = [
-                        schemas[order].validate_python(raw_value) for order, raw_value in enumerate(values)
-                    ]
-                elif key == "result":
-                    if values is None:
-                        parsed_message[key] = None
-                    else:
-                        parsed_message[key] = schemas_by_param_name["return"].validate_python(values)
+        # Override message_data with Pydantic schema when it matches.
+        parsed_message: dict[str, Any] = {}
+        for key, values in data.items():
+            if key == "kwargs":
+                if not isinstance(values, dict):
+                    raise TypeError(f"Expected `values` to be a dict, got {type(values).__name__}")
+                parsed_message[key] = {
+                    param_name: schemas_by_param_name[param_name].validate_python(raw_value)
+                    for param_name, raw_value in values.items()
+                }
+            elif key == "args":
+                if not isinstance(values, list):
+                    raise TypeError(f"Expected `values` to be a list, got {type(values).__name__}")
+                schemas = list(schemas_by_param_name.values())
+                parsed_message[key] = [
+                    schemas[order].validate_python(raw_value) for order, raw_value in enumerate(values)
+                ]
+            elif key == "result":
+                if values is None:
+                    parsed_message[key] = None
                 else:
-                    parsed_message[key] = values
+                    parsed_message[key] = schemas_by_param_name["return"].validate_python(values)
+            else:
+                parsed_message[key] = values
 
-            return parsed_message
-        except Exception:
-            if self.fallback_encoder is not None:
-                return self.fallback_encoder.decode_json(data)
-            raise
+        return parsed_message
