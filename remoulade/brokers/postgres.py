@@ -43,6 +43,8 @@ if TYPE_CHECKING:
 PostgresPayload = dict[str, Any]
 LISTEN_NOTIFY_THROTTLE_MS: Final[int] = 250
 FUTURE_PARTITION_HORIZON: Final[str] = "2 months"
+LISTENER_RECONNECT_BACKOFF_MIN_S: Final[float] = 0.5
+LISTENER_RECONNECT_BACKOFF_MAX_S: Final[float] = 30.0
 
 
 def _milliseconds_to_seconds(milliseconds: int) -> int:
@@ -341,9 +343,13 @@ class _PostgresListener:
     of dedicated listener connections at one per process instead of one per
     consumed queue.
 
-    The connection is opened lazily on the first registration. If it cannot be
-    opened, or if the listener thread later crashes, ``available`` flips to
-    False and consumers transparently fall back to polling.
+    The connection is opened synchronously when the first consumer registers.
+    On any connection failure ``available`` flips to False and
+    consumers transparently fall back to polling, while the thread keeps
+    retrying (with capped backoff) to reopen the connection and re-LISTEN on
+    every registered channel. ``available`` flips back to True as soon as a
+    reconnection succeeds, so consumers resume LISTEN/NOTIFY automatically
+    instead of polling for the rest of the process lifetime.
     """
 
     def __init__(self, url: str, logger: logging.Logger) -> None:
@@ -369,8 +375,13 @@ class _PostgresListener:
             self._events[queue_name] = event
             self._channel_to_queue[self._channel_for(queue_name)] = queue_name
             self._pending_listen.add(queue_name)
-            if not self._started:
-                self._start_locked()
+            starting = not self._started
+            if starting:
+                self._started = True
+        # Start outside the lock: the initial connection attempt acquires the
+        # same lock to snapshot channels, and would otherwise deadlock.
+        if starting:
+            self._start()
 
     def unregister(self, queue_name: str) -> None:
         """Stop routing notifications to a consumer that is shutting down."""
@@ -379,23 +390,71 @@ class _PostgresListener:
             self._channel_to_queue.pop(self._channel_for(queue_name), None)
             self._pending_listen.discard(queue_name)
 
-    def _start_locked(self) -> None:
-        """Open the shared connection and start the dispatch thread (under lock)."""
-        self._started = True
+    def _start(self) -> None:
+        """Open the shared connection (best effort) and start the dispatch thread.
+
+        The initial connection attempt is synchronous so ``available`` reflects
+        a real outcome by the time the first consumer starts reading. If it
+        fails, the dispatch thread keeps retrying with backoff, reopening the
+        connection and re-LISTENing on every registered channel, so a transient
+        database outage degrades consumers to polling instead of disabling
+        LISTEN/NOTIFY for the rest of the process lifetime.
+        """
+        self._open_connection()
+        self._thread = Thread(target=self._run, name="postgres-listener", daemon=True)
+        self._thread.start()
+
+    def _open_connection(self) -> bool:
+        """Open the shared connection and LISTEN on every registered channel.
+
+        Called once synchronously when the listener starts and then from the
+        dispatch thread on every reconnection. Must not be called while holding
+        ``self._lock``, which it acquires to snapshot the registered channels.
+        Returns True when the connection is ready and all channels are listened
+        to, False when the connection could not be opened (the caller then backs
+        off and retries).
+        """
+        connection = None
         try:
-            self._connection = psycopg.connect(self._url, autocommit=True)
+            connection = psycopg.connect(self._url, autocommit=True)
+            with self._lock:
+                # A fresh connection listens to nothing, so re-LISTEN every
+                # channel currently registered rather than only those pending
+                # since the last loop.
+                channels = list(self._channel_to_queue)
+                self._pending_listen.clear()
+            for channel in channels:
+                connection.execute(psycopg_sql.SQL("LISTEN {}").format(psycopg_sql.Identifier(channel)))
         except Exception as e:
-            self.available = False
-            self._connection = None
             self._logger.warning(
-                "Failed to start shared LISTEN/NOTIFY listener; consumers will fall back to polling. Error: %s",
+                "Failed to open shared LISTEN/NOTIFY connection; consumers will fall back to polling. Error: %s",
                 str(e),
                 exc_info=True,
             )
-            return
+            if connection is not None:
+                try:
+                    connection.close()
+                except Exception:
+                    self._logger.debug("Failed to close partially-opened listener connection", exc_info=True)
+            return False
+        self._connection = connection
         self.available = True
-        self._thread = Thread(target=self._run, name="postgres-listener", daemon=True)
-        self._thread.start()
+        return True
+
+    def _drop_connection(self) -> None:
+        """Mark the listener unavailable and discard the current connection.
+
+        Waiting consumers are woken so they fall back to polling immediately
+        instead of blocking on their wake event for the full timeout.
+        """
+        self.available = False
+        self._wake_all()
+        if self._connection is not None:
+            try:
+                self._connection.close()
+            except Exception as e:
+                self._logger.error("Failed to close shared listener connection: %s", str(e))
+            self._connection = None
 
     def _drain_pending_listen(self) -> None:
         """Issue LISTEN for queues registered since the last loop (listener thread only)."""
@@ -424,40 +483,45 @@ class _PostgresListener:
             event.set()
 
     def _run(self) -> None:
-        """Route notifications to consumer events, falling back to polling on errors."""
+        """Route notifications to consumer events, reconnecting on errors.
+
+        When the connection is down it is reopened with an exponential backoff
+        capped at ``LISTENER_RECONNECT_BACKOFF_MAX_S``; the backoff resets on
+        every successful reconnection. Consumers poll while the connection is
+        unavailable and resume LISTEN/NOTIFY once it is restored.
+        """
+        backoff = LISTENER_RECONNECT_BACKOFF_MIN_S
         while not self._stop.is_set():
+            if self._connection is None:
+                if not self._open_connection():
+                    self._stop.wait(backoff)
+                    backoff = min(backoff * 2, LISTENER_RECONNECT_BACKOFF_MAX_S)
+                    continue
+                backoff = LISTENER_RECONNECT_BACKOFF_MIN_S
             try:
-                if self._connection is None:
-                    break
                 self._drain_pending_listen()
                 for notify in self._connection.notifies(timeout=0.5, stop_after=1):
                     self._wake_channel(notify.channel)
             except Exception as e:
                 if self._stop.is_set():
                     break
-                self.available = False
-                self._wake_all()
                 self._logger.warning(
-                    "Shared LISTEN/NOTIFY listener crashed; consumers will fall back to polling. Error: %s",
+                    "Shared LISTEN/NOTIFY listener error; consumers will fall back to polling while it "
+                    "reconnects. Error: %s",
                     str(e),
                     exc_info=True,
                 )
-                break
+                self._drop_connection()
 
-        self.available = False
+        self._drop_connection()
 
     def close(self) -> None:
         """Stop the dispatch thread and close the shared connection."""
         self._stop.set()
-        if self._connection is not None:
-            try:
-                self._connection.close()
-            except Exception as e:
-                self._logger.error("Failed to close shared listener connection: %s", str(e))
         self._wake_all()
         if self._thread is not None:
             self._thread.join(timeout=1)
-        self.available = False
+        self._drop_connection()
 
 
 class _PostgresConsumer(Consumer):
