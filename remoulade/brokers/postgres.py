@@ -655,21 +655,37 @@ class _PostgresConsumer(Consumer):
         if len(message_ids) > 0:
             self.client.set_vt(self.queue_name, message_ids, 0)
 
-    @override
-    def ack(self, message: "MessageProxy") -> None:
-        """Archive a processed message."""
+    def _archive_message(self, message: "MessageProxy") -> None:
+        """Stop tracking a message and archive it, tolerating transient failures.
+
+        A failed archive (connection blip, pool exhaustion, ...) is logged and
+        swallowed rather than propagated: letting it bubble up would kill the
+        worker thread, which has no restart logic. The message simply becomes
+        visible again once its visibility timeout expires and is redelivered,
+        which is the broker's at-least-once guarantee.
+        """
         if not isinstance(message, _PostgresMessage):
             raise ValueError("It must be a PostgresMessage")
         self._unregister_heartbeat_message_id(message._postgres_message.msg_id)
-        self.client.archive(self.queue_name, message._postgres_message.msg_id)
+        try:
+            self.client.archive(self.queue_name, message._postgres_message.msg_id)
+        except Exception:
+            self.broker.logger.error(
+                "Failed to archive message %s on queue %s; it will be redelivered after its visibility timeout.",
+                message._postgres_message.msg_id,
+                self.queue_name,
+                exc_info=True,
+            )
+
+    @override
+    def ack(self, message: "MessageProxy") -> None:
+        """Archive a processed message."""
+        self._archive_message(message)
 
     @override
     def nack(self, message: "MessageProxy") -> None:
         """Archive a failed message."""
-        if not isinstance(message, _PostgresMessage):
-            raise ValueError("It must be a PostgresMessage")
-        self._unregister_heartbeat_message_id(message._postgres_message.msg_id)
-        self.client.archive(self.queue_name, message._postgres_message.msg_id)
+        self._archive_message(message)
 
     @override
     def requeue(self, messages: Iterable["MessageProxy"]) -> None:
