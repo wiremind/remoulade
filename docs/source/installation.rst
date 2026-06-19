@@ -9,13 +9,13 @@ Remoulade supports Python versions 3.12 and up and is installable via
 
 Via pip
 -------
+remoulade can be used with a RabbbitMQ_ or a PostgreSQL_ broker.
 
-To install remoulade, simply run the following command in a terminal::
+If you want to use it with RabbitMQ_, simply run the following command in a terminal::
 
   $ pip install -U 'remoulade[rabbitmq]'
 
-Remoulade uses RabbitMQ_ as a message broker. If you want to use
-PostgreSQL_ with PGMQ_ instead, install::
+If you want to use PostgreSQL_ with PGMQ_ instead, install::
 
   $ pip install -U 'remoulade[postgres]'
 
