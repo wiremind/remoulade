@@ -55,6 +55,24 @@ def _expected_payload(message):
     return json.loads(message.encode_in_bytes().decode("utf-8"))
 
 
+class _StubTransaction:
+    """Stand-in for ``engine.begin()`` that yields a controllable connection.
+
+    ``declare_queue`` always opens its own transaction and runs queue
+    operations against that connection, so tests inject a fake connection to
+    assert on the ``conn`` argument forwarded to the PGMQ client.
+    """
+
+    def __init__(self, connection):
+        self._connection = connection
+
+    def __enter__(self):
+        return self._connection
+
+    def __exit__(self, exc_type, exc, tb):
+        return None
+
+
 class _FakeListener:
     """Stand-in for the broker's shared LISTEN/NOTIFY listener.
 
@@ -100,16 +118,19 @@ def test_postgres_broker_creates_partitioned_queue_with_default_intervals():
     broker.client.enable_notify = Mock()
     broker._queue_exists = Mock(return_value=False)
 
+    conn = Mock()
+    broker.client.engine.begin = Mock(return_value=_StubTransaction(conn))
+
     broker.declare_queue("default")
 
-    broker.client.validate_queue_name.assert_called_once_with("default", conn=None)
+    broker.client.validate_queue_name.assert_called_once_with("default", conn=conn)
     broker.client.create_partitioned_queue.assert_called_once_with(
         "default",
         partition_interval="1 day",
         retention_interval="7 days",
-        conn=None,
+        conn=conn,
     )
-    broker.client.enable_notify.assert_called_once_with("default", throttle_interval_ms=250, conn=None)
+    broker.client.enable_notify.assert_called_once_with("default", throttle_interval_ms=250, conn=conn)
     broker.client.create_queue.assert_not_called()
 
 
@@ -120,16 +141,9 @@ def test_postgres_broker_uses_current_transaction_connection_for_queue_creation(
     broker.client.enable_notify = Mock()
     broker._queue_exists = Mock(return_value=False)
 
-    transaction_connection = object()
+    transaction_connection = Mock()
 
-    class _DummyTransaction:
-        def __enter__(self):
-            return transaction_connection
-
-        def __exit__(self, exc_type, exc, tb):
-            return None
-
-    broker.client.engine.begin = Mock(return_value=_DummyTransaction())
+    broker.client.engine.begin = Mock(return_value=_StubTransaction(transaction_connection))
 
     with broker.tx():
         broker.declare_queue("default")
@@ -155,15 +169,18 @@ def test_postgres_broker_enables_notify_on_postgresql_queue_init():
     broker.client.enable_notify = Mock()
     broker._queue_exists = Mock(return_value=False)
 
+    conn = Mock()
+    broker.client.engine.begin = Mock(return_value=_StubTransaction(conn))
+
     broker.declare_queue("default")
 
     broker.client.create_partitioned_queue.assert_called_once_with(
         "default",
         partition_interval="1 day",
         retention_interval="7 days",
-        conn=None,
+        conn=conn,
     )
-    broker.client.enable_notify.assert_called_once_with("default", throttle_interval_ms=250, conn=None)
+    broker.client.enable_notify.assert_called_once_with("default", throttle_interval_ms=250, conn=conn)
 
 
 def test_postgres_broker_does_not_fail_when_enable_notify_raises(caplog):
@@ -299,13 +316,16 @@ def test_postgres_broker_uses_custom_partition_settings_when_provided():
     broker.client.enable_notify = Mock()
     broker._queue_exists = Mock(return_value=False)
 
+    conn = Mock()
+    broker.client.engine.begin = Mock(return_value=_StubTransaction(conn))
+
     broker.declare_queue("default")
 
     broker.client.create_partitioned_queue.assert_called_once_with(
         "default",
         partition_interval="2 days",
         retention_interval="14 days",
-        conn=None,
+        conn=conn,
     )
 
 
