@@ -29,7 +29,7 @@ import psycopg
 from pgmq import SQLAlchemyPGMQueue
 from pgmq.messages import Message as PostgresQueueMessage
 from psycopg import sql as psycopg_sql
-from sqlalchemy import Connection
+from sqlalchemy import Connection, text
 
 from ..broker import Broker, Consumer, MessageProxy
 from ..errors import QueueJoinTimeout, QueueNotFound, UnsupportedMessageEncoding
@@ -206,20 +206,25 @@ class PostgresBroker(Broker):
         """Create a partitioned PGMQ queue if it does not already exist."""
         if queue_name in self.queues:
             return
+        with self.tx():
+            if self._current_connection is None:
+                raise ValueError("cannot be None we are inside a tx")
+            self._current_connection.execute(
+                text("SELECT pg_advisory_xact_lock(hashtext(:k))"), {"k": f"remoulade.declare_queue.{queue_name}"}
+            )  # Concurrency issues if broker try to create the same queues
+            self.client.validate_queue_name(queue_name, conn=self._current_connection)
+            queue_exists = self._queue_exists(queue_name)
 
-        self.client.validate_queue_name(queue_name, conn=self._current_connection)
-        queue_exists = self._queue_exists(queue_name)
-
-        if not queue_exists:
-            self.emit_before("declare_queue", queue_name)
-            self.client.create_partitioned_queue(
-                queue_name,
-                partition_interval=self.archive_partition_interval,
-                retention_interval=self.archive_retention_interval,
-                conn=self._current_connection,
-            )
-            if self.enable_listen_notify:
-                self._try_enable_notify(queue_name)
+            if not queue_exists:
+                self.emit_before("declare_queue", queue_name)
+                self.client.create_partitioned_queue(
+                    queue_name,
+                    partition_interval=self.archive_partition_interval,
+                    retention_interval=self.archive_retention_interval,
+                    conn=self._current_connection,
+                )
+                if self.enable_listen_notify:
+                    self._try_enable_notify(queue_name)
 
         self.queues[queue_name] = None
 
