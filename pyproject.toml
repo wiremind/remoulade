@@ -78,6 +78,7 @@ remoulade = "remoulade.__main__:main"
 remoulade-ls = "remoulade.cli.remoulade_ls:main"
 remoulade-run = "remoulade.cli.remoulade_run:main"
 remoulade-scheduler = "remoulade.cli.remoulade_scheduler:main"
+remoulade-partitions = "remoulade.cli.remoulade_partitions:main"
 
 [build-system]
 requires = ["setuptools>=80.9", "wheel", "setuptools-scm[simple]>=8"]
