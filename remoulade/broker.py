@@ -439,7 +439,7 @@ class Broker:
         backend supports a native batch insert (e.g. PGMQ ``send_batch``) should override this to
         collapse the N writes into a single round-trip.
         """
-        return [self._enqueue(message, delay=delay) for message in messages]
+        raise NotImplementedError
 
     def enqueue(self, message: "Message[Any]", *, delay: int | None = None) -> "Message[Any]":  # pragma: no cover
         """Enqueue a message on this broker.

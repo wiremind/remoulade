@@ -410,6 +410,28 @@ def test_postgres_broker_enqueue_many_raises_for_unknown_queue():
     broker.client.send_batch.assert_not_called()
 
 
+def test_postgres_broker_rejects_non_positive_enqueue_batch_size():
+    with pytest.raises(ValueError, match="enqueue_batch_size must be greater than 0"):
+        PostgresBroker(url=TEST_POSTGRES_URL, middleware=[], enqueue_batch_size=0)
+
+
+def test_postgres_broker_enqueue_many_chunks_send_batch_by_enqueue_batch_size():
+    broker = PostgresBroker(url=TEST_POSTGRES_URL, middleware=[], enqueue_batch_size=2)
+    broker.client = Mock()
+    broker.queues = {"default": None}
+
+    messages = [
+        Message(queue_name="default", actor_name="do_work", args=(index,), kwargs={}, options={}) for index in range(5)
+    ]
+
+    broker._enqueue_many(messages)
+
+    # 5 messages, batch size 2 -> chunks of 2, 2, 1
+    assert broker.client.send_batch.call_count == 3
+    chunk_args = [[payload["args"] for payload in call.args[1]] for call in broker.client.send_batch.call_args_list]
+    assert chunk_args == [[(0,), (1,)], [(2,), (3,)], [(4,)]]
+
+
 @pytest.mark.usefixtures("postgres_broker")
 def test_postgres_broker_group_run_enqueues_every_message_in_a_single_batch(postgres_broker):
     postgres_broker.declare_queue("default")

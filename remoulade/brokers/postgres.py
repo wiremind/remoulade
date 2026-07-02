@@ -83,6 +83,7 @@ class PostgresBroker(Broker):
         heartbeat_interval_ms: int = 10_000,
         enable_listen_notify: bool = True,
         pool_size: int = 10,
+        enqueue_batch_size: int | None = None,
         engine: "Engine | None" = None,
     ) -> None:
         """Initialize a PostgreSQL-backed broker using the PGMQ extension.
@@ -101,6 +102,10 @@ class PostgresBroker(Broker):
             connection. If False, consumers poll only and no dedicated listener connection is opened (required behind
             a transaction-pooling connection pooler such as pgbouncer).
           pool_size(int): Size of the shared SQLAlchemy connection pool. Ignored when ``engine`` is provided.
+          enqueue_batch_size(int | None): Maximum number of messages sent per ``send_batch`` call in
+            :meth:`_enqueue_many`. When None (default), a queue's messages are all sent in a single
+            ``send_batch``; set it to cap the size of each ``INSERT`` on very large fan-outs. All chunks
+            still run inside the same transaction. Must be greater than 0 when provided.
           engine(Engine | None): A pre-configured SQLAlchemy engine to reuse instead of letting PGMQ build one, so
             the pool can be sized and shared by the caller.
         """
@@ -109,6 +114,8 @@ class PostgresBroker(Broker):
             raise ValueError("visibility_timeout_ms must be greater than 0")
         if heartbeat_interval_ms <= 0 or heartbeat_interval_ms >= visibility_timeout_ms:
             raise ValueError("heartbeat_interval_ms must be greater than 0 and lower than visibility_timeout_ms")
+        if enqueue_batch_size is not None and enqueue_batch_size <= 0:
+            raise ValueError("enqueue_batch_size must be greater than 0")
 
         self.url = urlparse(url).geturl()
         self.state = local()
@@ -120,6 +127,7 @@ class PostgresBroker(Broker):
         self.visibility_timeout_seconds = _milliseconds_to_seconds(visibility_timeout_ms)
         self.heartbeat_interval_seconds = heartbeat_interval_ms / 1000
         self.enable_listen_notify = enable_listen_notify
+        self.enqueue_batch_size = enqueue_batch_size
 
         self.client = SQLAlchemyPGMQueue(
             conn_string=url,
@@ -271,11 +279,14 @@ class PostgresBroker(Broker):
 
     @override
     def _enqueue_many(self, messages: list["Message"], *, delay: int | None = None) -> list["Message"]:
-        """Send several messages to PGMQ in a single ``send_batch`` per queue.
+        """Send several messages to PGMQ with a ``send_batch`` per queue (optionally chunked).
 
         For large fan-outs (e.g. ``group.run()``) this collapses N ``INSERT`` round-trips into one
         statement per queue. Combined with ``group_transaction`` it means one connection, one
-        transaction and one insert for the whole group instead of N of each.
+        transaction and one insert for the whole group instead of N of each. When
+        ``enqueue_batch_size`` is set, each queue's messages are split into chunks of that size and
+        sent with one ``send_batch`` per chunk, so a huge fan-out does not build a single oversized
+        ``INSERT``; every chunk still runs inside the same transaction.
         """
         visible_at = datetime.now(UTC) + timedelta(milliseconds=delay) if delay is not None else None
         messages_by_queue: dict[str, list[Message]] = {}
@@ -285,13 +296,16 @@ class PostgresBroker(Broker):
             messages_by_queue.setdefault(message.queue_name, []).append(message)
 
         for queue_name, queue_messages in messages_by_queue.items():
-            payloads = [self._encode_message(message) for message in queue_messages]
-            self.client.send_batch(
-                queue_name,
-                payloads,
-                conn=self._current_connection,
-                delay=visible_at,
-            )
+            chunk_size = self.enqueue_batch_size or len(queue_messages)
+            for chunk_start in range(0, len(queue_messages), chunk_size):
+                chunk = queue_messages[chunk_start : chunk_start + chunk_size]
+                payloads = [self._encode_message(message) for message in chunk]
+                self.client.send_batch(
+                    queue_name,
+                    payloads,
+                    conn=self._current_connection,
+                    delay=visible_at,
+                )
 
         return messages
 
