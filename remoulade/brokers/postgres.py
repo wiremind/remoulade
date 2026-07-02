@@ -270,6 +270,32 @@ class PostgresBroker(Broker):
         return message
 
     @override
+    def _enqueue_many(self, messages: list["Message"], *, delay: int | None = None) -> list["Message"]:
+        """Send several messages to PGMQ in a single ``send_batch`` per queue.
+
+        For large fan-outs (e.g. ``group.run()``) this collapses N ``INSERT`` round-trips into one
+        statement per queue. Combined with ``group_transaction`` it means one connection, one
+        transaction and one insert for the whole group instead of N of each.
+        """
+        visible_at = datetime.now(UTC) + timedelta(milliseconds=delay) if delay is not None else None
+        messages_by_queue: dict[str, list[Message]] = {}
+        for message in messages:
+            if message.queue_name not in self.queues:
+                raise QueueNotFound(message.queue_name)
+            messages_by_queue.setdefault(message.queue_name, []).append(message)
+
+        for queue_name, queue_messages in messages_by_queue.items():
+            payloads = [self._encode_message(message) for message in queue_messages]
+            self.client.send_batch(
+                queue_name,
+                payloads,
+                conn=self._current_connection,
+                delay=visible_at,
+            )
+
+        return messages
+
+    @override
     def flush(self, queue_name: str) -> None:
         """Remove every message currently stored in a queue."""
         if queue_name not in self.queues:
