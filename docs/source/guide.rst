@@ -440,22 +440,13 @@ table, which is partitioned the same way. Two broker parameters control this:
 
 .. note::
 
-   Partitioning is maintained by ``pg_partman``: its maintenance routine
-   (``partman.run_maintenance_proc()``) must run periodically — through the
-   ``pg_partman`` background worker or a ``pg_cron`` job — to create upcoming
-   partitions ahead of time and drop expired ones. The official PGMQ Docker
-   image (``ghcr.io/pgmq/pg18-pgmq``) ships ``pg_partman`` and schedules this
-   for you; on a self-managed or hosted PostgreSQL you must enable it yourself.
-
-The ``remoulade-partitions`` CLI sets ``infinite_time_partitions = true`` on every queue and
-archive partition set (so ``pg_partman`` keeps maintaining partitions up to the current time even
-after a gap in activity), then runs ``pg_partman`` maintenance immediately::
-
-  REMOULADE_POSTGRES_URL=postgresql://remoulade@localhost:5432/remoulade remoulade-partitions
-
-It reads the database URL from the ``REMOULADE_POSTGRES_URL`` environment variable and creates a
-minimal ``PostgresBroker`` on its own (no middleware, no LISTEN/NOTIFY connection), so it does not
-need to import your application code.
+   Partitioning is maintained by ``pg_partman``: its maintenance routine must run periodically —
+   through the ``pg_partman`` background worker, a ``pg_cron`` job, or an application-level scheduled
+   task — to create upcoming partitions ahead of time and drop expired ones. It should also set
+   ``infinite_time_partitions = true`` on every queue and archive partition set so ``pg_partman``
+   keeps maintaining partitions up to the current time even after a gap in activity. The official
+   PGMQ Docker image (``ghcr.io/pgmq/pg18-pgmq``) ships ``pg_partman`` and schedules this for you; on
+   a self-managed or hosted PostgreSQL you must enable it yourself.
 
 
 Local Broker

@@ -40,7 +40,7 @@ def redis_client(url: str | None, socket_timeout: float | None = None, **paramet
                 **connection_parameters,
             )
         else:
-            parameters["connection_pool"] = redis.ConnectionPool.from_url(url, **connection_parameters)  # type: ignore
+            parameters["connection_pool"] = redis.ConnectionPool.from_url(url, **connection_parameters)
             return redis.Redis(**parameters)
 
 
@@ -53,7 +53,7 @@ def async_redis_client(url: str | None, socket_timeout: float | None = None, **p
         if url_parsed.scheme == "sentinel":
             sentinel_kwargs = {"password": url_parsed.password, **connection_parameters}
             sentinel = redis_async.Sentinel([(url_parsed.hostname, url_parsed.port)], sentinel_kwargs=sentinel_kwargs)
-            return sentinel.master_for(  # type: ignore
+            return sentinel.master_for(
                 service_name=os.path.normpath(url_parsed.path).split("/")[1],
                 password=url_parsed.password,
                 **connection_parameters,

@@ -231,40 +231,6 @@ class PostgresBroker(Broker):
         if not queue_exists:
             self.emit_after("declare_queue", queue_name)
 
-    def enable_infinite_time_partitions(self) -> list[str]:
-        """Set ``infinite_time_partitions = true`` on every PGMQ queue and archive partition set.
-
-        Both the queue table (``pgmq.q_<name>``) and its archive (``pgmq.a_<name>``) are
-        partitioned time-based sets registered in ``partman.part_config``. Enabling
-        ``infinite_time_partitions`` forces ``pg_partman`` to keep maintaining partitions up to the
-        current time even when no recent rows exist, avoiding failed inserts after a gap in activity.
-
-        Returns:
-          The list of parent tables that were updated.
-        """
-        with self.client.engine.begin() as conn:
-            rows = conn.execute(
-                text(
-                    "UPDATE part_config SET infinite_time_partitions = true "
-                    "WHERE parent_table LIKE 'pgmq.q\\_%' OR parent_table LIKE 'pgmq.a\\_%' "
-                    "RETURNING parent_table"
-                )
-            ).all()
-        tables = [row[0] for row in rows]
-        self.logger.info("Enabled infinite_time_partitions on %d partition sets: %s", len(tables), tables)
-        return tables
-
-    def run_partition_maintenance(self) -> None:
-        """Run ``pg_partman`` maintenance to create upcoming partitions and drop expired ones.
-
-        ``partman.run_maintenance_proc()`` is a procedure that ``COMMIT``s internally, which
-        PostgreSQL forbids inside an already-open transaction. The ``CALL`` therefore runs in
-        autocommit (no surrounding ``BEGIN``) rather than through ``engine.begin()``.
-        """
-        with self.client.engine.connect().execution_options(isolation_level="AUTOCOMMIT") as conn:
-            conn.execute(text("CALL run_maintenance_proc()"))
-        self.logger.info("Ran pg_partman maintenance (partman.run_maintenance_proc())")
-
     def _encode_message(self, message: "Message") -> PostgresPayload:
         """Encode a Remoulade message into a JSON object payload for PGMQ.
 
