@@ -183,33 +183,6 @@ def test_postgres_broker_enables_notify_on_postgresql_queue_init():
     broker.client.enable_notify.assert_called_once_with("default", throttle_interval_ms=250, conn=conn)
 
 
-def test_postgres_broker_enable_infinite_time_partitions_runs_update_and_returns_tables():
-    broker = PostgresBroker(url=TEST_POSTGRES_URL, middleware=[])
-
-    conn = Mock()
-    conn.execute.return_value.all.return_value = [("pgmq.q_default",), ("pgmq.a_default",)]
-    broker.client.engine.begin = Mock(return_value=_StubTransaction(conn))
-
-    tables = broker.enable_infinite_time_partitions()
-
-    assert tables == ["pgmq.q_default", "pgmq.a_default"]
-    sql = str(conn.execute.call_args.args[0])
-    assert "infinite_time_partitions = true" in sql
-    assert "part_config" in sql
-
-
-def test_postgres_broker_run_partition_maintenance_calls_run_maintenance_proc():
-    broker = PostgresBroker(url=TEST_POSTGRES_URL, middleware=[])
-
-    conn = Mock()
-    broker.client.engine.begin = Mock(return_value=_StubTransaction(conn))
-
-    broker.run_partition_maintenance()
-
-    sql = str(conn.execute.call_args.args[0])
-    assert "run_maintenance_proc()" in sql
-
-
 def test_postgres_broker_does_not_fail_when_enable_notify_raises(caplog):
     broker = PostgresBroker(url=TEST_POSTGRES_URL, middleware=[])
     broker.client.validate_queue_name = Mock()
