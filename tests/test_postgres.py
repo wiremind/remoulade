@@ -190,6 +190,7 @@ def test_postgres_broker_does_not_fail_when_enable_notify_raises(caplog):
     broker.client.create_partitioned_queue = Mock()
     broker.client.enable_notify = Mock(side_effect=RuntimeError("notify unavailable"))
     broker._queue_exists = Mock(return_value=False)
+    broker._create_msg_id_index = Mock()
 
     broker.declare_queue("default")
 
@@ -203,12 +204,32 @@ def test_postgres_broker_declare_queue_is_idempotent_when_queue_already_exists()
     broker.client.create_partitioned_queue = Mock()
     broker.client.enable_notify = Mock()
     broker._queue_exists = Mock(return_value=True)
+    broker._create_msg_id_index = Mock()
 
     broker.declare_queue("default")
 
     broker.client.create_partitioned_queue.assert_not_called()
     broker.client.enable_notify.assert_not_called()
+    # The index is still ensured on pre-existing queues, so queues created
+    # before remoulade added it pick it up on the next declaration.
+    broker._create_msg_id_index.assert_called_once()
     assert "default" in broker.queues
+
+
+def test_postgres_broker_declare_queue_creates_msg_id_index():
+    broker = PostgresBroker(url=TEST_POSTGRES_URL, middleware=[])
+    broker.client.validate_queue_name = Mock()
+    broker.client.create_partitioned_queue = Mock()
+    broker.client.enable_notify = Mock()
+    broker._queue_exists = Mock(return_value=False)
+
+    conn = Mock()
+    broker.client.engine.begin = Mock(return_value=_StubTransaction(conn))
+
+    broker.declare_queue("default")
+
+    executed = [str(call.args[0]) for call in conn.execute.call_args_list]
+    assert 'CREATE INDEX IF NOT EXISTS "q_default_msg_id_idx" ON pgmq."q_default" (msg_id)' in executed
 
 
 def test_postgres_broker_poll_only_mode_opens_no_listener_and_skips_enable_notify():
@@ -217,6 +238,7 @@ def test_postgres_broker_poll_only_mode_opens_no_listener_and_skips_enable_notif
     broker.client.create_partitioned_queue = Mock()
     broker.client.enable_notify = Mock()
     broker._queue_exists = Mock(return_value=False)
+    broker._create_msg_id_index = Mock()
 
     broker.declare_queue("default")
 
@@ -652,6 +674,82 @@ def test_postgres_consumer_close_requeues_buffered_prefetched_messages(monkeypat
     broker.client.set_vt.assert_called_once_with("default", [2], 0)
 
 
+def test_postgres_consumer_caps_in_flight_messages_at_prefetch(monkeypatch):
+    def _fake_start_heartbeat(self):
+        self._heartbeat_thread = None
+
+    monkeypatch.setattr("remoulade.brokers.postgres._PostgresConsumer._start_heartbeat", _fake_start_heartbeat)
+
+    broker = PostgresBroker(url=TEST_POSTGRES_URL, middleware=[])
+    broker.queues["default"] = None
+    _install_listener(broker, available=False)
+
+    first_message = Message(queue_name="default", actor_name="do_work", args=(1,), kwargs={}, options={})
+    second_message = Message(queue_name="default", actor_name="do_work", args=(2,), kwargs={}, options={})
+    broker.client.read = Mock(return_value=None)
+    broker.client.read_with_poll = Mock(
+        return_value=[
+            Mock(msg_id=1, message=_expected_payload(first_message)),
+            Mock(msg_id=2, message=_expected_payload(second_message)),
+        ]
+    )
+    broker.client.set_vt = Mock()
+
+    consumer = broker.consume("default", prefetch=2, timeout=10)
+
+    assert next(consumer) is not None
+    assert next(consumer) is not None
+
+    # Both messages are unacked: the consumer is at capacity and must not
+    # read again until a slot is freed.
+    assert next(consumer) is None
+    broker.client.read_with_poll.assert_called_once()
+
+    consumer.close()
+
+
+def test_postgres_consumer_resumes_reading_when_an_ack_frees_capacity(monkeypatch):
+    def _fake_start_heartbeat(self):
+        self._heartbeat_thread = None
+
+    monkeypatch.setattr("remoulade.brokers.postgres._PostgresConsumer._start_heartbeat", _fake_start_heartbeat)
+
+    broker = PostgresBroker(url=TEST_POSTGRES_URL, middleware=[])
+    broker.queues["default"] = None
+    _install_listener(broker, available=False)
+
+    first_message = Message(queue_name="default", actor_name="do_work", args=(1,), kwargs={}, options={})
+    second_message = Message(queue_name="default", actor_name="do_work", args=(2,), kwargs={}, options={})
+    broker.client.read = Mock(return_value=None)
+    broker.client.read_with_poll = Mock(
+        side_effect=[
+            [
+                Mock(msg_id=1, message=_expected_payload(first_message)),
+                Mock(msg_id=2, message=_expected_payload(second_message)),
+            ],
+            [],
+        ]
+    )
+    broker.client.set_vt = Mock()
+    broker.client.archive = Mock()
+
+    consumer = broker.consume("default", prefetch=2, timeout=10)
+
+    first = next(consumer)
+    assert first is not None
+    assert next(consumer) is not None
+    assert next(consumer) is None  # at capacity, no read issued
+
+    consumer.ack(first)
+
+    assert next(consumer) is None  # one slot free again: reads, queue is empty
+    assert broker.client.read_with_poll.call_count == 2
+    # Only the freed slot may be requested, keeping in-flight <= prefetch.
+    assert broker.client.read_with_poll.call_args.kwargs["qty"] == 1
+
+    consumer.close()
+
+
 def test_postgres_consumer_falls_back_to_polling_when_listener_stops_during_wait():
     broker = PostgresBroker(url=TEST_POSTGRES_URL, middleware=[])
     broker.queues["default"] = None
@@ -730,6 +828,7 @@ def test_postgres_consumer_decodes_payload_with_global_encoder(pydantic_encoder)
     broker.client.create_partitioned_queue = Mock()
     broker.client.enable_notify = Mock()
     broker._queue_exists = Mock(return_value=False)
+    broker._create_msg_id_index = Mock()
     _install_listener(broker, available=False)
 
     @remoulade.actor(actor_name="typed.actor", queue_name="default")
@@ -812,6 +911,48 @@ def test_postgres_consumer_requeue_restores_visibility_with_set_vt(postgres_brok
     consumer.close()
 
     assert _count_messages(postgres_broker) == 0
+
+
+@pytest.mark.usefixtures("postgres_broker")
+def test_postgres_broker_declare_queue_creates_msg_id_index_on_all_partitions(postgres_broker):
+    postgres_broker.declare_queue("default")
+
+    with postgres_broker.client.session() as session:
+        tables = (
+            session.execute(
+                text(
+                    "SELECT tablename FROM pg_indexes "
+                    "WHERE schemaname = 'pgmq' AND indexdef LIKE '%USING btree (msg_id)' "
+                    "AND (tablename = 'q_default' OR tablename LIKE 'q\\_default\\_p%')"
+                )
+            )
+            .scalars()
+            .all()
+        )
+
+    assert "q_default" in tables  # the partitioned parent
+    assert len(tables) > 1  # propagated to at least one partition
+
+
+@pytest.mark.usefixtures("postgres_broker")
+def test_postgres_broker_declare_queue_restores_missing_msg_id_index(postgres_broker):
+    postgres_broker.declare_queue("default")
+
+    # Simulate a queue created before remoulade started ensuring the index.
+    with postgres_broker.client.engine.begin() as connection:
+        connection.execute(text('DROP INDEX pgmq."q_default_msg_id_idx"'))
+
+    postgres_broker.queues.pop("default")
+    postgres_broker.declare_queue("default")
+
+    with postgres_broker.client.session() as session:
+        index_exists = session.execute(
+            text(
+                "SELECT EXISTS(SELECT 1 FROM pg_indexes "
+                "WHERE schemaname = 'pgmq' AND indexname = 'q_default_msg_id_idx')"
+            )
+        ).scalar_one()
+    assert index_exists
 
 
 @pytest.mark.usefixtures("postgres_broker")
