@@ -305,8 +305,7 @@ class group[ResultsT: "Result[Any] | CollectionResults[Any]"]:
         """
         transaction = transaction if transaction is not None else self.broker.group_transaction
         with self.broker.tx() if transaction else nullcontext():
-            for message in self.build():
-                self.broker.enqueue(message, delay=delay)
+            self.broker.enqueue_many(self.build(), delay=delay)
 
         return self
 

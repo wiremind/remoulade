@@ -3,7 +3,7 @@ import logging
 import os
 import threading
 import time
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 
 import pytest
 from pydantic import BaseModel
@@ -14,6 +14,7 @@ import remoulade
 from remoulade import Message, QueueJoinTimeout, UnsupportedMessageEncoding, Worker, group
 from remoulade.brokers.postgres import PostgresBroker, _PostgresListener
 from remoulade.encoder import Encoder, MessageData
+from remoulade.errors import QueueNotFound
 from remoulade.results import Results
 from remoulade.results.backends import StubBackend
 
@@ -374,6 +375,77 @@ def test_postgres_broker_rejects_nested_non_json_safe_payloads():
             broker._encode_message(message)
     finally:
         remoulade.set_encoder(old_encoder)
+
+
+def test_postgres_broker_enqueue_many_sends_one_send_batch_per_queue():
+    broker = PostgresBroker(url=TEST_POSTGRES_URL, middleware=[])
+    broker.client = Mock()
+    broker.queues = {"default": None, "other": None}
+
+    messages = [
+        Message(queue_name="default", actor_name="do_work", args=(1,), kwargs={}, options={}),
+        Message(queue_name="default", actor_name="do_work", args=(2,), kwargs={}, options={}),
+        Message(queue_name="other", actor_name="do_work", args=(3,), kwargs={}, options={}),
+    ]
+
+    returned = broker._enqueue_many(messages)
+
+    assert returned == messages
+    # one send_batch per queue, no per-message send
+    broker.client.send.assert_not_called()
+    assert broker.client.send_batch.call_count == 2
+    calls_by_queue = {call.args[0]: call.args[1] for call in broker.client.send_batch.call_args_list}
+    assert [payload["args"] for payload in calls_by_queue["default"]] == [(1,), (2,)]
+    assert [payload["args"] for payload in calls_by_queue["other"]] == [(3,)]
+
+
+def test_postgres_broker_enqueue_many_raises_for_unknown_queue():
+    broker = PostgresBroker(url=TEST_POSTGRES_URL, middleware=[])
+    broker.client = Mock()
+    broker.queues = {"default": None}
+
+    with pytest.raises(QueueNotFound):
+        broker._enqueue_many([Message(queue_name="missing", actor_name="do_work", args=(), kwargs={}, options={})])
+
+    broker.client.send_batch.assert_not_called()
+
+
+def test_postgres_broker_rejects_non_positive_enqueue_batch_size():
+    with pytest.raises(ValueError, match="enqueue_batch_size must be greater than 0"):
+        PostgresBroker(url=TEST_POSTGRES_URL, middleware=[], enqueue_batch_size=0)
+
+
+def test_postgres_broker_enqueue_many_chunks_send_batch_by_enqueue_batch_size():
+    broker = PostgresBroker(url=TEST_POSTGRES_URL, middleware=[], enqueue_batch_size=2)
+    broker.client = Mock()
+    broker.queues = {"default": None}
+
+    messages = [
+        Message(queue_name="default", actor_name="do_work", args=(index,), kwargs={}, options={}) for index in range(5)
+    ]
+
+    broker._enqueue_many(messages)
+
+    # 5 messages, batch size 2 -> chunks of 2, 2, 1
+    assert broker.client.send_batch.call_count == 3
+    chunk_args = [[payload["args"] for payload in call.args[1]] for call in broker.client.send_batch.call_args_list]
+    assert chunk_args == [[(0,), (1,)], [(2,), (3,)], [(4,)]]
+
+
+@pytest.mark.usefixtures("postgres_broker")
+def test_postgres_broker_group_run_enqueues_every_message_in_a_single_batch(postgres_broker):
+    postgres_broker.declare_queue("default")
+
+    messages = [Message(queue_name="default", actor_name="do_work", args=(i,), kwargs={}, options={}) for i in range(5)]
+    with (
+        patch.object(postgres_broker.client, "send_batch", wraps=postgres_broker.client.send_batch) as spy_batch,
+        patch.object(postgres_broker.client, "send", wraps=postgres_broker.client.send) as spy_send,
+    ):
+        group(messages).run()
+
+    assert _count_messages(postgres_broker) == 5
+    spy_batch.assert_called_once()  # a single INSERT for the whole group
+    spy_send.assert_not_called()
 
 
 @pytest.mark.usefixtures("postgres_broker")
