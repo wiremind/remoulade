@@ -102,6 +102,9 @@ class StubBroker(Broker):
         self.queues[queue_name].put(message.encode_in_bytes())
         return message
 
+    def _enqueue_many(self, messages, *, delay=None):
+        return [self._enqueue(message, delay=delay) for message in messages]
+
     def flush(self, queue_name):
         """Drop all the messages from a queue.
 

@@ -15,12 +15,19 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-from ..broker import Broker, MessageProxy
+from typing import TYPE_CHECKING, Any, override
+
+from ..broker import Broker, Consumer, MessageProxy
 from ..common import current_millis
 from ..message import Message
 from ..middleware import SkipMessage
 from ..results import Results
 from ..results.backends import LocalBackend
+
+if TYPE_CHECKING:
+    from collections.abc import Iterable
+
+    from ..middleware import Middleware
 
 
 class LocalBroker(Broker):
@@ -29,41 +36,51 @@ class LocalBroker(Broker):
     It can only be used with LocalBackend as a result backend
     """
 
-    def __init__(self, middleware=None):
+    def __init__(self, middleware: "Iterable[Middleware] | None" = None) -> None:
         super().__init__(middleware)
 
     @property
-    def local(self):
+    @override
+    def local(self) -> bool:
         return True
 
-    def add_middleware(self, middleware, *, before=None, after=None):
+    @override
+    def add_middleware(
+        self, middleware: "Middleware", *, before: "Middleware | None" = None, after: "Middleware | None" = None
+    ) -> None:
         if isinstance(middleware, Results) and not isinstance(middleware.backend, LocalBackend):
             raise RuntimeError("LocalBroker can only be used with LocalBackend.")
         super().add_middleware(middleware)
 
-    def emit_before(self, signal, *args, **kwargs):
+    @override
+    def emit_before(self, signal: str, *args: Any, **kwargs: Any) -> None:
         # A local broker should not catch any exception because we are not in a worker but in the main thread
         for middleware in self.middleware:
             getattr(middleware, "before_" + signal)(self, *args, **kwargs)
 
-    def emit_after(self, signal, *args, **kwargs):
+    @override
+    def emit_after(self, signal: str, *args: Any, **kwargs: Any) -> None:
         for middleware in reversed(self.middleware):
             getattr(middleware, "after_" + signal)(self, *args, **kwargs)
 
-    def consume(self, queue_name, prefetch=1, timeout=100):
+    @override
+    def consume(self, queue_name: str, prefetch: int = 1, timeout: int = 100) -> "Consumer":
         raise ValueError("LocalBroker is not destined to use with a Worker")
 
-    def declare_queue(self, queue_name):
+    @override
+    def declare_queue(self, queue_name: str) -> None:
         self.emit_before("declare_queue", queue_name)
         self.queues[queue_name] = None
         self.emit_after("declare_queue", queue_name)
 
-    def _apply_delay(self, message, delay: int | None = None):
+    @override
+    def _apply_delay(self, message: "Message", delay: int | None = None) -> "Message":
         if delay is not None:
             message_eta = current_millis() + delay
             message = message.copy(options={"eta": message_eta})
         return message
 
+    @override
     def enqueue(self, message: "Message", *, delay: int | None = None) -> "Message":  # pragma: no cover
         """Enqueue a message on this broker.
 
@@ -82,7 +99,8 @@ class LocalBroker(Broker):
         message = self._enqueue(message, delay=delay)
         return message
 
-    def _enqueue(self, message, *, delay=None):
+    @override
+    def _enqueue(self, message: "Message", *, delay: int | None = None):
         """Enqueue and compute a message.
 
         Parameters:
@@ -115,11 +133,18 @@ class LocalBroker(Broker):
 
         return message_proxy
 
-    def flush(self, _):
+    @override
+    def _enqueue_many(self, messages: list["Message[Any]"], *, delay: int | None = None) -> list["Message[Any]"]:
+        return [self._enqueue(message, delay=delay) for message in messages]
+
+    @override
+    def flush(self, _: str) -> None:
         pass
 
-    def flush_all(self):
+    @override
+    def flush_all(self) -> None:
         pass
 
-    def join(self, queue_name: str, *, timeout: int | None = None):
+    @override
+    def join(self, queue_name: str, *, timeout: int | None = None) -> None:
         return
