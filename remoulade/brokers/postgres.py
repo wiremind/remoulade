@@ -202,6 +202,10 @@ class PostgresBroker(Broker):
     def consume(self, queue_name: str, prefetch: int = 1, timeout: int = 30000) -> "_PostgresConsumer":
         """Create a consumer for a declared queue.
 
+        ``prefetch`` caps the number of in-flight (unacked) messages the
+        consumer may hold at any time — the same contract RabbitMQ enforces
+        server-side with ``basic_qos`` — not just the batch size per read.
+
         Raises:
           QueueNotFound: If the queue has not been declared.
         """
@@ -592,9 +596,10 @@ class _PostgresConsumer(Consumer):
         Parameters:
           broker(PostgresBroker): Broker instance that owns the queue and database client.
           queue_name(str): Name of the declared queue to consume from.
-          prefetch(int): Maximum number of messages fetched per read call; must be greater than or equal to 1.
-          timeout(int): Idle wait timeout in milliseconds when polling for messages; must be greater than or equal to 0.
-            A value of 0 performs non-blocking reads.
+          prefetch(int): Maximum number of in-flight (unacked) messages the consumer may hold, and therefore
+            also the upper bound of messages fetched per read call; must be greater than or equal to 1.
+          timeout(int): Idle wait timeout in milliseconds when polling for messages or waiting for in-flight
+            capacity; must be greater than or equal to 0. A value of 0 performs non-blocking reads.
 
         """
         if prefetch < 1:
@@ -611,6 +616,7 @@ class _PostgresConsumer(Consumer):
         self.heartbeat_interval_seconds = broker.heartbeat_interval_seconds
         self.messages: deque[PostgresQueueMessage] = deque()
         self._notify_event = Event()
+        self._capacity_event = Event()
         self._heartbeat_stop = Event()
         self._heartbeat_thread: Thread | None = None
         self._heartbeat_message_ids_lock = Lock()
@@ -638,47 +644,47 @@ class _PostgresConsumer(Consumer):
             return []
         return [messages] if not isinstance(messages, list) else messages
 
-    def _read_immediate(self) -> list[PostgresQueueMessage]:
-        """Read up to ``prefetch`` messages without polling."""
+    def _read_immediate(self, qty: int) -> list[PostgresQueueMessage]:
+        """Read up to ``qty`` messages without polling."""
         return self._normalize_messages(
             self.client.read(
                 self.queue_name,
                 vt=self.visibility_timeout_seconds,
-                qty=self.prefetch,
+                qty=qty,
             )
         )
 
-    def _read_with_poll(self) -> list[PostgresQueueMessage]:
-        """Read up to ``prefetch`` messages using PGMQ polling.
+    def _read_with_poll(self, qty: int) -> list[PostgresQueueMessage]:
+        """Read up to ``qty`` messages using PGMQ polling.
 
         A zero timeout means non-blocking: do a single immediate read instead
         of polling for the rounded-up one-second minimum.
         """
         if self.timeout == 0:
-            return self._read_immediate()
+            return self._read_immediate(qty)
         return self._normalize_messages(
             self.client.read_with_poll(
                 self.queue_name,
                 vt=self.visibility_timeout_seconds,
-                qty=self.prefetch,
+                qty=qty,
                 max_poll_seconds=max((self.timeout + 999) // 1000, 1),
                 poll_interval_ms=max(min(self.timeout, 1000), 1),
             )
         )
 
-    def _read_next_batch(self) -> list[PostgresQueueMessage]:
-        """Read the next batch, favoring LISTEN/NOTIFY when available."""
+    def _read_next_batch(self, qty: int) -> list[PostgresQueueMessage]:
+        """Read the next batch of at most ``qty`` messages, favoring LISTEN/NOTIFY when available."""
         if not self._listener_available:
-            return self._read_with_poll()
+            return self._read_with_poll(qty)
 
-        messages = self._read_immediate()
+        messages = self._read_immediate(qty)
         if messages:
             self._notify_event.clear()
             return messages
 
         self._notify_event.wait(self.wait_timeout_seconds)
         self._notify_event.clear()
-        return self._read_immediate() if self._listener_available else self._read_with_poll()
+        return self._read_immediate(qty) if self._listener_available else self._read_with_poll(qty)
 
     def _start_heartbeat(self) -> None:
         """Start the background visibility-timeout renewal thread."""
@@ -717,10 +723,16 @@ class _PostgresConsumer(Consumer):
                     exc_info=True,
                 )
 
+    def _pending_ack_count(self) -> int:
+        """Count messages read but not yet acked, nacked or requeued."""
+        with self._heartbeat_message_ids_lock:
+            return len(self._heartbeat_message_ids)
+
     def _unregister_heartbeat_message_id(self, message_id: int) -> None:
-        """Stop tracking a message for heartbeat renewal."""
+        """Stop tracking a message for heartbeat renewal and free an in-flight slot."""
         with self._heartbeat_message_ids_lock:
             self._heartbeat_message_ids.discard(message_id)
+        self._capacity_event.set()
 
     def _requeue_message_ids(self, message_ids: list[int]) -> None:
         """Make a batch of message ids visible again immediately."""
@@ -775,11 +787,22 @@ class _PostgresConsumer(Consumer):
 
     @override
     def __next__(self) -> "_PostgresMessage | None":
-        """Return the next available message, or ``None`` if the queue stays empty."""
+        """Return the next available message, or ``None`` if the queue stays empty
+        or the consumer is at its in-flight capacity."""
         if self.messages:
             return self._build_message(self.messages.popleft())
 
-        messages = self._read_next_batch()
+        # PGMQ has no server-side equivalent of RabbitMQ's basic_qos, so the
+        # in-flight cap must be enforced here: reading regardless of unacked
+        # count would drain the whole queue into worker memory and make the
+        # heartbeat renew an ever-growing set of ids.
+        capacity = self.prefetch - self._pending_ack_count()
+        if capacity <= 0:
+            self._capacity_event.wait(self.wait_timeout_seconds)
+            self._capacity_event.clear()
+            return None
+
+        messages = self._read_next_batch(capacity)
 
         if not messages:
             return None
@@ -794,6 +817,7 @@ class _PostgresConsumer(Consumer):
         """Stop the heartbeat, unregister from the shared listener and requeue buffered messages."""
         self._heartbeat_stop.set()
         self._notify_event.set()
+        self._capacity_event.set()
         if self.broker._listener is not None:
             self.broker._listener.unregister(self.queue_name, self._notify_event)
         if self._heartbeat_thread is not None:
