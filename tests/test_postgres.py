@@ -652,6 +652,82 @@ def test_postgres_consumer_close_requeues_buffered_prefetched_messages(monkeypat
     broker.client.set_vt.assert_called_once_with("default", [2], 0)
 
 
+def test_postgres_consumer_caps_in_flight_messages_at_prefetch(monkeypatch):
+    def _fake_start_heartbeat(self):
+        self._heartbeat_thread = None
+
+    monkeypatch.setattr("remoulade.brokers.postgres._PostgresConsumer._start_heartbeat", _fake_start_heartbeat)
+
+    broker = PostgresBroker(url=TEST_POSTGRES_URL, middleware=[])
+    broker.queues["default"] = None
+    _install_listener(broker, available=False)
+
+    first_message = Message(queue_name="default", actor_name="do_work", args=(1,), kwargs={}, options={})
+    second_message = Message(queue_name="default", actor_name="do_work", args=(2,), kwargs={}, options={})
+    broker.client.read = Mock(return_value=None)
+    broker.client.read_with_poll = Mock(
+        return_value=[
+            Mock(msg_id=1, message=_expected_payload(first_message)),
+            Mock(msg_id=2, message=_expected_payload(second_message)),
+        ]
+    )
+    broker.client.set_vt = Mock()
+
+    consumer = broker.consume("default", prefetch=2, timeout=10)
+
+    assert next(consumer) is not None
+    assert next(consumer) is not None
+
+    # Both messages are unacked: the consumer is at capacity and must not
+    # read again until a slot is freed.
+    assert next(consumer) is None
+    broker.client.read_with_poll.assert_called_once()
+
+    consumer.close()
+
+
+def test_postgres_consumer_resumes_reading_when_an_ack_frees_capacity(monkeypatch):
+    def _fake_start_heartbeat(self):
+        self._heartbeat_thread = None
+
+    monkeypatch.setattr("remoulade.brokers.postgres._PostgresConsumer._start_heartbeat", _fake_start_heartbeat)
+
+    broker = PostgresBroker(url=TEST_POSTGRES_URL, middleware=[])
+    broker.queues["default"] = None
+    _install_listener(broker, available=False)
+
+    first_message = Message(queue_name="default", actor_name="do_work", args=(1,), kwargs={}, options={})
+    second_message = Message(queue_name="default", actor_name="do_work", args=(2,), kwargs={}, options={})
+    broker.client.read = Mock(return_value=None)
+    broker.client.read_with_poll = Mock(
+        side_effect=[
+            [
+                Mock(msg_id=1, message=_expected_payload(first_message)),
+                Mock(msg_id=2, message=_expected_payload(second_message)),
+            ],
+            [],
+        ]
+    )
+    broker.client.set_vt = Mock()
+    broker.client.archive = Mock()
+
+    consumer = broker.consume("default", prefetch=2, timeout=10)
+
+    first = next(consumer)
+    assert first is not None
+    assert next(consumer) is not None
+    assert next(consumer) is None  # at capacity, no read issued
+
+    consumer.ack(first)
+
+    assert next(consumer) is None  # one slot free again: reads, queue is empty
+    assert broker.client.read_with_poll.call_count == 2
+    # Only the freed slot may be requested, keeping in-flight <= prefetch.
+    assert broker.client.read_with_poll.call_args.kwargs["qty"] == 1
+
+    consumer.close()
+
+
 def test_postgres_consumer_falls_back_to_polling_when_listener_stops_during_wait():
     broker = PostgresBroker(url=TEST_POSTGRES_URL, middleware=[])
     broker.queues["default"] = None
