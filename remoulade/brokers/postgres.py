@@ -215,7 +215,13 @@ class PostgresBroker(Broker):
 
     @override
     def declare_queue(self, queue_name: str) -> None:
-        """Create a partitioned PGMQ queue if it does not already exist."""
+        """Create a partitioned PGMQ queue if it does not already exist.
+
+        Also ensures the queue table has a btree index on ``msg_id`` — even
+        for pre-existing queues, so queues created before remoulade added the
+        index pick it up on the next declaration. On a large existing queue
+        the initial index build locks the table for its duration.
+        """
         if queue_name in self.queues:
             return
         with self.tx():
@@ -238,10 +244,28 @@ class PostgresBroker(Broker):
                 if self.enable_listen_notify:
                     self._try_enable_notify(queue_name)
 
+            self._create_msg_id_index(queue_name, self._current_connection)
+
         self.queues[queue_name] = None
 
         if not queue_exists:
             self.emit_after("declare_queue", queue_name)
+
+    def _create_msg_id_index(self, queue_name: str, connection: "Connection") -> None:
+        """Ensure the queue table has a btree index on ``msg_id``.
+
+        PGMQ's time-partitioned queue tables ship without one, so every
+        ``archive`` (ack/nack) and ``set_vt`` (heartbeat, requeue) lookup seq
+        scans all partitions. Created on the partitioned parent, the index
+        propagates to existing and future partitions. ``msg_id`` never
+        changes, so the index does not defeat HOT updates of ``vt``/``read_ct``.
+
+        The queue name must already be validated (``validate_queue_name``)
+        since it is interpolated as an identifier.
+        """
+        connection.execute(
+            text(f'CREATE INDEX IF NOT EXISTS "q_{queue_name}_msg_id_idx" ON pgmq."q_{queue_name}" (msg_id)')
+        )
 
     def _encode_message(self, message: "Message") -> PostgresPayload:
         """Encode a Remoulade message into a JSON object payload for PGMQ.
