@@ -6,6 +6,12 @@ Changelog
 All notable changes to this project will be documented in this file.
 
 =======
+`6.2.1`_ -- 2026-07-08
+-------------
+Fixed
+^^^^^
+* Make Redis Sentinel clients resilient to dropped connections: set ``health_check_interval``, ``socket_keepalive`` and a ``retry`` on ``ConnectionError``/``TimeoutError``, so a transient Sentinel connection reset recovers transparently instead of raising ``MasterNotFoundError``.
+
 `6.2.0`_ -- 2026-05-18
 -------------
 Feat

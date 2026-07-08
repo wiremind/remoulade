@@ -3,13 +3,20 @@ import time
 from queue import Queue
 
 import pytest
+from redis import ConnectionError as RedisConnectionError
+from redis.asyncio.retry import Retry as AsyncRetry
+from redis.retry import Retry
 
 import remoulade
 from remoulade import QueueJoinTimeout
 from remoulade.helpers import compute_backoff, get_actor_arguments
 from remoulade.helpers.queues import join_queue
+from remoulade.helpers.redis_client import HEALTH_CHECK_INTERVAL, async_redis_client, redis_client
 from remoulade.helpers.reduce import reduce
 from remoulade.results import Results
+
+SENTINEL_URL = "sentinel://:secret@localhost:26379/mymaster"
+PLAIN_URL = "redis://localhost:6379/0"
 
 
 def test_reduce_messages(stub_broker, stub_worker, result_backend):
@@ -131,3 +138,32 @@ def test_join_queue_stdlib_fallback_timeout_raises_queue_join_timeout():
 
     with pytest.raises(QueueJoinTimeout):
         join_queue(queue, timeout=0.01)
+
+
+@pytest.mark.parametrize("url", [SENTINEL_URL, PLAIN_URL])
+def test_redis_client_sets_resilient_connection_parameters(url):
+    connection_kwargs = redis_client(url, socket_timeout=5.0).connection_pool.connection_kwargs
+
+    assert connection_kwargs["health_check_interval"] == HEALTH_CHECK_INTERVAL
+    assert connection_kwargs["socket_keepalive"] is True
+    assert isinstance(connection_kwargs["retry"], Retry)
+    assert RedisConnectionError in connection_kwargs["retry_on_error"]
+
+
+@pytest.mark.parametrize("url", [SENTINEL_URL, PLAIN_URL])
+def test_async_redis_client_sets_resilient_connection_parameters(url):
+    connection_kwargs = async_redis_client(url, socket_timeout=5.0).connection_pool.connection_kwargs
+
+    assert connection_kwargs["health_check_interval"] == HEALTH_CHECK_INTERVAL
+    assert connection_kwargs["socket_keepalive"] is True
+    assert isinstance(connection_kwargs["retry"], AsyncRetry)
+    assert RedisConnectionError in connection_kwargs["retry_on_error"]
+
+
+def test_redis_client_is_resilient_without_socket_timeout():
+    # The scheduler builds its client without a socket_timeout; it must still get health checks and retries.
+    connection_kwargs = redis_client(PLAIN_URL).connection_pool.connection_kwargs
+
+    assert connection_kwargs["health_check_interval"] == HEALTH_CHECK_INTERVAL
+    assert isinstance(connection_kwargs["retry"], Retry)
+    assert RedisConnectionError in connection_kwargs["retry_on_error"]
