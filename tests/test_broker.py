@@ -104,6 +104,68 @@ def test_custom_middleware_is_appended(stub_broker):
     assert isinstance(stub_broker.middleware[middleware_count], TestMiddleware)
 
 
+class _EnqueueRecorder(Middleware):
+    def __init__(self):
+        self.events = []
+
+    def before_enqueue(self, broker, message, delay):
+        self.events.append(("before", message.args[0]))
+
+    def after_enqueue(self, broker, message, delay, exception=None):
+        self.events.append(("after", message.args[0], exception is not None))
+
+
+def test_enqueue_many_groups_before_calls_then_after_calls(stub_broker):
+    @remoulade.actor
+    def do_work(index):
+        return index
+
+    stub_broker.declare_actor(do_work)
+    recorder = _EnqueueRecorder()
+    stub_broker.add_middleware(recorder)
+
+    messages = [do_work.message(0), do_work.message(1)]
+    stub_broker.enqueue_many(messages)
+
+    # Every message goes through the enqueue middleware, but all before_enqueue calls happen before the
+    # (batched) write and all after_enqueue calls after it, instead of being interleaved per message.
+    assert recorder.events == [
+        ("before", 0),
+        ("before", 1),
+        ("after", 0, False),
+        ("after", 1, False),
+    ]
+
+
+def test_enqueue_many_emits_after_with_exception_only_for_started_messages(stub_broker):
+    @remoulade.actor
+    def do_work(index):
+        return index
+
+    stub_broker.declare_actor(do_work)
+    recorder = _EnqueueRecorder()
+    stub_broker.add_middleware(recorder)
+
+    boom = RuntimeError("backend down")
+
+    def failing_enqueue_many(messages, *, delay=None):
+        raise boom
+
+    stub_broker._enqueue_many = failing_enqueue_many
+
+    messages = [do_work.message(0), do_work.message(1)]
+    with pytest.raises(RuntimeError):
+        stub_broker.enqueue_many(messages)
+
+    # before ran for both, and after (with exception) is emitted for both so nothing leaks a dangling span/state
+    assert recorder.events == [
+        ("before", 0),
+        ("before", 1),
+        ("after", 0, True),
+        ("after", 1, True),
+    ]
+
+
 def test_can_instantiate_brokers_without_middleware():
     # Given that I have an empty list of middleware
     # When I pass that to the RMQ Broker

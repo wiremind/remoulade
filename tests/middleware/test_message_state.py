@@ -8,7 +8,6 @@ from remoulade import group
 from remoulade.cancel import Cancel
 from remoulade.middleware import Middleware, SkipMessage
 from remoulade.state.backend import State, StateStatusesEnum
-from remoulade.state.backends import PostgresBackend
 from remoulade.state.middleware import MessageState
 from tests.conftest import mock_func
 
@@ -104,9 +103,6 @@ class TestMessageState:
 
     @pytest.mark.parametrize("ttl, result_type", [pytest.param(1000, State), pytest.param(1, type(None))])
     def test_expiration_data_backend(self, ttl, result_type, stub_broker, state_backend):
-        if isinstance(state_backend, PostgresBackend):
-            pytest.skip("Skipping this test as there is no expiration on PostgresBackend")
-
         @remoulade.actor
         def wait():
             pass

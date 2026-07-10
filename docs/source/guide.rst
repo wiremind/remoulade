@@ -170,7 +170,7 @@ actor an invalid URL.  Let's try it::
 
 
 Message Retries
----------------
+^^^^^^^^^^^^^^^
 
 If an error occurs during message processing, it will be terminated with a failure message.
 Alternatively, you can add the |Retries| Middleware to the broker and set the max_retries or retry_when option to automatically retry your message on failure.
@@ -208,7 +208,7 @@ max_retries
 The maximum number of times a message should be retried. Default to ``0``.
 
 min_backoff
-^^^^^^^^^^^
+^^^^^^^^^^^^^^^
 
 The minimum number of milliseconds of backoff to apply between retries.  Must be greater than 100 milliseconds. Defaults to 15 seconds.
 
@@ -331,6 +331,11 @@ milliseconds)::
 Keep in mind that *your message broker is not a database*.  Scheduled
 messages should represent a small subset of all your messages.
 
+On brokers that emulate delay in worker memory, the enqueued message
+will carry an ``eta`` option.  ``PostgresBroker`` stores delayed messages in
+PostgreSQL natively instead, so the message it returns does not include
+``eta``.
+
 
 Prioritizing Messages
 ---------------------
@@ -381,7 +386,7 @@ Message Brokers
 ---------------
 
 Remoulade abstracts over the notion of a message broker and currently
-supports RabbitMQ out of the box.
+supports RabbitMQ and PostgreSQL/PGMQ out of the box.
 
 RabbitMQ Broker
 ^^^^^^^^^^^^^^^
@@ -396,6 +401,52 @@ execution::
 
   rabbitmq_broker = RabbitmqBroker(url="rabbitmq")
   remoulade.set_broker(rabbitmq_broker)
+
+
+Postgres Broker
+^^^^^^^^^^^^^^^
+
+To configure PostgreSQL/PGMQ, install ``remoulade[postgres]`` and
+instantiate a ``PostgresBroker`` with a PostgreSQL URL as early as possible
+during your program's execution. This broker must be used with a PostgreSQL
+user allowed to create and delete tables::
+
+  import remoulade
+
+  from remoulade.brokers.postgres import PostgresBroker
+
+  postgres_broker = PostgresBroker(url="postgresql://remoulade@localhost:5432/remoulade")
+  remoulade.set_broker(postgres_broker)
+
+PGMQ handles delayed messages natively, so ``send_with_options(delay=...)``
+does not create a worker-side delay queue or add an ``eta`` option to
+the message.
+
+Each queue is created as a **partitioned** PGMQ queue (through
+``pgmq.create_partitioned``), which relies on the PostgreSQL ``pg_partman``
+extension. Messages are stored in time-based partitions of the queue table,
+and once a message is acked or nacked it is moved to the queue's archive
+table, which is partitioned the same way. Two broker parameters control this:
+
+``archive_partition_interval_in_days`` (default ``1``)
+  The time span covered by a single partition. Smaller values create more,
+  smaller partitions; larger values create fewer, larger ones.
+
+``archive_retention_interval_in_days`` (default ``7``)
+  How long a partition is kept before ``pg_partman`` drops it. Archived
+  messages older than this window are removed together with their partition,
+  so set it comfortably above your longest expected processing and retry
+  window.
+
+.. note::
+
+   Partitioning is maintained by ``pg_partman``: its maintenance routine must run periodically —
+   through the ``pg_partman`` background worker, a ``pg_cron`` job, or an application-level scheduled
+   task — to create upcoming partitions ahead of time and drop expired ones. It should also set
+   ``infinite_time_partitions = true`` on every queue and archive partition set so ``pg_partman``
+   keeps maintaining partitions up to the current time even after a gap in activity. The official
+   PGMQ Docker image (``ghcr.io/pgmq/pg18-pgmq``) ships ``pg_partman`` and schedules this for you; on
+   a self-managed or hosted PostgreSQL you must enable it yourself.
 
 
 Local Broker
@@ -472,4 +523,3 @@ synchronously by calling them as you would normal functions.
 
 .. _pytest fixtures: https://docs.pytest.org/en/latest/fixture.html
 .. _priority documentation: https://www.rabbitmq.com/priority.html
-

@@ -1,15 +1,4 @@
 try:
-    from .postgres import PostgresBackend
-except ImportError:  # pragma: no cover
-    import warnings
-
-    warnings.warn(
-        "PostgresBackend is not available.  Run `pip install remoulade[postgres]` to add support for that backend.",
-        ImportWarning,
-        stacklevel=2,
-    )
-
-try:
     from .redis import RedisBackend
     from .stub import StubBackend
 except ImportError:  # pragma: no cover
@@ -21,4 +10,4 @@ except ImportError:  # pragma: no cover
         stacklevel=2,
     )
 
-__all__ = ["PostgresBackend", "RedisBackend", "StubBackend"]
+__all__ = ["RedisBackend", "StubBackend"]

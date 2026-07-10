@@ -72,9 +72,9 @@ class ScheduledJob:
                     str(self.iso_weekday),
                     str(self.enabled),
                     self.tz,
-                    *(encoder.encode(arg).decode() for arg in self.args),
+                    *(encoder.encode_in_bytes(arg).decode() for arg in self.args),
                     *(
-                        f"{name}: {encoder.encode(arg).decode()}"
+                        f"{name}: {encoder.encode_in_bytes(arg).decode()}"
                         for name, arg in sorted(self.kwargs.items(), key=itemgetter(0))
                     ),
                 ]
@@ -104,11 +104,11 @@ class ScheduledJob:
         return job_dict
 
     def encode(self) -> bytes:
-        return get_encoder().encode(self.as_dict(encode=True))
+        return get_encoder().encode_in_bytes(self.as_dict(encode=True))
 
     @classmethod
     def decode(cls, data: bytes) -> "ScheduledJob":
-        data = get_encoder().decode(data)
+        data = get_encoder().decode_bytes(data)
         return ScheduledJob(
             actor_name=data["actor_name"],
             interval=data["interval"],

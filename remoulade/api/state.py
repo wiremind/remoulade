@@ -5,20 +5,10 @@ from werkzeug.exceptions import NotFound
 
 from remoulade import get_broker
 from remoulade.state import State, StateStatusesEnum
-from remoulade.state.backends import PostgresBackend
 
 from .apispec import validate_schema
 
 messages_bp = Blueprint("messages", __name__, url_prefix="/messages")
-
-
-class DeleteSchema(Schema):
-    """
-    Class to validate delete body data in /messages/states
-    """
-
-    max_age = fields.Int(allow_none=True)
-    not_started = fields.Bool(load_default=False)
 
 
 class StatesParamsSchema(Schema):
@@ -81,17 +71,6 @@ def get_states(**kwargs):
     return {"data": data, "count": backend.get_states_count(**kwargs)}
 
 
-@messages_bp.route("/states", methods=["DELETE"])
-@doc(tags=["state"])
-@validate_schema(DeleteSchema)
-def clean_states(**kwargs):
-    backend = get_broker().get_state_backend()
-    if not isinstance(backend, PostgresBackend):
-        return {"error": "deleting states is only supported by the PostgresBackend"}, 400
-    get_broker().get_state_backend().clean(**kwargs)
-    return {"result": "ok"}
-
-
 @messages_bp.route("/states/<message_id>")
 @doc(tags=["state"])
 @marshal_with(StateSchema)
@@ -103,4 +82,4 @@ def get_state(message_id):
     return data.as_dict()
 
 
-messages_routes = [get_states, clean_states, get_state]
+messages_routes = [get_states, get_state]

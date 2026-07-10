@@ -28,7 +28,7 @@ jobs:
         ports:
           - 5784:5672
       postgres:
-        image: postgres:16
+        image: ghcr.io/pgmq/pg18-pgmq:v1.10.0
         ports:
           - 5544:5432
         env:

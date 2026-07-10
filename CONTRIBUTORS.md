@@ -30,7 +30,11 @@ of those changes to CLEARTYPE SRL.
 | [@thomasLeMeur](https://github.com/thomasLeMeur)                 | Thomas Le Meur         |
 | [@fregogui](https://github.com/fregogui)                         | Guillaume Fregosi      |
 | [@pgitips](https://github.com/pgitips)                           | Pierre Giraud          |
+
+
+
 | [@williampollet](https://github.com/williampollet)               | William Pollet         |
 | [@mehdithez](https://github.com/mehdithez)                       | Zeroual Mehdi          |
-| [@julien-duponchelle](https://github.com/julien-duponchelle)    |  Julien Duponchelle           |
-| [@alisterd51](https://github.com/alisterd51)       | Antoine Clarman        |
+| [@mducros-wm](https://github.com/mducros-wm)                     | Martin Ducros          |
+| [@julien-duponchelle](https://github.com/julien-duponchelle)     | Julien Duponchelle     |
+| [@alisterd51](https://github.com/alisterd51)                     | Antoine Clarman        |

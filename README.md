@@ -23,10 +23,17 @@ If you want to use it with [RabbitMQ]
     uv pip install 'remoulade[rabbitmq]'
 ```
 
-or if you want to use it with [Redis]
+If you want to use it with [PostgreSQL] and [PGMQ]
 
 ```console
-   uv pip install 'remoulade[redis]'
+    uv pip install 'remoulade[postgres]'
+```
+
+If you want Redis-backed extras like results or cancellation, add [Redis] to the broker extra you use:
+
+```console
+   uv pip install 'remoulade[rabbitmq, redis]'
+   uv pip install 'remoulade[postgres, redis]'
 ```
 
 ## Quickstart
@@ -84,12 +91,6 @@ If you want to contribute to the project. First make a Pull request and get appr
 
 This will trigger a CI/CD pipeline that publish the package
 
-## Dashboard
-
-Check out [SuperBowl](https://github.com/wiremind/super-bowl) a dashboard for real-time monitoring and administrating all your Remoulade tasks.
-***See the current progress, enqueue, requeue, cancel and more ...***
-Super easy to use !.
-
 ## Kubernetes
 
 Remoulade is tailored to run transparently in containers on [Kubernetes](https://kubernetes.io/) and to make the most of their features. This does not mean it cannot run outside of Kubernetes ;)
@@ -110,6 +111,8 @@ remoulade is licensed under the LGPL.  Please see [COPYING] and
 
 [COPYING.LESSER]: https://github.com/wiremind/remoulade/blob/master/COPYING.LESSER
 [COPYING]: https://github.com/wiremind/remoulade/blob/master/COPYING
+[PostgreSQL]: https://www.postgresql.org/
+[PGMQ]: https://pgmq.github.io/pgmq/
 [RabbitMQ]: https://www.rabbitmq.com/
 [Redis]: https://redis.io
 [user guide]: https://remoulade.readthedocs.io/en/latest/guide.html

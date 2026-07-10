@@ -10,14 +10,15 @@ import pytest
 import redis
 from freezegun import freeze_time
 from sqlalchemy.engine import create_engine
-from sqlalchemy.inspection import inspect
 from sqlalchemy.orm.session import sessionmaker
 from sqlalchemy.pool import NullPool
+from sqlalchemy.sql import text
 
 import remoulade
 from remoulade import Worker
 from remoulade.api import app
 from remoulade.brokers.local import LocalBroker
+from remoulade.brokers.postgres import PostgresBroker
 from remoulade.brokers.rabbitmq import RabbitmqBroker
 from remoulade.brokers.stub import StubBroker
 from remoulade.cancel import backends as cl_backends
@@ -32,7 +33,6 @@ from remoulade.state import (
     MessageState,
     backends as st_backends,
 )
-from remoulade.state.backends.postgres import DB_VERSION, StateVersion
 
 logfmt = "[%(asctime)s] [%(threadName)s] [%(name)s] [%(levelname)s] %(message)s"
 logging.basicConfig(level=logging.INFO, format=logfmt)
@@ -64,20 +64,21 @@ def check_redis(client):
 
 
 def check_postgres(client):
+    try:
+        with client.begin() as session:
+            session.execute(text("CREATE SCHEMA IF NOT EXISTS partman"))
+            session.execute(text("CREATE EXTENSION IF NOT EXISTS pg_partman WITH SCHEMA partman"))
+            session.execute(text("CREATE EXTENSION IF NOT EXISTS pgmq"))
+            session.execute(text("SELECT pgmq.validate_queue_name('remoulade_test_queue')"))
+    except Exception as e:
+        raise e from e if CI else pytest.skip("No connection to PostgreSQL/PGMQ server.")
+
+
+def cleanup_postgres_queues(client):
     with client.begin() as session:
-        insp = inspect(session.get_bind())
-        version_exists = insp.has_table("version")
-        states_exists = insp.has_table("states")
-        if version_exists:
-            versions = session.query(StateVersion).all()
-        return version_exists and states_exists and len(versions) == 1 and versions[0].version == DB_VERSION
-
-
-@pytest.fixture
-def check_postgres_begin():
-    client = remoulade.get_broker().get_state_backend().client
-    if not check_postgres(client):
-        pytest.skip("Postgres Database is not in the proper state. Database initialisation is probably incorrect.")
+        queue_names = [row[0] for row in session.execute(text("SELECT queue_name FROM pgmq.list_queues()")).all()]
+        for queue_name in queue_names:
+            session.execute(text("SELECT pgmq.drop_queue(:queue_name)"), {"queue_name": queue_name})
 
 
 @pytest.fixture()
@@ -109,6 +110,27 @@ def rabbitmq_broker(request):
     remoulade.set_broker(broker)
     yield broker
     broker.flush_all()
+    broker.emit_before("process_stop")
+    broker.close()
+
+
+@pytest.fixture()
+def postgres_broker():
+    db_string = os.getenv("REMOULADE_TEST_DB_URL") or "postgresql://remoulade@localhost:5544/test"
+    # Force the psycopg (v3) driver for the raw SQLAlchemy engine: SQLAlchemy defaults
+    # `postgresql://` to psycopg2, which the project does not depend on. This mirrors the driver
+    # swap PGMQ does internally for the broker. The plain `db_string` is kept for PostgresBroker,
+    # whose listener opens a raw psycopg.connect() connection that does not understand `+psycopg`.
+    engine = create_engine(db_string.replace("postgresql://", "postgresql+psycopg://", 1), poolclass=NullPool)
+    client = sessionmaker(bind=engine)
+    check_postgres(client)
+    cleanup_postgres_queues(client)
+
+    broker = PostgresBroker(url=db_string)
+    broker.emit_after("process_boot")
+    remoulade.set_broker(broker)
+    yield broker
+    cleanup_postgres_queues(client)
     broker.emit_before("process_stop")
     broker.close()
 
@@ -200,19 +222,11 @@ def stub_state_backend():
 
 
 @pytest.fixture
-def postgres_state_backend():
-    db_string = os.getenv("REMOULADE_TEST_DB_URL") or "postgresql://remoulade@localhost:5544/test"
-    backend = st_backends.PostgresBackend(client=sessionmaker(create_engine(db_string, poolclass=NullPool)))
-    backend.clean()
-    return backend
+def state_backends(redis_state_backend, stub_state_backend):
+    return {"redis": redis_state_backend, "stub": stub_state_backend}
 
 
-@pytest.fixture
-def state_backends(postgres_state_backend, redis_state_backend, stub_state_backend):
-    return {"postgres": postgres_state_backend, "redis": redis_state_backend, "stub": stub_state_backend}
-
-
-@pytest.fixture(params=["postgres", "redis", "stub"])
+@pytest.fixture(params=["redis", "stub"])
 def state_backend(request, state_backends):
     return state_backends[request.param]
 
@@ -221,14 +235,6 @@ def state_backend(request, state_backends):
 def state_middleware(state_backend):
     broker = remoulade.get_broker()
     middleware = MessageState(backend=state_backend)
-    broker.add_middleware(middleware)
-    return middleware
-
-
-@pytest.fixture
-def postgres_state_middleware(postgres_state_backend):
-    broker = remoulade.get_broker()
-    middleware = MessageState(backend=postgres_state_backend)
     broker.add_middleware(middleware)
     return middleware
 

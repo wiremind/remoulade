@@ -194,6 +194,8 @@ class Broker:
         overwrite when they are declared.
     """
 
+    supports_native_delay = False
+
     def __init__(self, middleware: "Iterable[Middleware] | None" = None):
         self.logger = get_logger(__name__, type(self))
         self.actors: dict[str, Actor] = {}
@@ -420,9 +422,23 @@ class Broker:
         raise NotImplementedError
 
     def _apply_delay(self, message: "Message", delay: int | None = None) -> "Message":
-        raise NotImplementedError
+        """If your broker doesn't support native delay, you need to override this method"""
+        if self.supports_native_delay:
+            return message
+        else:
+            raise NotImplementedError("delay is not supported natively, you need to implement it")
 
     def _enqueue(self, message: "Message", *, delay: int | None = None) -> "Message":
+        raise NotImplementedError
+
+    def _enqueue_many(self, messages: list["Message[Any]"], *, delay: int | None = None) -> list["Message[Any]"]:
+        """Raw batch-enqueue hook, called by :meth:`enqueue_many` after ``emit_before``.
+
+        The default implementation simply loops over :meth:`_enqueue`, so brokers that do not
+        override it behave exactly as if each message had been enqueued on its own. Brokers whose
+        backend supports a native batch insert (e.g. PGMQ ``send_batch``) should override this to
+        collapse the N writes into a single round-trip.
+        """
         raise NotImplementedError
 
     def enqueue(self, message: "Message[Any]", *, delay: int | None = None) -> "Message[Any]":  # pragma: no cover
@@ -446,6 +462,42 @@ class Broker:
 
         except BaseException as e:
             self.emit_after("enqueue", message, delay, exception=e)
+            raise e from e
+
+    def enqueue_many(self, messages: list["Message[Any]"], *, delay: int | None = None) -> list["Message[Any]"]:
+        """Enqueue several messages on this broker, batching the backend write when possible.
+
+        The enqueue middleware still runs once per message, but the ``emit_before`` calls are grouped
+        before the (batched) write and the ``emit_after`` calls after it, instead of being interleaved
+        per message as in :meth:`enqueue`. This ordering is what lets a broker collapse the N backend
+        writes into one (see :meth:`_enqueue_many`). ``group.run()`` uses this to fan out a group in a
+        single backend round-trip.
+
+        On failure, ``emit_after`` is emitted (with the exception) only for the messages whose
+        ``emit_before`` already ran, so tracing spans / message state opened in ``before_enqueue`` are
+        always closed.
+
+        Parameters:
+          messages(list[Message]): The messages to enqueue.
+          delay(int): The number of milliseconds to delay every message for.
+
+        Returns:
+          list[Message]: The enqueued messages.
+        """
+        messages = [self._apply_delay(message, delay) for message in messages]
+        emitted_before: list[Message[Any]] = []
+        try:
+            for message in messages:
+                self.emit_before("enqueue", message, delay)
+                emitted_before.append(message)
+            messages = self._enqueue_many(messages, delay=delay)
+            for message in messages:
+                self.emit_after("enqueue", message, delay)
+            return messages
+
+        except BaseException as e:
+            for message in emitted_before:
+                self.emit_after("enqueue", message, delay, exception=e)
             raise e from e
 
     def get_actor(self, actor_name: str) -> "Actor":  # pragma: no cover

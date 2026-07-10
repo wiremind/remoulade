@@ -8,10 +8,12 @@ services:
     ports:
       - "5784:5672"
   postgres:
-    image: postgres
+    image: ghcr.io/pgmq/pg18-pgmq:v1.10.0
     ports:
       - "5544:5432"
     environment:
       POSTGRES_USER: remoulade
       POSTGRES_HOST_AUTH_METHOD: trust
       POSTGRES_DB: test
+    volumes:
+      - ./docker/postgres/01-create-postgres-extension.sql:/docker-entrypoint-initdb.d/01-create-postgres-extension.sql:ro

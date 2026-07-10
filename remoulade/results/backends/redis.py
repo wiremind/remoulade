@@ -88,7 +88,7 @@ class RedisBackend(ResultBackend):
                 for message_id in message_ids:
                     message_key = self.build_message_key(message_id)
                     if forget:
-                        pipe.rpushx(message_key, self.encoder.encode(ForgottenResult.asdict()))
+                        pipe.rpushx(message_key, self.encoder.encode_in_bytes(ForgottenResult.asdict()))
                         pipe.lpop(message_key)
                     else:
                         pipe.rpoplpush(message_key, message_key)
@@ -98,7 +98,7 @@ class RedisBackend(ResultBackend):
                     continue  # skip one row in two if forget as there is two commands
                 if row is None:
                     raise ResultMissing(message_id)
-                yield self.process_result(BackendResult(**self.encoder.decode(row)), raise_on_error)
+                yield self.process_result(BackendResult(**self.encoder.decode_bytes(row)), raise_on_error)
 
     def _brpoplpush_with_timeout(self, src, dst, timeout: int):
         """
@@ -150,7 +150,7 @@ class RedisBackend(ResultBackend):
                 if timeout > 0:
                     if forget:
                         async with self.async_client.pipeline() as pipe:
-                            await pipe.rpushx(message_key, self.encoder.encode(ForgottenResult.asdict()))
+                            await pipe.rpushx(message_key, self.encoder.encode_in_bytes(ForgottenResult.asdict()))
                             await pipe.lpop(message_key)
                             pipe_exec = await pipe.execute()
                             data = pipe_exec[1]
@@ -176,7 +176,7 @@ class RedisBackend(ResultBackend):
                 timeout = int(deadline - time.monotonic())
                 if timeout <= 0:  # do not retry is timeout is expired
                     raise
-        result = BackendResult(**self.encoder.decode(data))
+        result = BackendResult(**self.encoder.decode_bytes(data))
         return self.process_result(result, raise_on_error)
 
     def get_result(self, message_id: str, *, block=False, timeout=None, forget=False, raise_on_error=True):
@@ -214,14 +214,14 @@ class RedisBackend(ResultBackend):
                     data = self._brpoplpush_with_timeout(message_key, message_key, timeout=timeout)
                     if forget and data is not None:
                         with self.client.pipeline() as pipe:
-                            pipe.lpushx(message_key, self.encoder.encode(ForgottenResult.asdict()))
+                            pipe.lpushx(message_key, self.encoder.encode_in_bytes(ForgottenResult.asdict()))
                             pipe.ltrim(message_key, 0, 0)
                             pipe.execute()
 
                 else:
                     if forget:
                         with self.client.pipeline() as pipe:
-                            pipe.rpushx(message_key, self.encoder.encode(ForgottenResult.asdict()))
+                            pipe.rpushx(message_key, self.encoder.encode_in_bytes(ForgottenResult.asdict()))
                             pipe.lpop(message_key)
                             data = pipe.execute()[1]
                     else:
@@ -251,21 +251,21 @@ class RedisBackend(ResultBackend):
                 if block and timeout <= 0:  # do not retry is timeout is expired
                     raise
 
-        result = BackendResult(**self.encoder.decode(data))
+        result = BackendResult(**self.encoder.decode_bytes(data))
         return self.process_result(result, raise_on_error)
 
     def _store(self, message_keys, results, ttl):
         with self.client.pipeline() as pipe:
             for message_key, result in zip(message_keys, results, strict=False):
                 pipe.delete(message_key)
-                pipe.lpush(message_key, self.encoder.encode(result))
+                pipe.lpush(message_key, self.encoder.encode_in_bytes(result))
                 pipe.pexpire(message_key, ttl)
             pipe.execute()
 
     def _get(self, key, forget=False):
         data = self.client.rpop(key) if forget else self.client.rpoplpush(key, key)
         if data:
-            return self.encoder.decode(data)
+            return self.encoder.decode_bytes(data)
         return Missing
 
     def _delete(self, key):

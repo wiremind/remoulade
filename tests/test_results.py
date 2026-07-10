@@ -534,7 +534,7 @@ def test_redis_get_result_with_block_timeout_larger_than_socket_timeout(redis_re
             redis.TimeoutError(),
             redis.TimeoutError(),
             redis.TimeoutError(),
-            redis_result_backend.encoder.encode(ForgottenResult.asdict()),
+            redis_result_backend.encoder.encode_in_bytes(ForgottenResult.asdict()),
         ]
         redis_result_backend.max_retries = 1
         redis_result_backend.get_result("message-id", block=True, forget=False, timeout=60 * 1000)
@@ -545,7 +545,7 @@ def test_redis_get_result_with_block_timeout_larger_than_socket_timeout(redis_re
 @mock.patch("remoulade.results.backends.redis.compute_backoff", fast_backoff)
 def test_redis_get_result_still_return_result_if_forget_fails(redis_result_backend):
     with patch.object(redis_result_backend, "client") as mock_client:
-        mock_client.brpoplpush.return_value = redis_result_backend.encoder.encode(ForgottenResult.asdict())
+        mock_client.brpoplpush.return_value = redis_result_backend.encoder.encode_in_bytes(ForgottenResult.asdict())
         mock_client.pipeline.side_effect = redis.ConnectionError()
         assert redis_result_backend.get_result("message-id", block=True, forget=True) is None
         assert mock_client.brpoplpush.call_count == 1
@@ -613,7 +613,7 @@ async def test_redis_async_get_result_with_block_timeout_larger_than_socket_time
             redis.TimeoutError(),
             redis.TimeoutError(),
             redis.TimeoutError(),
-            redis_result_backend.encoder.encode(ForgottenResult.asdict()),
+            redis_result_backend.encoder.encode_in_bytes(ForgottenResult.asdict()),
         ]
         redis_result_backend.max_retries = 1
         await redis_result_backend.async_get_result("message-id", forget=False, timeout=60 * 1000)

@@ -45,6 +45,15 @@ def test_pickle_encoder(pickle_encoder, stub_broker, stub_worker):
     assert db == [1]
 
 
+def test_json_encoder_json_round_trip():
+    encoder = JSONEncoder()
+    data = {"queue_name": "default", "args": [1, 2], "kwargs": {"debug": True}}
+
+    assert encoder.encode_in_json(data) == data
+    assert encoder.decode_json(data) == data
+    assert encoder.decode_bytes(encoder.encode_in_bytes(data)) == data
+
+
 class MyEnum(Enum):
     val = "val"
     other = "other"
@@ -155,29 +164,46 @@ def encoder_with_fallback(stub_broker, stub_worker, result_backend) -> PydanticE
 
 
 def test_encoder_message(encoder: PydanticEncoder, message_data_decoded: MessageData, message_data_encoded: bytes):
-    encoded_result = encoder.encode(message_data_decoded)
+    encoded_result = encoder.encode_in_bytes(message_data_decoded)
     assert encoded_result == message_data_encoded
 
-    decoded_result = encoder.decode(message_data_encoded)
+    decoded_result = encoder.decode_bytes(message_data_encoded)
 
     # Args tuple are assumed to become list in remoulade
     assert decoded_result == tuple_to_list(message_data_decoded, "args")
 
-    assert encoder.decode(encoder.encode(message_data_decoded)) == tuple_to_list(message_data_decoded, "args")
-    assert encoder.encode(encoder.decode(message_data_encoded)) == message_data_encoded
+    assert encoder.decode_bytes(encoder.encode_in_bytes(message_data_decoded)) == tuple_to_list(
+        message_data_decoded, "args"
+    )
+    assert encoder.encode_in_bytes(encoder.decode_bytes(message_data_encoded)) == message_data_encoded
+
+
+def test_encoder_json_message_round_trip(pydantic_encoder, encoder: PydanticEncoder, message_data_decoded: MessageData):
+    message = Message(**message_data_decoded)
+
+    encoded_json = message.encode_in_json()
+
+    assert encoded_json["args"] == [json.loads(input_1.model_dump_json()) for input_1 in message.args]
+    assert encoded_json["kwargs"] == {"input_2": json.loads(message.kwargs["input_2"].model_dump_json())}
+
+    decoded_message = Message.decode_json(encoded_json)
+
+    assert decoded_message == message
+    assert isinstance(decoded_message.args[0], MyFirstSchema)
+    assert isinstance(decoded_message.kwargs["input_2"], MySecondSchema)
 
 
 def test_message_unknown_actor(encoder: PydanticEncoder, message_data_encoded: bytes):
     message_json_decoded = json.loads(message_data_encoded.decode("utf-8"))
     message_json_decoded["actor_name"] = "titi"
     with pytest.raises(ActorNotFound):
-        encoder.decode(json.dumps(message_json_decoded).encode("utf-8"))
+        encoder.decode_bytes(json.dumps(message_json_decoded).encode("utf-8"))
 
 
 def test_message_fallback_no_actor_name(encoder_with_fallback: PydanticEncoder, message_data_encoded: bytes):
     message_json_decoded = json.loads(message_data_encoded.decode("utf-8"))
     message_json_decoded["actor_name"] = "titi"
-    decoded_result = encoder_with_fallback.decode(json.dumps(message_json_decoded).encode("utf-8"))
+    decoded_result = encoder_with_fallback.decode_bytes(json.dumps(message_json_decoded).encode("utf-8"))
     # Do not raise and keep dict instead of schema
     assert decoded_result == tuple_to_list(message_json_decoded, "args")
 
@@ -187,7 +213,7 @@ def test_message_schema_not_matching(encoder: PydanticEncoder, message_data_enco
     message_json_decoded["args"] = [{"toto": "a"}]
     message_json_decoded["kwargs"]["input_2"] = {"val": "aaa"}
     with pytest.raises(ValidationError):
-        encoder.decode(json.dumps(message_json_decoded).encode("utf-8"))
+        encoder.decode_bytes(json.dumps(message_json_decoded).encode("utf-8"))
 
 
 @pytest.fixture
@@ -236,76 +262,76 @@ def backend_result_encoded_none() -> bytes:
 
 
 def test_encoder_result(encoder: PydanticEncoder, backend_result_decoded: MessageData, backend_result_encoded: bytes):
-    encoded_value = encoder.encode(backend_result_decoded)
+    encoded_value = encoder.encode_in_bytes(backend_result_decoded)
     assert encoded_value == backend_result_encoded
 
-    decoded_result = encoder.decode(backend_result_encoded)
+    decoded_result = encoder.decode_bytes(backend_result_encoded)
 
     assert decoded_result == backend_result_decoded
 
-    assert encoder.decode(encoder.encode(backend_result_decoded)) == backend_result_decoded
-    assert encoder.encode(encoder.decode(backend_result_encoded)) == backend_result_encoded
+    assert encoder.decode_bytes(encoder.encode_in_bytes(backend_result_decoded)) == backend_result_decoded
+    assert encoder.encode_in_bytes(encoder.decode_bytes(backend_result_encoded)) == backend_result_encoded
 
 
 def test_encoder_result_when_raise(
     encoder: PydanticEncoder, backend_result_decoded_raise: MessageData, backend_result_encoded_raise: bytes
 ):
-    encoded_value = encoder.encode(backend_result_decoded_raise)
+    encoded_value = encoder.encode_in_bytes(backend_result_decoded_raise)
     assert encoded_value == backend_result_encoded_raise
 
-    decoded_result = encoder.decode(backend_result_encoded_raise)
+    decoded_result = encoder.decode_bytes(backend_result_encoded_raise)
 
     assert decoded_result == backend_result_decoded_raise
 
-    assert encoder.decode(encoder.encode(backend_result_decoded_raise)) == backend_result_decoded_raise
-    assert encoder.encode(encoder.decode(backend_result_encoded_raise)) == backend_result_encoded_raise
+    assert encoder.decode_bytes(encoder.encode_in_bytes(backend_result_decoded_raise)) == backend_result_decoded_raise
+    assert encoder.encode_in_bytes(encoder.decode_bytes(backend_result_encoded_raise)) == backend_result_encoded_raise
 
 
 def test_encoder_result_tuple(
     encoder: PydanticEncoder, backend_result_decoded_tuple: MessageData, backend_result_encoded_tuple: bytes
 ):
-    encoded_value = encoder.encode(backend_result_decoded_tuple)
+    encoded_value = encoder.encode_in_bytes(backend_result_decoded_tuple)
     assert encoded_value == backend_result_encoded_tuple
 
-    decoded_result = encoder.decode(backend_result_encoded_tuple)
+    decoded_result = encoder.decode_bytes(backend_result_encoded_tuple)
 
     assert decoded_result == backend_result_decoded_tuple
 
-    assert encoder.decode(encoder.encode(backend_result_decoded_tuple)) == backend_result_decoded_tuple
-    assert encoder.encode(encoder.decode(backend_result_encoded_tuple)) == backend_result_encoded_tuple
+    assert encoder.decode_bytes(encoder.encode_in_bytes(backend_result_decoded_tuple)) == backend_result_decoded_tuple
+    assert encoder.encode_in_bytes(encoder.decode_bytes(backend_result_encoded_tuple)) == backend_result_encoded_tuple
 
 
 def test_encoder_result_with_none(
     encoder: PydanticEncoder, backend_result_decoded_none: MessageData, backend_result_encoded_none: bytes
 ):
-    encoded_value = encoder.encode(backend_result_decoded_none)
+    encoded_value = encoder.encode_in_bytes(backend_result_decoded_none)
     assert encoded_value == backend_result_encoded_none
 
-    decoded_result = encoder.decode(backend_result_encoded_none)
+    decoded_result = encoder.decode_bytes(backend_result_encoded_none)
 
     assert decoded_result == backend_result_decoded_none
 
-    assert encoder.decode(encoder.encode(backend_result_decoded_none)) == backend_result_decoded_none
-    assert encoder.encode(encoder.decode(backend_result_encoded_none)) == backend_result_encoded_none
+    assert encoder.decode_bytes(encoder.encode_in_bytes(backend_result_decoded_none)) == backend_result_decoded_none
+    assert encoder.encode_in_bytes(encoder.decode_bytes(backend_result_encoded_none)) == backend_result_encoded_none
 
 
 def test_backend_result_unknown_actor(encoder: PydanticEncoder, backend_result_encoded_tuple: bytes):
     backend_result_json_decoded = json.loads(backend_result_encoded_tuple.decode("utf-8"))
     backend_result_json_decoded["actor_name"] = "titi"
     with pytest.raises(ActorNotFound):
-        encoder.decode(json.dumps(backend_result_json_decoded).encode("utf-8"))
+        encoder.decode_bytes(json.dumps(backend_result_json_decoded).encode("utf-8"))
 
 
 def test_backend_result_schema_not_matching(encoder: PydanticEncoder, backend_result_encoded_tuple: bytes):
     backend_result_json_decoded = json.loads(backend_result_encoded_tuple.decode("utf-8"))
     backend_result_json_decoded["result"] = [{"val": "titi"}]
     with pytest.raises(ValidationError):
-        encoder.decode(json.dumps(backend_result_json_decoded).encode("utf-8"))
+        encoder.decode_bytes(json.dumps(backend_result_json_decoded).encode("utf-8"))
 
 
 def test_fallback_no_schema(encoder_with_fallback: PydanticEncoder, backend_result_encoded_tuple: bytes):
     backend_result_json_decoded = json.loads(backend_result_encoded_tuple.decode("utf-8"))
     backend_result_json_decoded["result"] = [{"val": "titi"}]
-    decoded_backend_result = encoder_with_fallback.decode(json.dumps(backend_result_json_decoded).encode("utf-8"))
+    decoded_backend_result = encoder_with_fallback.decode_bytes(json.dumps(backend_result_json_decoded).encode("utf-8"))
     # Do not raise and keep dict instead of schema
     assert decoded_backend_result == backend_result_json_decoded

@@ -19,15 +19,15 @@ import abc
 import json
 import pickle
 import warnings
-from typing import Annotated, Any, get_type_hints
+from typing import Annotated, Any, get_type_hints, override
+
+from remoulade.errors import UnsupportedMessageEncoding
 
 try:
-    from pydantic import BaseModel, TypeAdapter, WithJsonSchema
-    from simplejson.decoder import JSONDecoder
-    from simplejson.encoder import JSONEncoder as _JSONEncoder
+    from pydantic import TypeAdapter, WithJsonSchema
 except ImportError:  # pragma: no cover
     warnings.warn(
-        "Pydantic and simplejson are not available.  Run `pip install remoulade[pydantic]`",
+        "Pydantic is not available.  Run `pip install remoulade[pydantic]`",
         ImportWarning,
         stacklevel=2,
     )
@@ -35,30 +35,59 @@ except ImportError:  # pragma: no cover
 
 #: Represents the contents of a Message object as a dict.
 MessageData = dict[str, Any]
+JsonData = dict[str, Any]
 
 
 class Encoder(abc.ABC):
     """Base class for message encoders."""
 
     @abc.abstractmethod
-    def encode(self, data: MessageData) -> bytes:  # pragma: no cover
-        """Convert message metadata into a bytestring."""
+    def encode_in_bytes(self, data: MessageData) -> bytes:
         raise NotImplementedError
 
     @abc.abstractmethod
-    def decode(self, data: bytes) -> MessageData:  # pragma: no cover
-        """Convert a bytestring into message metadata."""
+    def decode_bytes(self, data: bytes) -> MessageData:
+        raise NotImplementedError
+
+    def encode_in_json(self, data: MessageData) -> JsonData:
+        encoded = self._encode_in_json(data)
+        try:
+            json.dumps(encoded)
+        except (TypeError, ValueError) as e:
+            raise UnsupportedMessageEncoding("This is not a valid json") from e
+        return encoded
+
+    @abc.abstractmethod
+    def _encode_in_json(self, data: MessageData) -> JsonData:
+        raise NotImplementedError
+
+    @abc.abstractmethod
+    def decode_json(self, data: JsonData) -> MessageData:
         raise NotImplementedError
 
 
 class JSONEncoder(Encoder):
     """Encodes messages as JSON.  This is the default encoder."""
 
-    def encode(self, data: MessageData) -> bytes:
+    @override
+    def encode_in_bytes(self, data: MessageData) -> bytes:
+        """Convert message metadata into a bytestring."""
+        # Serialize directly: routing through encode_in_json would add a
+        # throwaway json.dumps validation pass on top of this one.
         return json.dumps(data, separators=(",", ":")).encode("utf-8")
 
-    def decode(self, data: bytes) -> MessageData:
-        return json.loads(data.decode("utf-8"))
+    @override
+    def decode_bytes(self, data: bytes) -> MessageData:
+        """Convert a bytestring into message metadata."""
+        return self.decode_json(json.loads(data.decode("utf-8")))
+
+    @override
+    def _encode_in_json(self, data: MessageData) -> JsonData:
+        return data
+
+    @override
+    def decode_json(self, data: JsonData) -> MessageData:
+        return data
 
 
 class PickleEncoder(Encoder):
@@ -69,8 +98,21 @@ class PickleEncoder(Encoder):
       Use it at your own risk.
     """
 
-    encode = pickle.dumps  # type: ignore
-    decode = pickle.loads  # type: ignore
+    @override
+    def encode_in_bytes(self, data: MessageData) -> bytes:
+        return pickle.dumps(data)
+
+    @override
+    def decode_bytes(self, data: bytes) -> MessageData:
+        return pickle.loads(data)  # noqa: S301
+
+    @override
+    def _encode_in_json(self, data: MessageData) -> JsonData:
+        raise TypeError("PickleEncoder does not support JSON encoding.")
+
+    @override
+    def decode_json(self, data: JsonData) -> MessageData:
+        raise TypeError("PickleEncoder does not support JSON decoding.")
 
 
 class PydanticEncoder(Encoder):
@@ -91,31 +133,36 @@ class PydanticEncoder(Encoder):
 
     def __init__(self, fallback_encoder: Encoder | None = None):
         self.fallback_encoder = fallback_encoder
-        self.json_encoder = _JSONEncoder(default=self.default)
-        self.json_decoder = JSONDecoder()
+        self.json_adapter = TypeAdapter(object)
 
-    @staticmethod
-    def default(o):
-        if isinstance(o, BaseModel):
-            # keep dict otherwise it will be serialized as a string (see Pydantic .json())
-            return json.loads(o.model_dump_json())
-        raise TypeError(f"Object of type {o.__class__.__name__} is not JSON serializable")
-
-    def encode(self, data: MessageData) -> bytes:
+    @override
+    def encode_in_bytes(self, data: MessageData) -> bytes:
         try:
-            return self.json_encoder.encode(data).encode("utf-8")
-        except Exception as e:
+            return json.dumps(self._encode_in_json(data)).encode("utf-8")
+        except Exception:
             if self.fallback_encoder is not None:
-                return self.fallback_encoder.encode(data)
-            else:
-                raise e
+                return self.fallback_encoder.encode_in_bytes(data)
+            raise
 
-    def decode(self, data: bytes) -> MessageData:
+    @override
+    def decode_bytes(self, data: bytes) -> MessageData:
+        try:
+            return self.decode_json(json.loads(data.decode("utf-8")))
+        except Exception:
+            if self.fallback_encoder is not None:
+                return self.fallback_encoder.decode_bytes(data)
+            raise
+
+    @override
+    def _encode_in_json(self, data: MessageData) -> JsonData:
+        return self.json_adapter.dump_python(data, mode="json")
+
+    @override
+    def decode_json(self, data: JsonData) -> MessageData:
         from remoulade import get_broker
 
         try:
-            raw_message = self.json_decoder.decode(data.decode("utf-8"))
-            actor_name = raw_message["actor_name"]
+            actor_name = data["actor_name"]
             actor_fn = get_broker().get_actor(actor_name).fn
 
             # Retrieve the Pydantic schemas from typing
@@ -130,9 +177,9 @@ class PydanticEncoder(Encoder):
                     ]
                 )
 
-            # Override message_data with Pydantic schema when it matches
+            # Override message_data with Pydantic schema when it matches.
             parsed_message: dict[str, Any] = {}
-            for key, values in raw_message.items():
+            for key, values in data.items():
                 if key == "kwargs":
                     if not isinstance(values, dict):
                         raise TypeError(f"Expected `values` to be a dict, got {type(values).__name__}")
@@ -156,8 +203,7 @@ class PydanticEncoder(Encoder):
                     parsed_message[key] = values
 
             return parsed_message
-        except Exception as e:
+        except Exception:
             if self.fallback_encoder is not None:
-                return self.fallback_encoder.decode(data)
-            else:
-                raise e
+                return self.fallback_encoder.decode_json(data)
+            raise

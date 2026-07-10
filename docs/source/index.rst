@@ -49,9 +49,14 @@ If you want to use it with RabbitMQ_::
 
    $ pip install -U 'remoulade[rabbitmq]'
 
-Or if you want to use it with Redis_::
+Or if you want to use it with PostgreSQL_ and PGMQ_::
 
-   $ pip install -U 'remoulade[redis]'
+   $ pip install -U 'remoulade[postgres]'
+
+Or if you want to use Redis_ for results and cancellation::
+
+   $ pip install -U 'remoulade[rabbitmq, redis]'
+   $ pip install -U 'remoulade[postgres, redis]'
 
 Read the :doc:`guide` if you're ready to get started.
 

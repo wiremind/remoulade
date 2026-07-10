@@ -21,7 +21,7 @@ from contextlib import contextmanager, suppress
 from functools import partial
 from queue import Empty, Full, LifoQueue
 from threading import Lock, local
-from typing import TYPE_CHECKING, Any, Final
+from typing import TYPE_CHECKING, Any, Final, override
 
 from amqpstorm import AMQPChannelError, AMQPConnectionError, AMQPError, Channel, UriConnection
 from amqpstorm.compatibility import urlparse
@@ -181,6 +181,7 @@ class RabbitmqBroker(Broker):
         self.channel_pools["confirm_delivery"].clear()
         self.channel_pools["no_confirm_delivery"].clear()
 
+    @override
     def close(self) -> None:
         """Close all open RabbitMQ connections."""
 
@@ -193,6 +194,7 @@ class RabbitmqBroker(Broker):
         self.clear_channel_pools()
         self.logger.debug("Channels and connections closed.")
 
+    @override
     def consume(self, queue_name: str, prefetch: int = 1, timeout: int = 5000) -> "_RabbitmqConsumer":
         """Create a new consumer for a queue.
 
@@ -227,6 +229,7 @@ class RabbitmqBroker(Broker):
                 self._declare_dq_queue(channel, queue_name)
                 self._declare_xq_queue(channel, queue_name)
 
+    @override
     def declare_queue(self, queue_name: str) -> None:
         """Declare a queue.  Has no effect if a queue with the given
         name already exists.
@@ -283,6 +286,7 @@ class RabbitmqBroker(Broker):
             arguments["x-queue-type"] = "quorum"
         return channel.queue.declare(queue=xq_name(queue_name), durable=True, arguments=arguments)
 
+    @override
     def _apply_delay(self, message: "Message", delay: int | None = None) -> "Message":
         if delay is not None:
             message_eta = current_millis() + delay
@@ -291,6 +295,7 @@ class RabbitmqBroker(Broker):
 
         return message
 
+    @override
     @contextmanager
     def tx(self):
         with self.get_channel_pool(confirm_delivery=False).acquire() as channel, channel.tx:
@@ -312,6 +317,7 @@ class RabbitmqBroker(Broker):
             with self.get_channel_pool(confirm_delivery).acquire() as channel:
                 yield channel
 
+    @override
     def _enqueue(self, message: "Message", *, delay: int | None = None) -> "Message":
         """Enqueue a message.
 
@@ -344,7 +350,7 @@ class RabbitmqBroker(Broker):
                 self.logger.debug("Enqueueing message %r on queue %r.", message.message_id, queue_name)
                 with self._get_channel(confirm_delivery) as channel:
                     confirmation = channel.basic.publish(
-                        exchange="", routing_key=queue_name, body=message.encode(), properties=properties
+                        exchange="", routing_key=queue_name, body=message.encode_in_bytes(), properties=properties
                     )
                     if confirm_delivery and not confirmation:
                         raise MessageNotDelivered("Message could not be delivered")
@@ -371,6 +377,10 @@ class RabbitmqBroker(Broker):
 
                 self.logger.info("Retrying enqueue due to closed connection. [%d/%d]", attempts, MAX_ENQUEUE_ATTEMPTS)
 
+    @override
+    def _enqueue_many(self, messages: list["Message[Any]"], *, delay: int | None = None) -> list["Message[Any]"]:
+        return [self._enqueue(message, delay=delay) for message in messages]
+
     def get_queue_message_counts(self, queue_name: str):
         """Get the number of messages in a queue.  This method is only
         meant to be used in unit and integration tests.
@@ -393,6 +403,7 @@ class RabbitmqBroker(Broker):
             xq_queue_response["message_count"],
         )
 
+    @override
     def flush(self, queue_name: str) -> None:
         """Drop all the messages from a queue.
 
@@ -406,11 +417,13 @@ class RabbitmqBroker(Broker):
             with self.default_channel_pool.acquire() as channel:
                 channel.queue.purge(name)
 
+    @override
     def flush_all(self) -> None:
         """Drop all messages from all declared queues."""
         for queue_name in self.queues:
             self.flush(queue_name)
 
+    @override
     def join(
         self, queue_name: str, min_successes: int = 10, idle_time: int = 100, *, timeout: int | None = None
     ) -> None:
@@ -458,6 +471,7 @@ class _RabbitmqConsumer(Consumer):
         except (AMQPConnectionError, AMQPChannelError) as e:
             raise ConnectionClosed(e) from None
 
+    @override
     def ack(self, message):
         try:
             message.ack()
@@ -466,6 +480,7 @@ class _RabbitmqConsumer(Consumer):
         except Exception:  # pragma: no cover
             self.logger.error("Failed to ack message.", exc_info=True)
 
+    @override
     def nack(self, message):
         try:
             message.nack(requeue=False)
@@ -474,11 +489,13 @@ class _RabbitmqConsumer(Consumer):
         except Exception:  # pragma: no cover
             self.logger.error("Failed to nack message.", exc_info=True)
 
+    @override
     def requeue(self, messages):
         """RabbitMQ automatically re-enqueues unacked messages when
         consumers disconnect so this is a no-op.
         """
 
+    @override
     def __next__(self):
         """Return None if no value after timeout seconds"""
         try:
@@ -494,6 +511,7 @@ class _RabbitmqConsumer(Consumer):
         except (AMQPConnectionError, AMQPChannelError) as e:
             raise ConnectionClosed(e) from None
 
+    @override
     def close(self):
         with suppress(AMQPConnectionError, AMQPChannelError):
             self.channel.close()
@@ -501,7 +519,7 @@ class _RabbitmqConsumer(Consumer):
 
 class _RabbitmqMessage(MessageProxy):
     def __init__(self, rabbitmq_message):
-        super().__init__(Message.decode(rabbitmq_message.body))
+        super().__init__(Message.decode_bytes(rabbitmq_message.body))
 
         self._rabbitmq_message = rabbitmq_message
 
