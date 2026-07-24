@@ -1,5 +1,6 @@
 from typing import Any
 
+from ..common import current_millis, generate_unique_id
 from .middleware import Middleware
 
 
@@ -25,8 +26,13 @@ class CatchError(Middleware):
                 actor.send(message.actor_name, type(exception).__name__, exception.args, message.args, message.kwargs)
             elif isinstance(on_failure, dict):
                 on_failure_message = Message[Any](**on_failure)
+                # The on_failure message may have been built long before the failure it reports (e.g. attached to a
+                # message that retried/aged for hours). Re-stamp it with a fresh id and timestamp so it is treated as
+                # freshly enqueued and cannot be dropped by AgeLimit against its original build time.
                 on_failure_message = on_failure_message.copy(
-                    args=[message.actor_name, type(exception).__name__, exception.args, message.args, message.kwargs]
+                    args=[message.actor_name, type(exception).__name__, exception.args, message.args, message.kwargs],
+                    message_id=generate_unique_id(),
+                    message_timestamp=current_millis(),
                 )
                 broker.enqueue(on_failure_message)
 
