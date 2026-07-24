@@ -5,6 +5,12 @@ Changelog
 
 All notable changes to this project will be documented in this file.
 
+Unreleased
+----------
+Fixed
+^^^^^
+* ``CatchError`` now re-stamps the re-enqueued ``on_failure`` message with a fresh ``message_id`` and ``message_timestamp``. Previously a callback attached to a message that retried or aged for a long time kept its original build time, so if it carried a ``max_age`` it could be dropped by ``AgeLimit`` before running.
+
 `7.0.0`_ -- 2026-06-15
 ------------
 Breaking changes

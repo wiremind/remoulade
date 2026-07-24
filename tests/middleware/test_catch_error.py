@@ -1,6 +1,7 @@
 import time
 
 import remoulade
+from remoulade.common import current_millis
 
 
 def test_on_failure(stub_broker, stub_worker):
@@ -149,6 +150,36 @@ def test_on_failure_keeps_existing_exception_args(stub_broker, stub_worker):
     stub_worker.join()
 
     assert failure_message_kwargs == {"exception_args": ["existing-value"]}
+
+
+def test_on_failure_stale_message_is_restamped(stub_broker, stub_worker):
+    on_failure_count = 0
+
+    @remoulade.actor
+    def on_failure(actor_name, exception_name, exception_args, args, kwargs):
+        nonlocal on_failure_count
+        on_failure_count += 1
+
+    @remoulade.actor
+    def fail_actor():
+        raise Exception()
+
+    remoulade.declare_actors([on_failure, fail_actor])
+
+    # An on_failure message can be built long before the failure it reports (attached to a message that
+    # retries/ages for hours). It carries its own max_age, so if CatchError re-enqueues it with its original
+    # timestamp AgeLimit drops it before it runs. CatchError must re-stamp it so it is treated as freshly enqueued.
+    on_failure_message = on_failure.message_with_options(max_age=1000)
+    on_failure_message = on_failure_message.copy(message_timestamp=current_millis() - 10000)
+
+    fail_actor.send_with_options(on_failure=on_failure_message)
+
+    stub_broker.join(fail_actor.queue_name)
+    stub_broker.join(on_failure.queue_name)
+    stub_worker.join()
+
+    # The on_failure should still run despite the stale build time.
+    assert on_failure_count == 1
 
 
 def test_clean_runs_on_timeout(stub_broker, stub_worker):
