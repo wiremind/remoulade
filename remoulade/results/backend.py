@@ -127,14 +127,14 @@ class ResultBackend:
         attempts = 0
         while True:
             result = self._get(message_key, forget)
-            if result is Missing and block:
+            if isinstance(result, dict):
+                backend_result = BackendResult(**result)
+                return self.process_result(backend_result, raise_on_error)
+            if block:
                 delay = self.check_timeout(attempts, end_time, message_id)
                 time.sleep(delay)
-            elif result is Missing:
-                raise ResultMissing(message_id)
             else:
-                backend_result = BackendResult(**result)  # type: ignore
-                return self.process_result(backend_result, raise_on_error)
+                raise ResultMissing(message_id)
 
     async def async_get_result(
         self,
@@ -149,12 +149,12 @@ class ResultBackend:
         attempts = 0
         while True:
             result = self._get(message_key, forget)
-            if result is Missing:
-                delay = self.check_timeout(attempts, end_time, message_id)
-                await asyncio.sleep(delay)
-            else:
-                backend_result = BackendResult(**result)  # type: ignore
+            if isinstance(result, dict):
+                backend_result = BackendResult(**result)
                 return self.process_result(backend_result, raise_on_error)
+
+            delay = self.check_timeout(attempts, end_time, message_id)
+            await asyncio.sleep(delay)
 
     def check_timeout(self, attempts: int, end_time: float, message_id: str) -> float:
         attempts, delay = compute_backoff(attempts, min_backoff=BACKOFF_FACTOR)

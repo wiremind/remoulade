@@ -1,3 +1,5 @@
+# ty: ignore[no-matching-overload]
+
 from unittest.mock import patch
 
 import pytest
@@ -154,7 +156,7 @@ def test_cancel_pipeline_or_groups(stub_broker, stub_worker, cancel_backend, wit
     stub_worker.join()
 
     # All actors should have been canceled
-    assert all(cancel_backend.is_canceled(child.message_id, None) for child in g.children)
+    assert all(cancel_backend.is_canceled(child.message_id, None) for child in g.children)  # ty: ignore[unresolved-attribute]
     assert len(has_been_called) == 0
 
 

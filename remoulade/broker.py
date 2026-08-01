@@ -94,7 +94,9 @@ def _get_middleware_order():
     except ImportError:
         # Fall back to the legacy external instrumentor if available
         try:
-            from opentelemetry.instrumentation.remoulade import _InstrumentationMiddleware
+            from opentelemetry.instrumentation.remoulade import (  # ty: ignore[unresolved-import]
+                _InstrumentationMiddleware,
+            )
 
             middleware_order.insert(0, _InstrumentationMiddleware)
         except ImportError:

@@ -73,8 +73,6 @@ class pipeline[ResultsT: "Result[Any] | CollectionResults[Any]"]:
     @overload
     def __init__(
         self,
-        # we should actually not use ResultTs here but define a new type var that is only bound to Result
-        # but then mypy gets lost, so reusing ResultsT and ignoring the error
         children: tuple[*tuple[Message[Any] | pipeline[Any] | group[Any], ...], Message[Any] | pipeline[ResultsT]],
         cancel_on_error: bool = False,
     ): ...
@@ -225,9 +223,7 @@ class group[ResultsT: "Result[Any] | CollectionResults[Any]"]:
 
     def __init__(
         self,
-        # we should actually not use ResultTs here but define a new type var that is only bound to Result
-        # but then mypy gets lost, so reusing ResultsT and ignoring the error
-        children: Iterable[pipeline[ResultsT] | Message[ResultsT]],  # type: ignore
+        children: Iterable[pipeline[ResultsT] | Message[Any]],
         group_id: str | None = None,
         cancel_on_error: bool = False,
     ) -> None:
