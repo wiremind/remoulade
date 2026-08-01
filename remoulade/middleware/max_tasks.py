@@ -24,6 +24,8 @@ class MaxTasks(Middleware):
             self.tasks_count += 1
             if self.tasks_count == self.max_tasks:
                 self.logger.info(
-                    f"Stopping worker thread as completed tasks ({self.tasks_count}) > max_tasks ({self.max_tasks})"
+                    "Stopping worker thread as completed tasks (%s) >= max_tasks (%s)",
+                    self.tasks_count,
+                    self.max_tasks,
                 )
                 thread.stop()

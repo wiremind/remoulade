@@ -63,6 +63,9 @@ class LoggingMetadata(Middleware):
 
         for name in ["message_id", "input"]:
             if name in total_logging_metadata:
-                self.logger.error(f"'{name}' cannot be used as a logging_metadata key. It will be overwritten.")
+                self.logger.error(
+                    "'%s' cannot be used as a logging_metadata key. It will be overwritten.",
+                    name,
+                )
 
         return options

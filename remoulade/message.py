@@ -139,7 +139,7 @@ class Message[ResultT: Result[Any]]:
 
     @property
     def result(self) -> ResultT:
-        return cast(ResultT, Result(message_id=self.message_id))
+        return cast("ResultT", Result(message_id=self.message_id))
 
     def __str__(self) -> str:
         return f"{self.actor_name} / {self.message_id}"

@@ -16,10 +16,9 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 import asyncio
 import time
-from collections import namedtuple
 from collections.abc import Iterable
 from contextlib import contextmanager
-from typing import Any
+from typing import Any, NamedTuple
 
 from ..encoder import Encoder
 from ..helpers import compute_backoff
@@ -38,9 +37,11 @@ class Missing:
 
 
 #: A type alias representing backend results.
-class BackendResult(namedtuple("BackendResult", ("result", "error", "forgot", "actor_name"))):
-    def __new__(cls, *, result, error, forgot=False, actor_name=None):
-        return super().__new__(cls, result, error, forgot, actor_name)
+class BackendResult(NamedTuple):
+    result: Any
+    error: Any
+    forgot: bool = False
+    actor_name: Any = None
 
     def asdict(self):
         return self._asdict()
@@ -60,7 +61,11 @@ class ResultBackend:
     """
 
     def __init__(
-        self, *, namespace: str = "remoulade-results", encoder: Encoder = None, default_timeout: int | None = None
+        self,
+        *,
+        namespace: str = "remoulade-results",
+        encoder: Encoder | None = None,
+        default_timeout: int | None = None,
     ):
         from ..message import get_encoder
 
@@ -158,7 +163,7 @@ class ResultBackend:
             raise ResultTimeout(message_id)
         return delay
 
-    def get_end_time(self, timeout: int) -> float:
+    def get_end_time(self, timeout: int | None = None) -> float:
         if timeout is None:
             timeout = self.default_timeout
         return time.monotonic() + timeout / 1000
@@ -271,15 +276,15 @@ class ResultBackend:
     def retry(self, broker, message, logger):
         try:
             yield
-        except:  # noqa
+        except Exception:
             # If saving the result fail, we must retry the message else we have no way to know it's finished
             # We cannot use the retry middleware as it must be executed before the result middleware,
             # use a simplified one here
             retries = message.options.setdefault("retries_result_backend", 0)
             message.options["retries_result_backend"] = retries + 1
             if retries < 3:
-                logger.warning(f"Could not store result of {message}: retrying it", exc_info=True)
+                logger.warning("Could not store result of %r: retrying it", message, exc_info=True)
                 _, backoff = compute_backoff(retries, min_backoff=500)  # retry after 500ms, 1s, 2s
                 broker.enqueue(message, delay=backoff)
             else:
-                logger.error(f"Could not store result of {message}: retries exceeded", exc_info=True)
+                logger.exception("Could not store result of %r: retrying it", message)

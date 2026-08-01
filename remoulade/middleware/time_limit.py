@@ -108,7 +108,7 @@ class TimeLimit(Middleware):
             except (SystemExit, KeyboardInterrupt):
                 raise
             except Exception:
-                self.logger.exception("Unhandled error while running soft_kill_handle", exc_info=True)
+                self.logger.exception("Unhandled error while running soft_kill_handle")
 
             time.sleep(self.interval / 1000)
 
@@ -117,7 +117,7 @@ class TimeLimit(Middleware):
             try:
                 self.hard_kill_handle()
             except Exception:
-                self.logger.exception("Unhandled error while running hard_kill_handle", exc_info=True)
+                self.logger.exception("Unhandled error while running hard_kill_handle")
 
             time.sleep(self.interval / 1000)
 
@@ -125,7 +125,7 @@ class TimeLimit(Middleware):
     def actor_options(self) -> set[str]:
         return {"time_limit"}
 
-    def after_process_boot(self, _) -> None:
+    def after_process_boot(self, broker) -> None:
         if current_platform in supported_platforms:
             threading.Thread(target=self.soft_kill_timer, daemon=True).start()
             threading.Thread(target=self.hard_kill_timer, daemon=True).start()

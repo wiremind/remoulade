@@ -16,6 +16,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 import contextlib
 import time
+from collections.abc import Iterable
 from typing import Any, ClassVar
 
 from ..backend import ForgottenResult, Missing, ResultBackend
@@ -44,9 +45,9 @@ class StubBackend(ResultBackend):
             return self.encoder.decode_bytes(data)
         return Missing
 
-    def _store(self, message_keys, results, ttl):
-        for message_key, result in zip(message_keys, results, strict=False):
-            result_data = self.encoder.encode_in_bytes(result)
+    def _store(self, message_keys: Iterable[str], result: Any, ttl: int) -> None:
+        for message_key, res in zip(message_keys, result, strict=False):
+            result_data = self.encoder.encode_in_bytes(res)
             expiration = time.monotonic() + int(ttl / 1000)
             self.results[message_key] = (result_data, expiration)
 

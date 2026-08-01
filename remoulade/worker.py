@@ -24,7 +24,7 @@ from typing import TYPE_CHECKING
 
 from .cancel import MessageCanceled
 from .common import current_millis
-from .errors import ActorNotFound, ConnectionError, RemouladeError  # noqa: A004
+from .errors import ActorNotFound, ConnectionError, RemouladeError  # ruff: ignore[A004]
 from .helpers import compute_backoff
 from .helpers.queues import iter_queue, join_all, q_name
 from .logging import get_logger
@@ -35,7 +35,7 @@ if TYPE_CHECKING:
 
 #: The number of try to restart consumers (with exponential backoff) after a connection error
 #: 0 to disable consumer restart and exit with an error
-CONSUMER_RESTART_MAX_RETRIES = int(os.getenv("remoulade_restart_max_retries", 10))  # noqa: SIM112
+CONSUMER_RESTART_MAX_RETRIES = int(os.getenv("remoulade_restart_max_retries", 10))  # ruff: ignore[SIM112]
 
 
 def build_extra(message, max_input_size: int | None = None):
@@ -146,7 +146,11 @@ class Worker:
             try:
                 self.consumers[queue_name].requeue_messages(messages)
             except ConnectionError:
-                self.logger.warning(f"Failed to requeue messages on queue {queue_name}.", exc_info=True)
+                self.logger.warning(
+                    "Failed to requeue messages on queue %s.",
+                    queue_name,
+                    exc_info=True,
+                )
         self.logger.debug("Done requeueing in-progress messages.")
 
         self.logger.debug("Closing consumers...")
@@ -333,10 +337,9 @@ class _ConsumerThread(Thread):
                 self.logger.debug("Pushing message %r onto work queue.", message.message_id)
                 self.work_queue.put((-actor.priority, message))
         except ActorNotFound:
-            self.logger.error(
+            self.logger.exception(
                 "Received message for undefined actor %r. Moving it to the DLQ.",
                 message.actor_name,
-                exc_info=True,
             )
             message.fail()
             self.post_process_message(message)
@@ -349,13 +352,15 @@ class _ConsumerThread(Thread):
         if message.failed:
             self.logger.debug("Rejecting message %r.", message.message_id)
             self.broker.emit_before("nack", message)
-            self.consumer.nack(message)
+            if self.consumer is not None:
+                self.consumer.nack(message)
             self.broker.emit_after("nack", message)
 
         else:
             self.logger.debug("Acknowledging message %r.", message.message_id)
             self.broker.emit_before("ack", message)
-            self.consumer.ack(message)
+            if self.consumer is not None:
+                self.consumer.ack(message)
             self.broker.emit_after("ack", message)
 
     def requeue_messages(self, messages):
@@ -363,7 +368,8 @@ class _ConsumerThread(Thread):
         connection error to move unacked messages back to their
         respective queues asap.
         """
-        self.consumer.requeue(messages)
+        if self.consumer is not None:
+            self.consumer.requeue(messages)
 
     def pause(self):
         """Pause this consumer."""

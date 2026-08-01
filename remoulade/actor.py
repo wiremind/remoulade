@@ -17,7 +17,7 @@
 
 import re
 from collections.abc import Callable
-from typing import TYPE_CHECKING, Any, Literal, ParamSpec, TypedDict, TypeVar, overload
+from typing import TYPE_CHECKING, Any, ParamSpec, TypedDict, TypeVar, overload
 
 from .helpers.actor_arguments import get_actor_arguments
 from .logging import get_logger
@@ -45,7 +45,7 @@ class ActorDict(TypedDict):
 
 @overload
 def actor(
-    fn: Literal[None] = None,
+    fn: None = None,
     *,
     actor_name: str | None = None,
     queue_name: str = "default",
@@ -122,7 +122,7 @@ def actor(
 
     def decorator(fn: Callable[P, R]) -> Actor[P, R]:
         nonlocal actor_name
-        actor_name = actor_name or fn.__name__
+        actor_name = actor_name or getattr(fn, "__name__", str(fn))
         queues_names = [queue_name]
         if alternative_queues is not None:
             queues_names += alternative_queues
@@ -234,8 +234,9 @@ class Actor[**P, R]:
         Returns:
           Message: A message that can be enqueued on a broker.
         """
-        for middleware in self.broker.middleware:
-            options = middleware.update_options_before_create_message(options, self.broker, self.actor_name)
+        if self.broker is not None:
+            for middleware in self.broker.middleware:
+                options = middleware.update_options_before_create_message(options, self.broker, self.actor_name)
 
         if queue_name is not None:
             if queue_name not in self.queue_names:

@@ -140,7 +140,7 @@ def test_cancel_pipeline_or_groups(stub_broker, stub_worker, cancel_backend, wit
     @remoulade.actor()
     def do_work():
         has_been_called.append(1)
-        raise ValueError()
+        raise ValueError
 
     # And this actor is declared
     stub_broker.declare_actor(do_work)
@@ -170,7 +170,7 @@ def test_composition_can_be_canceled(stub_broker, stub_worker, cancel_backend):
     def do_work():
         nonlocal calls_count
         calls_count += 1
-        raise ValueError()
+        raise ValueError
 
     # And this actor is declared
     stub_broker.declare_actor(do_work)
