@@ -1,7 +1,8 @@
 import datetime
 import sys
-from collections import namedtuple
+from dataclasses import asdict, dataclass
 from enum import Enum
+from typing import Any
 
 from dateutil.parser import parse
 
@@ -21,88 +22,52 @@ class StateStatusesEnum(Enum):
 
 
 #: A type alias representing states in the database
-class State(
-    namedtuple(
-        "State",
-        (
-            "message_id",
-            "status",
-            "actor_name",
-            "args",
-            "kwargs",
-            "options",
-            "priority",
-            "progress",
-            "enqueued_datetime",
-            "started_datetime",
-            "end_datetime",
-            "queue_name",
-            "composition_id",
-        ),
-    )
-):
+@dataclass(frozen=True)
+class State:
     """Catalog Class, it storages the state
     Parameters:
         status: The current status of the message state
         args: List of arguments in the state
     """
 
-    def __new__(
-        cls,
-        message_id,
-        status=None,
-        *,
-        actor_name=None,
-        args=None,
-        kwargs=None,
-        options=None,
-        priority=None,
-        progress=None,
-        enqueued_datetime=None,
-        started_datetime=None,
-        end_datetime=None,
-        queue_name=None,
-        composition_id=None,
-    ):
-        if status and status not in list(StateStatusesEnum):
-            raise InvalidStateError(f"The {status} State is not defined")
-        return super().__new__(
-            cls,
-            message_id,
-            status,
-            actor_name,
-            args,
-            kwargs,
-            options,
-            priority,
-            progress,
-            enqueued_datetime,
-            started_datetime,
-            end_datetime,
-            queue_name,
-            composition_id,
-        )
+    message_id: Any
+    status: Any = None
+    actor_name: Any = None
+    args: Any = None
+    kwargs: Any = None
+    options: Any = None
+    priority: Any = None
+    progress: Any = None
+    enqueued_datetime: Any = None
+    started_datetime: Any = None
+    end_datetime: Any = None
+    queue_name: Any = None
+    composition_id: Any = None
+
+    def __post_init__(self):
+        if self.status and self.status not in list(StateStatusesEnum):
+            raise InvalidStateError(f"The {self.status} State is not defined")
 
     def as_dict(self, exclude_keys=(), encode_args=False):
         """Transform a State into a dict, can exclude some keys"""
-        as_dict = {
-            key: value for (key, value) in self._asdict().items() if value is not None and key not in exclude_keys
+        as_dict_repr = {
+            key: value for (key, value) in asdict(self).items() if value is not None and key not in exclude_keys
         }
         datetime_keys = ["enqueued_datetime", "started_datetime", "end_datetime"]
         for key in datetime_keys:
-            if key in as_dict:
-                as_dict[key] = as_dict[key].isoformat()
+            if key in as_dict_repr:
+                as_dict_repr[key] = as_dict_repr[key].isoformat()
         if self.status:
-            as_dict["status"] = self.status.value
+            as_dict_repr["status"] = self.status.value
         if encode_args:
             from ..message import get_encoder
 
-            for key in (item for item in ["args", "kwargs", "options"] if item in as_dict):
+            for key in (item for item in ["args", "kwargs", "options"] if item in as_dict_repr):
                 try:
-                    as_dict[key] = get_encoder().encode_in_bytes(as_dict[key]).decode("utf-8")
+                    as_dict_repr[key] = get_encoder().encode_in_bytes(as_dict_repr[key]).decode("utf-8")
                 except (UnicodeDecodeError, TypeError):
-                    as_dict[key] = "encoded_data"
-        return as_dict
+                    as_dict_repr[key] = "encoded_data"
+        return as_dict_repr
 
     @classmethod
     def from_dict(cls, input_dict: dict) -> "State":
@@ -129,7 +94,7 @@ class StateBackend:
 
     namespace = "remoulade-state*"
 
-    def __init__(self, *, namespace: str = "remoulade-state", encoder: Encoder = None, max_size=2e6):
+    def __init__(self, *, namespace: str = "remoulade-state", encoder: Encoder | None = None, max_size=2e6):
         from ..message import get_encoder
 
         self.namespace = namespace

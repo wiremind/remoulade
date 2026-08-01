@@ -205,8 +205,7 @@ def test_actors_retry_on_failure(stub_broker, stub_worker, caplog):
         if sum(failures) == 0:
             failures.append(1)
             raise RuntimeError("First failure.")
-        else:
-            successes.append(1)
+        successes.append(1)
 
     # test log
 
@@ -476,7 +475,7 @@ def test_middleware_can_decide_to_skip_messages(stub_broker, stub_worker):
 
     class SkipMiddleware(Middleware):
         def before_process_message(self, broker, message):
-            raise SkipMessage()
+            raise SkipMessage
 
         def after_skip_message(self, broker, message):
             skipped_messages.append(1)

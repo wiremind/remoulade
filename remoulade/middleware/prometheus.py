@@ -26,10 +26,10 @@ from ..logging import get_logger
 from .middleware import Middleware
 
 #: The default HTTP host the exposition server should bind to.
-DEFAULT_HTTP_HOST = os.getenv("remoulade_prom_host", "127.0.0.1")  # noqa: SIM112
+DEFAULT_HTTP_HOST = os.getenv("remoulade_prom_host", "127.0.0.1")  # ruff: ignore[SIM112]
 
 #: The default HTTP port the exposition server should listen on.
-DEFAULT_HTTP_PORT = int(os.getenv("remoulade_prom_port", "9191"))  # noqa: SIM112
+DEFAULT_HTTP_PORT = int(os.getenv("remoulade_prom_port", "9191"))  # ruff: ignore[SIM112]
 
 #: The default HTTP port the exposition server should listen on.
 DEFAULT_LABEL = "default"
@@ -152,10 +152,12 @@ class Prometheus(Middleware):
         prom.start_http_server(addr=self.http_host, port=self.http_port, registry=self.registry)
 
     def after_worker_boot(self, broker, worker):
-        self.worker_busy.set(0)
+        if self.worker_busy is not None:
+            self.worker_busy.set(0)
 
     def after_worker_shutdown(self, broker, worker):
-        self.worker_busy.set(0)
+        if self.worker_busy is not None:
+            self.worker_busy.set(0)
         self.logger.debug("Shutting down exposition server...")
         # Do not stop it actually
 
@@ -163,11 +165,12 @@ class Prometheus(Middleware):
         self._init_labels(actor)
 
     def after_nack(self, broker, message):
-        labels = self._get_labels(broker, message)
-        self.total_rejected_messages.labels(*labels).inc()
+        if self.total_rejected_messages is not None:
+            labels = self._get_labels(broker, message)
+            self.total_rejected_messages.labels(*labels).inc()
 
     def after_enqueue(self, broker, message, delay, exception=None):
-        if "retries" in message.options:
+        if "retries" in message.options and self.total_retried_messages is not None:
             labels = self._get_labels(broker, message)
             self.total_retried_messages.labels(*labels).inc()
 
@@ -179,10 +182,12 @@ class Prometheus(Middleware):
 
     def before_process_message(self, broker, message):
         self.message_start_times[message.message_id] = time.monotonic() * 1000
-        self.message_time_in_queue.labels(*self._get_labels(broker, message)).observe(
-            max(current_millis() - message.message_timestamp, 0)
-        )
-        self.worker_busy.set(1)
+        if self.message_time_in_queue is not None:
+            self.message_time_in_queue.labels(*self._get_labels(broker, message)).observe(
+                max(current_millis() - message.message_timestamp, 0)
+            )
+        if self.worker_busy is not None:
+            self.worker_busy.set(1)
 
     def after_process_message(self, broker, message, *, result=None, exception=None):
         labels = self._get_labels(broker, message)
@@ -190,10 +195,11 @@ class Prometheus(Middleware):
         message_duration = 0
         if message_start_time is not None:
             message_duration = (time.monotonic() * 1000) - message_start_time
-        self.message_durations.labels(*labels).observe(message_duration)
-        if exception is not None:
+        if self.message_durations is not None:
+            self.message_durations.labels(*labels).observe(message_duration)
+        if exception is not None and self.total_errored_messages is not None:
             self.total_errored_messages.labels(*labels).inc()
-        if not self.message_start_times:
+        if not self.message_start_times and self.worker_busy is not None:
             self.worker_busy.set(0)
 
     after_skip_message = after_process_message

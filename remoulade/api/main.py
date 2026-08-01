@@ -102,8 +102,7 @@ def requeue_message(message_id):
     if pipe_target is None:
         actor.send_with_options(**payload, **state.options)
         return {"result": "ok"}
-    else:
-        return {"error": "requeue message in a pipeline not supported"}, 400
+    return {"error": "requeue message in a pipeline not supported"}, 400
 
 
 @app.route("/messages/result/<message_id>")

@@ -3,6 +3,7 @@ import json
 from datetime import date
 from operator import itemgetter
 from random import choice
+from typing import Any, cast
 from unittest import mock
 from unittest.mock import MagicMock
 from zoneinfo import ZoneInfo
@@ -82,7 +83,7 @@ class TestMessageStateAPI:
         assert res.status_code == 500
 
     def test_no_scheduler(self, stub_broker, api_client):
-        set_scheduler(None)
+        set_scheduler(cast("Any", None))
         res = api_client.get("/scheduled/jobs")
         assert res.status_code == 400
 
@@ -196,7 +197,7 @@ class TestMessageStateAPI:
 
     @pytest.mark.parametrize("offset", [0, 1, 5, 100])
     def test_get_states_offset(self, offset, stub_broker, api_client, state_middleware):
-        for i in range(0, 10):
+        for i in range(10):
             state_middleware.backend.set_state(State(f"id{i}"), ttl=1000)
         res = api_client.post(
             "/messages/states", data=json.dumps({"offset": offset, "size": 50}), content_type="application/json"
@@ -208,7 +209,7 @@ class TestMessageStateAPI:
 
     @pytest.mark.parametrize("size", [1, 5, 100])
     def test_get_states_page_size(self, size, stub_broker, api_client, state_middleware):
-        for i in range(0, 10):
+        for i in range(10):
             state_middleware.backend.set_state(State(f"id{i}"), ttl=1000)
         res = api_client.post("/messages/states", data=json.dumps({"size": size}), content_type="application/json")
         if size >= 10:

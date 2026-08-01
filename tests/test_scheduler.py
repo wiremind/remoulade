@@ -204,7 +204,7 @@ def test_scheduler_wrong_weekday(stub_broker, stub_worker, scheduler, scheduler_
     scheduler.schedule = [
         ScheduledJob(
             actor_name="write_loaded_at",
-            iso_weekday=datetime.datetime.now().isoweekday() + 1,
+            iso_weekday=(datetime.datetime.now(datetime.UTC).isoweekday() % 7) + 1,
         )
     ]
     scheduler.get_redis_schedule, event = mock_func(scheduler.get_redis_schedule)
@@ -231,7 +231,7 @@ def test_scheduler_right_weekday(stub_broker, stub_worker, scheduler, scheduler_
     scheduler.schedule = [
         ScheduledJob(
             actor_name="write_loaded_at",
-            iso_weekday=datetime.datetime.now().isoweekday(),
+            iso_weekday=datetime.datetime.now(datetime.UTC).isoweekday(),
         )
     ]
     write_loaded_at.send, event = mock_func(write_loaded_at.send)

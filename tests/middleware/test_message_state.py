@@ -61,7 +61,7 @@ class TestMessageState:
     def test_failure_state_message(self, stub_broker, state_middleware, stub_worker, frozen_datetime):
         @remoulade.actor
         def error():
-            raise Exception()
+            raise Exception
 
         remoulade.declare_actors([error])
         msg = error.send()
@@ -89,7 +89,7 @@ class TestMessageState:
     def test_skip_state_message(self, stub_broker, stub_worker, state_middleware, do_work):
         class SkipMiddleware(Middleware):
             def before_process_message(self, broker, message):
-                raise SkipMessage()
+                raise SkipMessage
 
         stub_broker.add_middleware(SkipMiddleware())
         msg = do_work.send()

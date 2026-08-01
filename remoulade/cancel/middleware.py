@@ -66,6 +66,9 @@ class Cancel(Middleware):
         self.backend = backend
 
     def before_process_message(self, broker, message):
+        if self.backend is None:
+            return
+
         composition_id = message.options.get("composition_id")
 
         if self.backend.is_canceled(message.message_id, composition_id):
@@ -74,7 +77,7 @@ class Cancel(Middleware):
     def after_process_message(self, broker, message, *, result=None, exception=None):
         """Cancel all the messages in the composition if one of the message of the composition fails"""
 
-        if exception is None:
+        if exception is None or self.backend is None:
             return
 
         cancel_on_error = message.options.get("cancel_on_error")

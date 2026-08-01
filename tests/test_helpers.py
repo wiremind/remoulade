@@ -114,7 +114,7 @@ def test_join_queue_gevent_style_timeout_raises_queue_join_timeout():
 def test_join_queue_gevent_style_success():
     queue = _GeventStyleQueue(result=True)
     join_queue(queue, timeout=0.1)
-    assert queue.received_timeout == 0.1
+    assert queue.received_timeout == pytest.approx(0.1)
 
 
 def test_join_queue_stdlib_fallback_success():

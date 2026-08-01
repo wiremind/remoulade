@@ -22,7 +22,7 @@ from collections.abc import Iterable, Iterator
 from contextlib import contextmanager
 from datetime import UTC, datetime, timedelta
 from threading import Event, Lock, Thread, local
-from typing import TYPE_CHECKING, Any, Final, override
+from typing import TYPE_CHECKING, Any, Final, cast, override
 from urllib.parse import urlparse
 
 import psycopg
@@ -156,7 +156,11 @@ class PostgresBroker(Broker):
         The active SQLAlchemy connection is stored on thread-local state so
         queue operations can reuse it while the context is open.
         """
-        with self.client.engine.begin() as connection:
+        engine = self.client.engine
+        if engine is None:
+            raise RuntimeError("Engine is not initialized on PGMQ client.")
+
+        with engine.begin() as connection:
             self.state.transaction_connection = connection
             try:
                 yield
@@ -517,7 +521,7 @@ class _PostgresListener:
         except Exception as e:
             self._logger.warning(
                 "Failed to open shared LISTEN/NOTIFY connection; consumers will fall back to polling. Error: %s",
-                str(e),
+                e,
                 exc_info=True,
             )
             if connection is not None:
@@ -542,7 +546,7 @@ class _PostgresListener:
             try:
                 self._connection.close()
             except Exception as e:
-                self._logger.error("Failed to close shared listener connection: %s", str(e))
+                self._logger.error("Failed to close shared listener connection: %s", e)
             self._connection = None
 
     def _drain_pending_listen(self) -> None:
@@ -589,15 +593,16 @@ class _PostgresListener:
                 backoff = LISTENER_RECONNECT_BACKOFF_MIN_S
             try:
                 self._drain_pending_listen()
-                for notify in self._connection.notifies(timeout=0.5, stop_after=1):
-                    self._wake_channel(notify.channel)
+                if self._connection is not None:
+                    for notify in self._connection.notifies(timeout=0.5, stop_after=1):
+                        self._wake_channel(notify.channel)
             except Exception as e:
                 if self._stop.is_set():
                     break
                 self._logger.warning(
                     "Shared LISTEN/NOTIFY listener error; consumers will fall back to polling while it "
                     "reconnects. Error: %s",
-                    str(e),
+                    e,
                     exc_info=True,
                 )
                 self._drop_connection()
@@ -666,7 +671,9 @@ class _PostgresConsumer(Consumer):
         """Normalize a PGMQ read result into a list."""
         if messages is None:
             return []
-        return [messages] if not isinstance(messages, list) else messages
+        if isinstance(messages, list):
+            return cast("list[PostgresQueueMessage]", messages)
+        return [messages]
 
     def _read_immediate(self, qty: int) -> list[PostgresQueueMessage]:
         """Read up to ``qty`` messages without polling."""
@@ -743,7 +750,7 @@ class _PostgresConsumer(Consumer):
                 self.broker.logger.warning(
                     "Failed to extend visibility timeout heartbeat for queue %s. Error: %s",
                     self.queue_name,
-                    str(e),
+                    e,
                     exc_info=True,
                 )
 
@@ -780,11 +787,10 @@ class _PostgresConsumer(Consumer):
         try:
             self.client.archive(self.queue_name, message._postgres_message.msg_id)
         except Exception:
-            self.broker.logger.error(
+            self.broker.logger.exception(
                 "Failed to archive message %s on queue %s; it will be redelivered after its visibility timeout.",
                 message._postgres_message.msg_id,
                 self.queue_name,
-                exc_info=True,
             )
 
     @override

@@ -14,10 +14,8 @@
 #
 # You should have received a copy of the GNU Lesser General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
-from collections.abc import Iterable
 from contextlib import contextmanager, suppress
-from queue import Queue
-from typing import TYPE_CHECKING, Any, TypeVar
+from typing import TYPE_CHECKING, Any, TypeVar, cast
 
 from .cancel import Cancel, CancelBackend
 from .concurrent import ConcurrencyBackend, Concurrent
@@ -51,6 +49,9 @@ from .results import ResultBackend, Results
 from .state import MessageState, StateBackend
 
 if TYPE_CHECKING:
+    from collections.abc import Iterable
+    from queue import Queue
+
     from .actor import Actor
     from .message import Message
     from .middleware import Middleware
@@ -319,11 +320,13 @@ class Broker:
         }
         try:
             middleware_class, exception = backends[name]
-            middleware: Results | Cancel | MessageState | None = self.get_middleware(middleware_class)
+            middleware = cast(
+                "Results | Cancel | MessageState | None",
+                self.get_middleware(middleware_class),
+            )
             if middleware is not None:
                 return middleware.backend
-            else:
-                raise exception
+            raise exception
         except KeyError as e:
             raise ValueError("invalid backend name") from e
 
@@ -425,8 +428,7 @@ class Broker:
         """If your broker doesn't support native delay, you need to override this method"""
         if self.supports_native_delay:
             return message
-        else:
-            raise NotImplementedError("delay is not supported natively, you need to implement it")
+        raise NotImplementedError("delay is not supported natively, you need to implement it")
 
     def _enqueue(self, message: "Message", *, delay: int | None = None) -> "Message":
         raise NotImplementedError
@@ -550,16 +552,16 @@ class Broker:
         Parameters:
           queue_name(str): The name of the queue to flush.
         """
-        raise NotImplementedError()
+        raise NotImplementedError
 
     def flush_all(self) -> None:  # pragma: no cover
         """Drop all messages from all declared queues."""
-        raise NotImplementedError()
+        raise NotImplementedError
 
     def join(self, queue_name: str, *, timeout: int | None = None) -> None:  # pragma: no cover
         """Wait for all the messages on the given queue to be processed.
         This method is only meant to be used in tests to wait for all the messages in a queue to be processed."""
-        raise NotImplementedError()
+        raise NotImplementedError
 
 
 class Consumer:

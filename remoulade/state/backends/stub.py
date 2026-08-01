@@ -1,5 +1,6 @@
 import datetime
 import time
+from typing import Any
 
 from ..backend import State, StateBackend
 
@@ -14,7 +15,7 @@ class StubBackend(StateBackend):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.states: dict[str, dict[str, str]] = {}
+        self.states: dict[str, dict[str, Any]] = {}
 
     def get_state(self, message_id):
         message_key = self._build_message_key(message_id)

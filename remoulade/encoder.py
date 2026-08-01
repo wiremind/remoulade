@@ -104,7 +104,7 @@ class PickleEncoder(Encoder):
 
     @override
     def decode_bytes(self, data: bytes) -> MessageData:
-        return pickle.loads(data)  # noqa: S301
+        return pickle.loads(data)  # ruff: ignore[S301]
 
     @override
     def _encode_in_json(self, data: MessageData) -> JsonData:

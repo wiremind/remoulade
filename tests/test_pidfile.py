@@ -1,5 +1,6 @@
 import contextlib
 import os
+import pathlib
 import signal
 import time
 
@@ -19,8 +20,7 @@ def test_cli_scrubs_stale_pid_files(start_cli):
     try:
         # Given that I have an existing file containing an old pid
         filename = "test_scrub.pid"
-        with open(filename, "w") as f:
-            f.write("999999")
+        pathlib.Path(filename).write_text("999999")
 
         # When I try to start the cli and pass that file as a PID file
         proc = start_cli("tests.test_pidfile", extra_args=["--pid-file", filename])
@@ -29,8 +29,7 @@ def test_cli_scrubs_stale_pid_files(start_cli):
         time.sleep(1)
 
         # Then the process should write its pid to the file
-        with open(filename) as f:
-            pid = int(f.read())
+        pid = int(pathlib.Path(filename).read_text())
 
         assert pid == proc.pid
 
@@ -51,8 +50,7 @@ def test_cli_aborts_when_pidfile_contains_garbage(start_cli):
     try:
         # Given that I have an existing file containing important information
         filename = "test_garbage.pid"
-        with open(filename, "w") as f:
-            f.write("important!")
+        pathlib.Path(filename).write_text("important!")
 
         # When I try to start the cli and pass that file as a PID file
         proc = start_cli("tests.test_pidfile:broker", extra_args=["--pid-file", filename])

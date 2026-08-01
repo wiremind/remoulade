@@ -27,7 +27,7 @@ from .errors import (
     BrokerError,
     ChannelPoolTimeout,
     ConnectionClosed,
-    ConnectionError,  # noqa: A004
+    ConnectionError,  # ruff: ignore[A004]
     ConnectionFailed,
     NoResultBackend,
     QueueJoinTimeout,
@@ -92,4 +92,4 @@ __all__ = [
     "set_scheduler",
 ]
 
-__version__ = importlib.metadata.version(__package__)
+__version__ = importlib.metadata.version(__package__ or "remoulade")

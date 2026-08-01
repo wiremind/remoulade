@@ -69,9 +69,7 @@ def join_all(joinables, timeout):
 
 def q_name(queue_name):
     """Returns the canonical queue name for a given queue."""
-    if queue_name.endswith(".DQ") or queue_name.endswith(".XQ"):
-        return queue_name[:-3]
-    return queue_name
+    return queue_name.removesuffix(".DQ").removesuffix(".XQ")
 
 
 def dq_name(queue_name):
@@ -82,8 +80,7 @@ def dq_name(queue_name):
     if queue_name.endswith(".DQ"):
         return queue_name
 
-    if queue_name.endswith(".XQ"):
-        queue_name = queue_name[:-3]
+    queue_name = queue_name.removesuffix(".XQ")
     return queue_name + ".DQ"
 
 
@@ -95,6 +92,5 @@ def xq_name(queue_name):
     if queue_name.endswith(".XQ"):
         return queue_name
 
-    if queue_name.endswith(".DQ"):
-        queue_name = queue_name[:-3]
+    queue_name = queue_name.removesuffix(".DQ")
     return queue_name + ".XQ"
