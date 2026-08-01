@@ -151,7 +151,7 @@ def test_rabbitmq_actors_retry_with_priority_elevation_on_failure(rabbitmq_broke
         nonlocal incoming_priorities
         msg = CurrentMessage.get_current_message()
         assert msg is not None
-        incoming_priorities.append(msg._rabbitmq_message.priority)
+        incoming_priorities.append(msg._rabbitmq_message.priority)  # ty: ignore[unresolved-attribute]
         raise RuntimeError("Failure")
 
     # And this actor is declared
@@ -175,7 +175,7 @@ def test_rabbitmq_actors_retry_without_priority_elevation(rabbitmq_broker, rabbi
         nonlocal incoming_priorities
         msg = CurrentMessage.get_current_message()
         assert msg is not None
-        incoming_priorities.append(msg._rabbitmq_message.priority)
+        incoming_priorities.append(msg._rabbitmq_message.priority)  # ty: ignore[unresolved-attribute]
         raise RuntimeError("Failure")
 
     # And this actor is declared

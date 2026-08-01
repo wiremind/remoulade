@@ -31,5 +31,5 @@ jobs:
         run: ruff check
       - name: Format with ruff
         run: ruff format --check --diff
-      - name: Check typing with mypy
-        run: mypy --show-traceback
+      - name: Check typing with ty
+        run: ty check

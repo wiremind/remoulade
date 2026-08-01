@@ -184,7 +184,7 @@ def start_worker(args, logger):
         return os._exit(RET_IMPORT)
 
     def termhandler(signum, frame):
-        nonlocal running  # type: ignore
+        nonlocal running
         if running:
             logger.info("Stopping worker...")
             running = False
