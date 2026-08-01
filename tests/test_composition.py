@@ -1,3 +1,5 @@
+# ty: ignore[no-matching-overload, invalid-argument-type, unresolved-attribute]
+
 import threading
 import time
 from threading import Condition

@@ -278,7 +278,8 @@ class RedisBackend(ResultBackend):
             pipe.scard(group_completion_key)
             return pipe.execute()[2]
 
-    def get_status(self, message_ids: list[str]) -> int:  # type: ignore
-        if not message_ids:
+    def get_status(self, message_ids: Iterable[str]) -> int:
+        keys = [self.build_message_key(message_id) for message_id in message_ids]
+        if not keys:
             return 0
-        return self.client.exists(*[self.build_message_key(message_id) for message_id in message_ids])
+        return self.client.exists(*keys)

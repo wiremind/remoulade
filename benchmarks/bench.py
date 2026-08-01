@@ -6,12 +6,12 @@ import subprocess
 import sys
 import time
 
-import celery
-import pylibmc
+import celery  # ty: ignore[unresolved-import]
+import pylibmc  # ty: ignore[unresolved-import]
 
 import remoulade
 from remoulade.brokers.rabbitmq import RabbitmqBroker
-from remoulade.brokers.redis import RedisBroker
+from remoulade.brokers.redis import RedisBroker  # ty: ignore[unresolved-import]
 
 logger = logging.getLogger("example")
 counter_key = "latench-bench-counter"
