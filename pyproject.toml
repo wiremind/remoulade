@@ -110,8 +110,14 @@ select = [
   "A",    # flake8-builtins
   "C4",   # flake8-comprehensions
   "ISC",  # flake8-implicit-str-concat
+  "G",    # flake8-logging-format
+  "PIE",  # flake8-pie
+  "PYI",  # lake8-pyi
   "Q",    # flake8-quotes
+  "RSE",  # flake8-raise
+  "RET",  # flake8-return-ret
   "SIM",  # flake8-simplify-sim
+  "TC",   # flake8-type-checking
   "I",    # isort
   "N",    # pep8-naming
   "PERF", # perflint-perf
@@ -119,14 +125,22 @@ select = [
   "W",    # warning
   "F",    # pyflakes
   "UP",   # pyupgrade
+  "FURB", # refurb
   "RUF",  # ruff-specific-rules
 ]
 ignore = [
   "N801",
   "N818",
   "S311",
+  "S403",
+  "S404",
+  "S405",
   # try-except-pass
-  "SIM105"
+  "PYI033",
+  "SIM105",
+  "RUF067",
+  "RUF106",
+  "RUF201",
 ]
 
 [tool.ruff.lint.per-file-ignores]

@@ -248,7 +248,7 @@ def test_raise_on_error(stub_broker, result_backend, stub_worker, block):
     # And an actor that store a result and fail
     @remoulade.actor(store_results=True)
     def do_work():
-        raise ValueError()
+        raise ValueError
 
     # And this actor is declared
     stub_broker.declare_actor(do_work)
@@ -276,7 +276,7 @@ def test_store_errors(stub_broker, result_backend, stub_worker, block):
     # And an actor that store a result and fail
     @remoulade.actor(store_results=True)
     def do_work():
-        raise ValueError()
+        raise ValueError
 
     # And this actor is declared
     stub_broker.declare_actor(do_work)
@@ -306,7 +306,7 @@ def test_store_errors_after_no_more_retry(stub_broker, result_backend, stub_work
     @remoulade.actor(max_retries=3, store_results=True, min_backoff=10, max_backoff=100)
     def do_work():
         failures.append(1)
-        raise ValueError()
+        raise ValueError
 
     # And this actor is declared
     stub_broker.declare_actor(do_work)
@@ -398,9 +398,8 @@ def test_messages_can_get_completed(stub_broker, stub_worker, result_backend, er
     @remoulade.actor(store_results=True)
     def do_work():
         if error:
-            raise ValueError()
-        else:
-            return 42
+            raise ValueError
+        return 42
 
     # And this actor is declared
     stub_broker.declare_actor(do_work)
@@ -455,12 +454,12 @@ def test_error_cannot_be_serialized(stub_broker, stub_worker, result_middleware)
     # given a exception which is not serializable
     class UnserializableError(Exception):
         def __repr__(self):
-            raise ValueError()
+            raise ValueError
 
     # And an actor that stores results
     @remoulade.actor(store_results=True)
     def do_work():
-        raise UnserializableError()
+        raise UnserializableError
 
     # And this actor is declared
     stub_broker.declare_actor(do_work)

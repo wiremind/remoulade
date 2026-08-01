@@ -21,7 +21,7 @@ remoulade.get_broker().add_middleware(MessageState(backend=RedisStateBackend()))
 
 @remoulade.actor(store_results=True)
 def request(uri):
-    return requests.get(uri).text  # noqa: S113
+    return requests.get(uri).text  # ruff: ignore[S113]
 
 
 @remoulade.actor(store_results=True)

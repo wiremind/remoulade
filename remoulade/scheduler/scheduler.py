@@ -63,7 +63,7 @@ class ScheduledJob:
 
     def get_hash(self) -> str:
         encoder = get_encoder()
-        return hashlib.sha1(  # noqa: S324
+        return hashlib.sha1(  # ruff: ignore[S324]
             "".join(
                 [
                     self.actor_name,
@@ -108,21 +108,21 @@ class ScheduledJob:
 
     @classmethod
     def decode(cls, data: bytes) -> "ScheduledJob":
-        data = get_encoder().decode_bytes(data)
+        payload = get_encoder().decode_bytes(data)
         return ScheduledJob(
-            actor_name=data["actor_name"],
-            interval=data["interval"],
+            actor_name=payload["actor_name"],
+            interval=payload["interval"],
             daily_time=None
-            if data["daily_time"] is None
-            else datetime.datetime.strptime(data["daily_time"], "%H:%M:%S").time(),
-            iso_weekday=data["iso_weekday"],
-            enabled=data["enabled"],
+            if payload["daily_time"] is None
+            else datetime.datetime.strptime(payload["daily_time"], "%H:%M:%S").time(),
+            iso_weekday=payload["iso_weekday"],
+            enabled=payload["enabled"],
             last_queued=None
-            if data["last_queued"] is None
-            else datetime.datetime.strptime(data["last_queued"], "%Y-%m-%dT%H:%M:%S"),
-            tz=data["tz"],
-            args=data["args"],
-            kwargs=data["kwargs"],
+            if payload["last_queued"] is None
+            else datetime.datetime.strptime(payload["last_queued"], "%Y-%m-%dT%H:%M:%S"),
+            tz=payload["tz"],
+            args=payload["args"],
+            kwargs=payload["kwargs"],
         )
 
 
@@ -134,8 +134,8 @@ class Scheduler:
         *,
         namespace: str | None = None,
         lock_key: str | None = None,
-        period: int | float | None = None,
-        client: redis.Redis = None,
+        period: float | None = None,
+        client: redis.Redis | None = None,
         url: str | None = None,
         **redis_parameters,
     ) -> None:
@@ -245,7 +245,7 @@ class Scheduler:
                             continue
 
                     if job.actor_name not in self.broker.actors:
-                        self.logger.error(f"Unknown {job_hash}. Cannot queue it.")
+                        self.logger.error("Unknown %s. Cannot queue it.", job_hash)
                         continue
 
                     self.broker.actors[job.actor_name].send(*job.args, **job.kwargs)

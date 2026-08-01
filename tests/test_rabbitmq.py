@@ -74,9 +74,8 @@ def test_rabbitmq_actors_retry_with_backoff_on_failure(rabbitmq_broker, rabbitmq
         if not failure_time:
             failure_time = current_millis()
             raise RuntimeError("First failure.")
-        else:
-            success_time = current_millis()
-            succeeded.set()
+        success_time = current_millis()
+        succeeded.set()
 
     # And this actor is declared
     rabbitmq_broker.declare_actor(do_work)
@@ -88,6 +87,7 @@ def test_rabbitmq_actors_retry_with_backoff_on_failure(rabbitmq_broker, rabbitmq
     succeeded.wait(timeout=30)
 
     # I expect backoff time to have passed between sucesss and failure
+    assert success_time is not None and failure_time is not None
     assert 800 <= success_time - failure_time <= 1200
 
 
@@ -102,6 +102,7 @@ def test_rabbitmq_actors_retry_with_queue_escalation_on_failure(rabbitmq_broker,
     def do_work():
         nonlocal incoming_queues
         msg = CurrentMessage.get_current_message()
+        assert msg is not None
         incoming_queues.append(msg.queue_name)
         raise RuntimeError("Failure")
 
@@ -127,6 +128,7 @@ def test_rabbitmq_actors_retry_without_queue_escalation(rabbitmq_broker, rabbitm
     def do_work():
         nonlocal incoming_queues
         msg = CurrentMessage.get_current_message()
+        assert msg is not None
         incoming_queues.append(msg.queue_name)
         raise RuntimeError("Failure")
 
@@ -148,6 +150,7 @@ def test_rabbitmq_actors_retry_with_priority_elevation_on_failure(rabbitmq_broke
     def do_work():
         nonlocal incoming_priorities
         msg = CurrentMessage.get_current_message()
+        assert msg is not None
         incoming_priorities.append(msg._rabbitmq_message.priority)
         raise RuntimeError("Failure")
 
@@ -171,6 +174,7 @@ def test_rabbitmq_actors_retry_without_priority_elevation(rabbitmq_broker, rabbi
     def do_work():
         nonlocal incoming_priorities
         msg = CurrentMessage.get_current_message()
+        assert msg is not None
         incoming_priorities.append(msg._rabbitmq_message.priority)
         raise RuntimeError("Failure")
 
@@ -456,7 +460,7 @@ def test_rabbitmq_broker_can_use_transactions(rabbitmq_broker, rabbitmq_worker):
     # then enqueue message but raise in the transaction
     with pytest.raises(ValueError), rabbitmq_broker.tx():
         [do_work.send() for _ in range(10)]
-        raise ValueError()
+        raise ValueError
 
     # Then join on the queue
     rabbitmq_broker.join(do_work.queue_name)

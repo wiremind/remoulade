@@ -1,4 +1,5 @@
 import contextlib
+from collections.abc import Iterable
 from typing import Any, ClassVar
 
 from ..backend import ForgottenResult, Missing, ResultBackend
@@ -24,14 +25,13 @@ class LocalBackend(ResultBackend):
                 data = self.results.pop(message_key)
                 self.forgotten_results.add(message_key)
                 return data
-            else:
-                return self.results[message_key]
+            return self.results[message_key]
         except KeyError:
             return Missing
 
-    def _store(self, message_keys, results, _):
-        for message_key, result in zip(message_keys, results, strict=False):
-            self.results[message_key] = result
+    def _store(self, message_keys: Iterable[str], result: Any, ttl: int) -> None:
+        for message_key, res in zip(message_keys, result, strict=False):
+            self.results[message_key] = res
 
     def _delete(self, key: str):
         with contextlib.suppress(KeyError):

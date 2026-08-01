@@ -19,12 +19,13 @@ import time
 from functools import partial
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, HTTPServer
+from typing import Any
 from urllib.parse import parse_qs, urlsplit
 
 from ..logging import get_logger
 from .middleware import Middleware
 
-DEFAULT_HTTP_HOST = "0.0.0.0"  # noqa: S104
+DEFAULT_HTTP_HOST = "0.0.0.0"  # ruff: ignore[S104]
 DEFAULT_HTTP_PORT = 9192
 DEFAULT_THRESHOLD = 2 * 60 * 60
 HEARTBEAT_INTERVAL = 10
@@ -36,7 +37,7 @@ class HeartbeatRequestHandler(BaseHTTPRequestHandler):
     def do_GET(self):
         self.server.answer(self)
 
-    def log_message(self, *_args):
+    def log_message(self, format: str, *args: Any) -> None:  # ruff: ignore[A002]
         return
 
 
