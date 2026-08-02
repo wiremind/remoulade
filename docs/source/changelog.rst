@@ -5,6 +5,15 @@ Changelog
 
 All notable changes to this project will be documented in this file.
 
+`7.1.0`_ -- 2026-08-02
+----------------------
+Changed
+^^^^^^^
+* Replace ``mypy`` with ``ty`` for static type checking.
+* Enable additional Ruff lints and clean up legacy ignores.
+* Upgrade GitHub Actions and CI workflow dependencies.
+* Refactor internal data structures (``State`` to ``@dataclass``, helpers to ``NamedTuple``).
+
 `7.0.0`_ -- 2026-06-15
 ------------
 Breaking changes
