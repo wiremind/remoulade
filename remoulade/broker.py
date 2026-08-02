@@ -226,7 +226,7 @@ class Broker:
     def tx(self):
         yield
 
-    def emit_before(self, signal: str, *args: Any, **kwargs: Any) -> None:
+    def emit_before(self, signal: str, *args: object, **kwargs: object) -> None:
         for middleware in self.middleware:
             try:
                 getattr(middleware, "before_" + signal)(self, *args, **kwargs)
@@ -235,7 +235,7 @@ class Broker:
             except Exception:
                 self.logger.critical("Unexpected failure in before_%s.", signal, exc_info=True)
 
-    def emit_after(self, signal: str, *args: Any, **kwargs: Any) -> None:
+    def emit_after(self, signal: str, *args: object, **kwargs: object) -> None:
         for middleware in reversed(self.middleware):
             try:
                 getattr(middleware, "after_" + signal)(self, *args, **kwargs)
