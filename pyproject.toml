@@ -47,8 +47,7 @@ dev = [
   "sphinx-copybutton",
   # Linting
   "ruff",
-  "mypy~=1.18.2",
-  "sqlalchemy[mypy]>=2.0,<3",
+  "ty",
   "types-redis",
   "types-python-dateutil",
   "types-requests",
@@ -100,33 +99,44 @@ markers = ["confirm_delivery", "group_transaction"]
 [tool.ruff]
 target-version = "py312"
 line-length = 120
-exclude = [".git", "tests/mypy"]
 
 [tool.ruff.lint]
 # https://docs.astral.sh/ruff/rules/
 select = [
-  "S",    # flake8-bandit
-  "B",    # flake8-bugbear
-  "A",    # flake8-builtins
-  "C4",   # flake8-comprehensions
-  "ISC",  # flake8-implicit-str-concat
-  "Q",    # flake8-quotes
-  "SIM",  # flake8-simplify-sim
-  "I",    # isort
-  "N",    # pep8-naming
-  "PERF", # perflint-perf
-  "E",    # error
-  "W",    # warning
-  "F",    # pyflakes
-  "UP",   # pyupgrade
-  "RUF",  # ruff-specific-rules
+  "S",      # flake8-bandit
+  "B",      # flake8-bugbear
+  "A",      # flake8-builtins
+  "C4",     # flake8-comprehensions
+  "ISC",    # flake8-implicit-str-concat
+  "G",      # flake8-logging-format
+  "PIE",    # flake8-pie
+  "PYI",    # lake8-pyi
+  "Q",      # flake8-quotes
+  "RSE",    # flake8-raise
+  "RET",    # flake8-return-ret
+  "SIM",    # flake8-simplify-sim
+  "TC",     # flake8-type-checking
+  "I",      # isort
+  "N",      # pep8-naming
+  "PERF",   # perflint-perf
+  "E",      # error
+  "W",      # warning
+  "F",      # pyflakes
+  "UP",     # pyupgrade
+  "FURB",   # refurb
+  "RUF",    # ruff-specific-rules
+  "ANN401", # any-type
 ]
 ignore = [
   "N801",
   "N818",
   "S311",
-  # try-except-pass
-  "SIM105"
+  "S403",
+  "S404",
+  "S405",
+  "RUF067",
+  "RUF106",
+  "RUF201",
 ]
 
 [tool.ruff.lint.per-file-ignores]
@@ -137,23 +147,5 @@ combine-as-imports = true
 force-wrap-aliases = true
 known-first-party = ["remoulade"]
 
-[tool.mypy]
-python_version = "3.12"
-ignore_missing_imports = true
-check_untyped_defs = true
-warn_unused_ignores = true
-strict_optional = false
-plugins = ["sqlalchemy.ext.mypy.plugin"]
-files = ["remoulade/**/*.py", "tests/**/*.py"]
-
-[[tool.mypy.overrides]]
-module = ["remoulade.scheduler.*"]
-ignore_errors = true
-
-[[tool.mypy.overrides]]
-module = ["benchmarks.*"]
-ignore_errors = true
-
-[[tool.mypy.overrides]]
-module = ["tests.*"]
-ignore_errors = true
+[tool.ty.environment]
+python-version = "3.12"

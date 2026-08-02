@@ -118,7 +118,7 @@ def test_local_raise_error(local_broker):
     # Given that I have an actor that raise an exception
     @remoulade.actor()
     def raise_error():
-        raise ValueError()
+        raise ValueError
 
     local_broker.declare_actor(raise_error)
 

@@ -32,16 +32,18 @@ def redis_client(url: str | None, socket_timeout: float | None = None, **paramet
     if url:
         url_parsed = urlparse(url)
         if url_parsed.scheme == "sentinel":
+            host = url_parsed.hostname or "localhost"
+            port = url_parsed.port or 26379
             sentinel_kwargs = {"password": url_parsed.password, **connection_parameters}
-            sentinel = redis.Sentinel([(url_parsed.hostname, url_parsed.port)], sentinel_kwargs=sentinel_kwargs)
+            sentinel = redis.Sentinel([(host, port)], sentinel_kwargs=sentinel_kwargs)
             return sentinel.master_for(
                 service_name=os.path.normpath(url_parsed.path).split("/")[1],
                 password=url_parsed.password,
                 **connection_parameters,
             )
-        else:
-            parameters["connection_pool"] = redis.ConnectionPool.from_url(url, **connection_parameters)
-            return redis.Redis(**parameters)
+        parameters["connection_pool"] = redis.ConnectionPool.from_url(url, **connection_parameters)
+        return redis.Redis(**parameters)
+    return None
 
 
 def async_redis_client(url: str | None, socket_timeout: float | None = None, **parameters):
@@ -51,13 +53,15 @@ def async_redis_client(url: str | None, socket_timeout: float | None = None, **p
     if url:
         url_parsed = urlparse(url)
         if url_parsed.scheme == "sentinel":
+            host = url_parsed.hostname or "localhost"
+            port = url_parsed.port or 26379
             sentinel_kwargs = {"password": url_parsed.password, **connection_parameters}
-            sentinel = redis_async.Sentinel([(url_parsed.hostname, url_parsed.port)], sentinel_kwargs=sentinel_kwargs)
+            sentinel = redis_async.Sentinel([(host, port)], sentinel_kwargs=sentinel_kwargs)
             return sentinel.master_for(
                 service_name=os.path.normpath(url_parsed.path).split("/")[1],
                 password=url_parsed.password,
                 **connection_parameters,
             )
-        else:
-            parameters["connection_pool"] = redis_async.ConnectionPool.from_url(url, **connection_parameters)
-            return redis_async.Redis(**parameters)
+        parameters["connection_pool"] = redis_async.ConnectionPool.from_url(url, **connection_parameters)
+        return redis_async.Redis(**parameters)
+    return None

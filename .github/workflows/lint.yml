@@ -19,9 +19,9 @@ jobs:
       matrix:
         python-version: ["3.12", "3.13", "3.14"]
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - name: Install uv and set the Python version
-        uses: astral-sh/setup-uv@v6
+        uses: astral-sh/setup-uv@v9.0.0
         with:
           python-version: ${{ matrix.python-version }}
           activate-environment: true
@@ -31,5 +31,5 @@ jobs:
         run: ruff check
       - name: Format with ruff
         run: ruff format --check --diff
-      - name: Check typing with mypy
-        run: mypy --show-traceback
+      - name: Check typing with ty
+        run: ty check

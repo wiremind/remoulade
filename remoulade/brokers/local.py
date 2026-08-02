@@ -19,7 +19,6 @@ from typing import TYPE_CHECKING, Any, override
 
 from ..broker import Broker, Consumer, MessageProxy
 from ..common import current_millis
-from ..message import Message
 from ..middleware import SkipMessage
 from ..results import Results
 from ..results.backends import LocalBackend
@@ -27,6 +26,7 @@ from ..results.backends import LocalBackend
 if TYPE_CHECKING:
     from collections.abc import Iterable
 
+    from ..message import Message
     from ..middleware import Middleware
 
 
@@ -96,8 +96,7 @@ class LocalBroker(Broker):
         self.emit_before("enqueue", message, delay)
         self.emit_after("enqueue", message, delay)
 
-        message = self._enqueue(message, delay=delay)
-        return message
+        return self._enqueue(message, delay=delay)
 
     @override
     def _enqueue(self, message: "Message", *, delay: int | None = None):
@@ -138,7 +137,7 @@ class LocalBroker(Broker):
         return [self._enqueue(message, delay=delay) for message in messages]
 
     @override
-    def flush(self, _: str) -> None:
+    def flush(self, queue_name: str) -> None:
         pass
 
     @override

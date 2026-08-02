@@ -16,16 +16,16 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 from __future__ import annotations
 
-from collections import namedtuple
-from collections.abc import Iterable
 from contextlib import nullcontext
-from typing import TYPE_CHECKING, Any, Self, TypedDict, TypeVar, cast, overload
+from typing import TYPE_CHECKING, Any, NamedTuple, Self, TypedDict, TypeVar, cast, overload
 
 from .broker import get_broker
 from .collection_results import CollectionResults
 from .common import flatten, generate_unique_id
 
 if TYPE_CHECKING:
+    from collections.abc import Iterable
+
     from .message import Message
     from .result import Result
 
@@ -38,7 +38,7 @@ class GroupInfoDict(TypedDict):
     children_count: int
 
 
-class GroupInfo(namedtuple("GroupInfo", ("group_id", "children_count"))):
+class GroupInfo(NamedTuple):
     """Encapsulates metadata about a group being sent to multiple actors.
 
     Parameters:
@@ -46,11 +46,11 @@ class GroupInfo(namedtuple("GroupInfo", ("group_id", "children_count"))):
       children_count(int)
     """
 
-    def __new__(cls, *, group_id: str, children_count: int):
-        return super().__new__(cls, group_id, children_count)
+    group_id: str
+    children_count: int
 
     def asdict(self) -> GroupInfoDict:
-        return cast(GroupInfoDict, self._asdict())
+        return cast("GroupInfoDict", self._asdict())
 
 
 class pipeline[ResultsT: "Result[Any] | CollectionResults[Any]"]:
@@ -73,11 +73,7 @@ class pipeline[ResultsT: "Result[Any] | CollectionResults[Any]"]:
     @overload
     def __init__(
         self,
-        # we should actually not use ResultTs here but define a new type var that is only bound to Result
-        # but then mypy gets lost, so reusing ResultsT and ignoring the error
-        children: tuple[  # type: ignore
-            *tuple[Message[Any] | pipeline[Any] | group[Any], ...], Message[ResultsT] | pipeline[ResultsT]
-        ],
+        children: tuple[*tuple[Message[Any] | pipeline[Any] | group[Any], ...], Message[Any] | pipeline[ResultsT]],
         cancel_on_error: bool = False,
     ): ...
 
@@ -203,7 +199,7 @@ class pipeline[ResultsT: "Result[Any] | CollectionResults[Any]"]:
     def result(self) -> ResultsT:
         """Result of the last message/group of the pipeline"""
         last_child = self.children[-1]
-        return cast(ResultsT, last_child.results if isinstance(last_child, group) else last_child.result)
+        return cast("ResultsT", last_child.results if isinstance(last_child, group) else last_child.result)
 
     def cancel(self) -> None:
         """Mark all the children as cancelled"""
@@ -227,9 +223,7 @@ class group[ResultsT: "Result[Any] | CollectionResults[Any]"]:
 
     def __init__(
         self,
-        # we should actually not use ResultTs here but define a new type var that is only bound to Result
-        # but then mypy gets lost, so reusing ResultsT and ignoring the error
-        children: Iterable[pipeline[ResultsT] | Message[ResultsT]],  # type: ignore
+        children: Iterable[pipeline[ResultsT] | Message[Any]],
         group_id: str | None = None,
         cancel_on_error: bool = False,
     ) -> None:
@@ -275,11 +269,15 @@ class group[ResultsT: "Result[Any] | CollectionResults[Any]"]:
         messages: list[Message] = []
         for group_child in self.children:
             if isinstance(group_child, pipeline):
-                messages += group_child.build(
+                pipe_child = cast("pipeline", group_child)
+                messages += pipe_child.build(
                     last_options=options, composition_id=composition_id, cancel_on_error=cancel_on_error
                 )
+            elif isinstance(group_child, group):
+                group_subchild = cast("group", group_child)
+                messages += group_subchild.build(options=options)
             else:
-                messages += [group_child.build(options)]
+                messages.append(group_child.build(options=options))
         return messages
 
     @property
@@ -312,7 +310,9 @@ class group[ResultsT: "Result[Any] | CollectionResults[Any]"]:
     @property
     def results(self) -> CollectionResults[ResultsT]:
         """CollectionResults created from this group, used for result related methods"""
-        return cast(CollectionResults[ResultsT], CollectionResults(children=[child.result for child in self.children]))
+        return cast(
+            "CollectionResults[ResultsT]", CollectionResults(children=[child.result for child in self.children])
+        )
 
     def cancel(self) -> None:
         """Mark all the children as cancelled"""

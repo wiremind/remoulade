@@ -35,11 +35,11 @@ from .worker_thread_logging import WorkerThreadLogging
 CURRENT_OS = platform.system()
 
 if CURRENT_OS != "Windows":
-    from .prometheus import Prometheus  # noqa: F401
+    from .prometheus import Prometheus  # ruff: ignore[F401]
 
 _has_tracing = False
 try:
-    from .tracing import OpenTelemetryMiddleware  # noqa: F401
+    from .tracing import OpenTelemetryMiddleware  # ruff: ignore[F401]
 
     _has_tracing = True
 except ImportError:
@@ -73,10 +73,10 @@ __all__ = [
 ]
 
 if CURRENT_OS != "Windows":
-    __all__.append("Prometheus")
+    __all__ += "Prometheus"
 
 if _has_tracing:
-    __all__.append("OpenTelemetryMiddleware")
+    __all__ += "OpenTelemetryMiddleware"
 
 #: The list of middleware that are enabled by default.
 default_middleware = [

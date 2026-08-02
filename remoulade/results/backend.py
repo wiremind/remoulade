@@ -16,10 +16,9 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 import asyncio
 import time
-from collections import namedtuple
 from collections.abc import Iterable
 from contextlib import contextmanager
-from typing import Any
+from typing import Any, NamedTuple
 
 from ..encoder import Encoder
 from ..helpers import compute_backoff
@@ -38,9 +37,11 @@ class Missing:
 
 
 #: A type alias representing backend results.
-class BackendResult(namedtuple("BackendResult", ("result", "error", "forgot", "actor_name"))):
-    def __new__(cls, *, result, error, forgot=False, actor_name=None):
-        return super().__new__(cls, result, error, forgot, actor_name)
+class BackendResult(NamedTuple):
+    result: Any
+    error: Any
+    forgot: bool = False
+    actor_name: Any = None
 
     def asdict(self):
         return self._asdict()
@@ -60,7 +61,11 @@ class ResultBackend:
     """
 
     def __init__(
-        self, *, namespace: str = "remoulade-results", encoder: Encoder = None, default_timeout: int | None = None
+        self,
+        *,
+        namespace: str = "remoulade-results",
+        encoder: Encoder | None = None,
+        default_timeout: int | None = None,
     ):
         from ..message import get_encoder
 
@@ -97,7 +102,7 @@ class ResultBackend:
         timeout: int | None = None,
         forget: bool = False,
         raise_on_error: bool = True,
-    ) -> Any:
+    ) -> Any:  # ruff: ignore[ANN401]
         """Get a result from the backend.
 
         Parameters:
@@ -122,14 +127,14 @@ class ResultBackend:
         attempts = 0
         while True:
             result = self._get(message_key, forget)
-            if result is Missing and block:
+            if isinstance(result, dict):
+                backend_result = BackendResult(**result)
+                return self.process_result(backend_result, raise_on_error)
+            if block:
                 delay = self.check_timeout(attempts, end_time, message_id)
                 time.sleep(delay)
-            elif result is Missing:
-                raise ResultMissing(message_id)
             else:
-                backend_result = BackendResult(**result)  # type: ignore
-                return self.process_result(backend_result, raise_on_error)
+                raise ResultMissing(message_id)
 
     async def async_get_result(
         self,
@@ -138,18 +143,18 @@ class ResultBackend:
         timeout: int | None = None,
         forget: bool = False,
         raise_on_error: bool = True,
-    ) -> BackendResult:
+    ) -> Any:  # ruff: ignore[ANN401]
         message_key = self.build_message_key(message_id)
         end_time = self.get_end_time(timeout)
         attempts = 0
         while True:
             result = self._get(message_key, forget)
-            if result is Missing:
-                delay = self.check_timeout(attempts, end_time, message_id)
-                await asyncio.sleep(delay)
-            else:
-                backend_result = BackendResult(**result)  # type: ignore
+            if isinstance(result, dict):
+                backend_result = BackendResult(**result)
                 return self.process_result(backend_result, raise_on_error)
+
+            delay = self.check_timeout(attempts, end_time, message_id)
+            await asyncio.sleep(delay)
 
     def check_timeout(self, attempts: int, end_time: float, message_id: str) -> float:
         attempts, delay = compute_backoff(attempts, min_backoff=BACKOFF_FACTOR)
@@ -158,7 +163,7 @@ class ResultBackend:
             raise ResultTimeout(message_id)
         return delay
 
-    def get_end_time(self, timeout: int) -> float:
+    def get_end_time(self, timeout: int | None = None) -> float:
         if timeout is None:
             timeout = self.default_timeout
         return time.monotonic() + timeout / 1000
@@ -256,7 +261,7 @@ class ResultBackend:
         """
         raise NotImplementedError(f"{type(self).__name__} does not implement _get()")
 
-    def _store(self, message_keys: Iterable[str], result: Any, ttl: int) -> None:  # pragma: no cover
+    def _store(self, message_keys: Iterable[str], results: Iterable[Any], ttl: int) -> None:  # pragma: no cover
         """Store multiple results in the backend.  Subclasses may implement
         this method if they want to use the default implementation of
         set_result.
@@ -271,15 +276,15 @@ class ResultBackend:
     def retry(self, broker, message, logger):
         try:
             yield
-        except:  # noqa
+        except Exception:
             # If saving the result fail, we must retry the message else we have no way to know it's finished
             # We cannot use the retry middleware as it must be executed before the result middleware,
             # use a simplified one here
             retries = message.options.setdefault("retries_result_backend", 0)
             message.options["retries_result_backend"] = retries + 1
             if retries < 3:
-                logger.warning(f"Could not store result of {message}: retrying it", exc_info=True)
+                logger.warning("Could not store result of %r: retrying it", message, exc_info=True)
                 _, backoff = compute_backoff(retries, min_backoff=500)  # retry after 500ms, 1s, 2s
                 broker.enqueue(message, delay=backoff)
             else:
-                logger.error(f"Could not store result of {message}: retries exceeded", exc_info=True)
+                logger.exception("Could not store result of %r: retrying it", message)
