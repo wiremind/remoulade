@@ -30,19 +30,19 @@ class State:
         args: List of arguments in the state
     """
 
-    message_id: Any
-    status: Any = None
-    actor_name: Any = None
-    args: Any = None
-    kwargs: Any = None
-    options: Any = None
-    priority: Any = None
-    progress: Any = None
-    enqueued_datetime: Any = None
-    started_datetime: Any = None
-    end_datetime: Any = None
-    queue_name: Any = None
-    composition_id: Any = None
+    message_id: str
+    status: StateStatusesEnum | None = None
+    actor_name: str | None = None
+    args: list[Any] | None = None
+    kwargs: dict[str, Any] | None = None
+    options: dict[str, Any] | None = None
+    priority: int | None = None
+    progress: float | None = None
+    enqueued_datetime: datetime.datetime | None = None
+    started_datetime: datetime.datetime | None = None
+    end_datetime: datetime.datetime | None = None
+    queue_name: str | None = None
+    composition_id: str | None = None
 
     def __post_init__(self):
         if self.status and self.status not in list(StateStatusesEnum):

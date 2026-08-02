@@ -102,7 +102,7 @@ class ResultBackend:
         timeout: int | None = None,
         forget: bool = False,
         raise_on_error: bool = True,
-    ) -> Any:
+    ) -> Any:  # ruff: ignore[ANN401]
         """Get a result from the backend.
 
         Parameters:
@@ -143,7 +143,7 @@ class ResultBackend:
         timeout: int | None = None,
         forget: bool = False,
         raise_on_error: bool = True,
-    ) -> BackendResult:
+    ) -> Any:  # ruff: ignore[ANN401]
         message_key = self.build_message_key(message_id)
         end_time = self.get_end_time(timeout)
         attempts = 0
@@ -261,7 +261,7 @@ class ResultBackend:
         """
         raise NotImplementedError(f"{type(self).__name__} does not implement _get()")
 
-    def _store(self, message_keys: Iterable[str], result: Any, ttl: int) -> None:  # pragma: no cover
+    def _store(self, message_keys: Iterable[str], results: Iterable[Any], ttl: int) -> None:  # pragma: no cover
         """Store multiple results in the backend.  Subclasses may implement
         this method if they want to use the default implementation of
         set_result.

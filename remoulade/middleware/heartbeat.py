@@ -19,7 +19,6 @@ import time
 from functools import partial
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, HTTPServer
-from typing import Any
 from urllib.parse import parse_qs, urlsplit
 
 from ..logging import get_logger
@@ -37,7 +36,7 @@ class HeartbeatRequestHandler(BaseHTTPRequestHandler):
     def do_GET(self):
         self.server.answer(self)
 
-    def log_message(self, format: str, *args: Any) -> None:  # ruff: ignore[A002]
+    def log_message(self, format: str, *args: object) -> None:  # ruff: ignore[A002]
         return
 
 
