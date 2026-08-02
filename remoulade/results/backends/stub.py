@@ -45,9 +45,9 @@ class StubBackend(ResultBackend):
             return self.encoder.decode_bytes(data)
         return Missing
 
-    def _store(self, message_keys: Iterable[str], result: Any, ttl: int) -> None:
-        for message_key, res in zip(message_keys, result, strict=False):
-            result_data = self.encoder.encode_in_bytes(res)
+    def _store(self, message_keys: Iterable[str], results: Iterable[Any], ttl: int) -> None:
+        for message_key, result in zip(message_keys, results, strict=False):
+            result_data = self.encoder.encode_in_bytes(result)
             expiration = time.monotonic() + int(ttl / 1000)
             self.results[message_key] = (result_data, expiration)
 

@@ -253,11 +253,11 @@ class RedisBackend(ResultBackend):
         result = BackendResult(**self.encoder.decode_bytes(data))
         return self.process_result(result, raise_on_error)
 
-    def _store(self, message_keys, result, ttl):
+    def _store(self, message_keys, results, ttl):
         with self.client.pipeline() as pipe:
-            for message_key, res in zip(message_keys, result, strict=False):
+            for message_key, result in zip(message_keys, results, strict=False):
                 pipe.delete(message_key)
-                pipe.lpush(message_key, self.encoder.encode_in_bytes(res))
+                pipe.lpush(message_key, self.encoder.encode_in_bytes(result))
                 pipe.pexpire(message_key, ttl)
             pipe.execute()
 

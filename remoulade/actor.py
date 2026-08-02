@@ -51,7 +51,7 @@ def actor(
     queue_name: str = "default",
     alternative_queues: list[str] | None = None,
     priority: int = 0,
-    **options: Any,
+    **options: object,
 ) -> "Callable[[Callable[P, R]], Actor[P, R]]": ...
 
 
@@ -63,7 +63,7 @@ def actor[**P, R](
     queue_name: str = "default",
     alternative_queues: list[str] | None = None,
     priority: int = 0,
-    **options: Any,
+    **options: object,
 ) -> "Actor[P, R]": ...
 
 
@@ -170,7 +170,7 @@ class Actor[**P, R]:
         queue_name: str,
         alternative_queues: list[str] | None,
         priority: int,
-        options: Any,
+        options: dict[str, Any],
     ) -> None:
         self.logger = get_logger(fn.__module__, actor_name)
         self.fn = fn
@@ -194,7 +194,7 @@ class Actor[**P, R]:
     def queue_names(self):
         return [self.queue_name] + (self.alternative_queues or [])
 
-    def message(self, *args: Any, **kwargs: Any) -> Message[Result[R]]:
+    def message(self, *args: Any, **kwargs: Any) -> Message[Result[R]]:  # ruff: ignore[ANN401]
         """Build a message.  This method is useful if you want to
         compose actors.  See the actor composition documentation for
         details.
@@ -218,7 +218,7 @@ class Actor[**P, R]:
         args: tuple[Any, ...] | None = None,
         kwargs: dict[str, Any] | None = None,
         queue_name: str | None = None,
-        **options: Any,
+        **options: object,
     ) -> Message[Result[R]]:
         """Build a message with an arbitrary set of processing options.
         This method is useful if you want to compose actors.  See the
@@ -271,7 +271,7 @@ class Actor[**P, R]:
         kwargs: dict[str, Any] | None = None,
         queue_name: str | None = None,
         delay: int | None = None,
-        **options: Any,
+        **options: object,
     ) -> Message[Result[R]]:
         """Asynchronously send a message to this actor, along with an
         arbitrary set of processing options for the broker and

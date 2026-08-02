@@ -126,6 +126,7 @@ select = [
   "UP",   # pyupgrade
   "FURB", # refurb
   "RUF",  # ruff-specific-rules
+  "ANN401",
 ]
 ignore = [
   "N801",
