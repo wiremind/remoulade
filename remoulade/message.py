@@ -30,7 +30,7 @@ from .errors import InvalidProgress
 from .result import Result
 
 #: The global encoder instance.
-global_encoder = JSONEncoder()  # type: Encoder
+global_encoder: Encoder = JSONEncoder()
 
 
 def get_encoder() -> Encoder:

@@ -90,7 +90,7 @@ class Worker:
         self.delay_prefetch = min(worker_threads * 1000, 65535)
 
         self.workers = []
-        self.work_queue = PriorityQueue()  # type: PriorityQueue
+        self.work_queue = PriorityQueue()
         self.worker_timeout = worker_timeout
         self.worker_threads = worker_threads
 
@@ -245,7 +245,7 @@ class _ConsumerThread(Thread):
         self.queue_name = queue_name
         self.work_queue = work_queue
         self.worker_timeout = worker_timeout
-        self.delay_queue = PriorityQueue()  # type: PriorityQueue
+        self.delay_queue = PriorityQueue()
 
     def run(self):
         self.logger.debug("Running consumer thread...")
