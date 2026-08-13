@@ -3,6 +3,7 @@ import logging
 import os
 import threading
 import time
+from datetime import UTC, datetime, timedelta
 from unittest.mock import Mock, patch
 
 import pytest
@@ -1307,3 +1308,181 @@ def test_listener_wakes_all_consumers_on_a_queue_and_unregister_spares_siblings(
     listener.unregister("default", second)
     assert channel not in listener._channel_to_queue
     assert "default" not in listener._events
+
+
+def _archive_messages(broker, *messages):
+    """Enqueue then consume the given messages so they end up in the archive."""
+    for message in messages:
+        broker.enqueue(message)
+
+    consumer = broker.consume("default", prefetch=len(messages), timeout=200)
+    for _ in messages:
+        consumed_message = next(consumer)
+        assert consumed_message is not None
+        consumer.ack(consumed_message)
+    consumer.close()
+
+
+def _archived_message_ids(broker, queue_name="default"):
+    archive_table = Table(
+        f"a_{queue_name}",
+        MetaData(),
+        Column("msg_id", Integer),
+        Column("message", JSON),
+        schema="pgmq",
+    )
+    with broker.client.session() as session:
+        rows = session.execute(select(archive_table.c.message).order_by(archive_table.c.msg_id)).all()
+    return [row[0]["message_id"] for row in rows]
+
+
+def _archive_partition_names(broker, queue_name="default"):
+    query = text(
+        "SELECT c.relname FROM pg_class c "
+        "JOIN pg_inherits i ON i.inhrelid = c.oid "
+        "JOIN pg_class parent ON parent.oid = i.inhparent "
+        "JOIN pg_namespace n ON n.oid = parent.relnamespace "
+        "WHERE n.nspname = 'pgmq' AND parent.relname = :parent"
+    )
+    with broker.client.session() as session:
+        return sorted(row[0] for row in session.execute(query, {"parent": f"a_{queue_name}"}).all())
+
+
+@pytest.mark.usefixtures("postgres_broker")
+def test_postgres_flush_empties_the_archive_by_default(postgres_broker):
+    postgres_broker.declare_queue("default")
+    _archive_messages(
+        postgres_broker, Message(queue_name="default", actor_name="do_work", args=(), kwargs={}, options={})
+    )
+    postgres_broker.enqueue(Message(queue_name="default", actor_name="do_work", args=(), kwargs={}, options={}))
+    partitions_before = _archive_partition_names(postgres_broker)
+
+    postgres_broker.flush("default")
+
+    assert _count_messages(postgres_broker) == 0
+    assert _count_archived_messages(postgres_broker) == 0
+    # The rows go, the partitions stay: pg_partman keeps managing their lifecycle.
+    assert _archive_partition_names(postgres_broker) == partitions_before
+    assert partitions_before != []
+
+
+@pytest.mark.usefixtures("postgres_broker")
+def test_postgres_flush_active_only_spares_the_archive(postgres_broker):
+    postgres_broker.declare_queue("default")
+    _archive_messages(
+        postgres_broker, Message(queue_name="default", actor_name="do_work", args=(), kwargs={}, options={})
+    )
+    postgres_broker.enqueue(Message(queue_name="default", actor_name="do_work", args=(), kwargs={}, options={}))
+
+    postgres_broker.flush("default", active_only=True)
+
+    assert _count_messages(postgres_broker) == 0
+    assert _count_archived_messages(postgres_broker) == 1
+
+
+@pytest.mark.usefixtures("postgres_broker")
+def test_postgres_flush_all_forwards_active_only(postgres_broker):
+    postgres_broker.declare_queue("default")
+    _archive_messages(
+        postgres_broker, Message(queue_name="default", actor_name="do_work", args=(), kwargs={}, options={})
+    )
+
+    postgres_broker.flush_all(active_only=True)
+    assert _count_archived_messages(postgres_broker) == 1
+
+    postgres_broker.flush_all()
+    assert _count_archived_messages(postgres_broker) == 0
+
+
+@pytest.mark.usefixtures("postgres_broker")
+def test_postgres_replay_archived_messages_sends_archived_messages_back_verbatim(postgres_broker):
+    postgres_broker.declare_queue("default")
+    message = Message(queue_name="default", actor_name="do_work", args=(42,), kwargs={}, options={})
+    _archive_messages(postgres_broker, message)
+
+    replayed = postgres_broker.replay_archived_messages("default", message_ids=[message.message_id])
+
+    assert replayed == [message.message_id]
+    # Back on the queue with its original message_id, and gone from the archive.
+    assert _count_messages(postgres_broker) == 1
+    assert _first_payload(postgres_broker) == _expected_payload(message)
+    assert _count_archived_messages(postgres_broker) == 0
+
+
+@pytest.mark.usefixtures("postgres_broker")
+def test_postgres_replay_archived_messages_filters_on_the_remoulade_message_id_not_the_pgmq_msg_id(postgres_broker):
+    postgres_broker.declare_queue("default")
+    wanted = Message(queue_name="default", actor_name="do_work", args=(1,), kwargs={}, options={})
+    spared = Message(queue_name="default", actor_name="do_work", args=(2,), kwargs={}, options={})
+    _archive_messages(postgres_broker, wanted, spared)
+
+    replayed = postgres_broker.replay_archived_messages("default", message_ids=[wanted.message_id])
+
+    assert replayed == [wanted.message_id]
+    assert _archived_message_ids(postgres_broker) == [spared.message_id]
+    assert _first_payload(postgres_broker) == _expected_payload(wanted)
+
+
+@pytest.mark.usefixtures("postgres_broker")
+def test_postgres_replay_archived_messages_filters_on_actor_name(postgres_broker):
+    postgres_broker.declare_queue("default")
+    wanted = Message(queue_name="default", actor_name="do_work", args=(), kwargs={}, options={})
+    spared = Message(queue_name="default", actor_name="do_other_work", args=(), kwargs={}, options={})
+    _archive_messages(postgres_broker, wanted, spared)
+
+    replayed = postgres_broker.replay_archived_messages("default", actor_names=["do_work"])
+
+    assert replayed == [wanted.message_id]
+    assert _archived_message_ids(postgres_broker) == [spared.message_id]
+
+
+@pytest.mark.usefixtures("postgres_broker")
+def test_postgres_replay_archived_messages_filters_on_the_archived_at_range(postgres_broker):
+    postgres_broker.declare_queue("default")
+    message = Message(queue_name="default", actor_name="do_work", args=(), kwargs={}, options={})
+    _archive_messages(postgres_broker, message)
+
+    # A window in the past cannot match anything that was just archived.
+    assert postgres_broker.replay_archived_messages("default", to_datetime=datetime.now(UTC) - timedelta(hours=1)) == []
+    assert _count_archived_messages(postgres_broker) == 1
+
+    replayed = postgres_broker.replay_archived_messages(
+        "default",
+        from_datetime=datetime.now(UTC) - timedelta(hours=1),
+        to_datetime=datetime.now(UTC) + timedelta(hours=1),
+    )
+
+    assert replayed == [message.message_id]
+    assert _count_archived_messages(postgres_broker) == 0
+
+
+@pytest.mark.usefixtures("postgres_broker")
+def test_postgres_replay_archived_messages_dry_run_writes_nothing(postgres_broker):
+    postgres_broker.declare_queue("default")
+    message = Message(queue_name="default", actor_name="do_work", args=(), kwargs={}, options={})
+    _archive_messages(postgres_broker, message)
+
+    replayed = postgres_broker.replay_archived_messages("default", actor_names=["do_work"], dry_run=True)
+
+    assert replayed == [message.message_id]
+    assert _count_messages(postgres_broker) == 0
+    assert _count_archived_messages(postgres_broker) == 1
+
+
+@pytest.mark.usefixtures("postgres_broker")
+def test_postgres_replay_archived_messages_rejects_an_unfiltered_call(postgres_broker):
+    postgres_broker.declare_queue("default")
+    message = Message(queue_name="default", actor_name="do_work", args=(), kwargs={}, options={})
+    _archive_messages(postgres_broker, message)
+
+    replayed = postgres_broker.replay_archived_messages("default")
+
+    assert replayed == [message.message_id]
+    assert _count_messages(postgres_broker) == 1
+    assert _count_archived_messages(postgres_broker) == 0
+
+
+@pytest.mark.usefixtures("postgres_broker")
+def test_postgres_replay_archived_messages_rejects_an_undeclared_queue(postgres_broker):
+    with pytest.raises(QueueNotFound):
+        postgres_broker.replay_archived_messages("not-declared", actor_names=["do_work"])

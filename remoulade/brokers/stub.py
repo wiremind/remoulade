@@ -105,16 +105,18 @@ class StubBroker(Broker):
     def _enqueue_many(self, messages, *, delay=None):
         return [self._enqueue(message, delay=delay) for message in messages]
 
-    def flush(self, queue_name):
+    def flush(self, queue_name, *, active_only=False):
         """Drop all the messages from a queue.
 
         Parameters:
           queue_name(str): The queue to flush.
+          active_only(bool): Accepted for API compatibility and ignored: an
+            in-memory queue keeps nothing aside once a message left it.
         """
         for _ in iter_queue(self.queues[queue_name]):
             self.queues[queue_name].task_done()
 
-    def flush_all(self):
+    def flush_all(self, *, active_only=False):
         """Drop all messages from all declared queues."""
         for queue_name in chain(self.queues, self.delay_queues):
             self.flush(queue_name)

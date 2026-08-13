@@ -18,7 +18,7 @@ import logging
 import math
 import time
 from collections import deque
-from collections.abc import Iterable, Iterator
+from collections.abc import Collection, Iterable, Iterator
 from contextlib import contextmanager
 from datetime import UTC, datetime, timedelta
 from threading import Event, Lock, Thread, local
@@ -28,7 +28,19 @@ from urllib.parse import urlparse
 import psycopg
 from pgmq.messages import Message as PostgresQueueMessage
 from psycopg import sql as psycopg_sql
-from sqlalchemy import Connection, text
+from sqlalchemy import (
+    BigInteger,
+    Column,
+    Connection,
+    DateTime,
+    Integer,
+    MetaData,
+    Table,
+    delete,
+    select,
+    text,
+)
+from sqlalchemy.dialects.postgresql import JSONB
 
 from ..broker import Broker, Consumer, MessageProxy
 from ..errors import QueueJoinTimeout, QueueNotFound, UnsupportedMessageEncoding
@@ -156,6 +168,9 @@ class PostgresBroker(Broker):
         The active SQLAlchemy connection is stored on thread-local state so
         queue operations can reuse it while the context is open.
         """
+        if self.client.engine is None:
+            raise ValueError("engine cannot be None")
+
         with self.client.engine.begin() as connection:
             self.state.transaction_connection = connection
             try:
@@ -321,18 +336,145 @@ class PostgresBroker(Broker):
         return messages
 
     @override
-    def flush(self, queue_name: str) -> None:
-        """Remove every message currently stored in a queue."""
+    def flush(self, queue_name: str, *, active_only: bool = False) -> None:
+        """Remove every message currently stored in a queue.
+
+        Unless ``active_only`` is set, the archive (``pgmq.a_<queue_name>``) is
+        emptied too. Only its rows are deleted: the partitions themselves are
+        left in place for pg_partman to keep managing.
+
+        Parameters:
+          queue_name(str): The queue to flush.
+          active_only(bool): Whether to spare the archive. Defaults to False,
+            which empties it too.
+
+        Raises:
+          QueueNotFound: If the queue has not been declared.
+        """
         if queue_name not in self.queues:
             raise QueueNotFound(queue_name)
 
-        self.client.purge(queue_name, conn=self._current_connection)
+        if self.client.engine is None:
+            raise ValueError("engine cannot be None")
+
+        with self.client.engine.begin() as connection:
+            self.client.purge(queue_name, conn=connection)
+
+            if not active_only:
+                self.client.validate_queue_name(queue_name, conn=connection)
+                connection.execute(delete(self._get_archive_table(queue_name)))
 
     @override
-    def flush_all(self) -> None:
+    def flush_all(self, *, active_only: bool = False) -> None:
         """Purge every declared queue."""
         for queue_name in self.queues:
-            self.flush(queue_name)
+            self.flush(queue_name, active_only=active_only)
+
+    @staticmethod
+    def _get_archive_table(queue_name: str) -> Table:
+        """Declare the PGMQ archive table of a queue for SQLAlchemy Core statements.
+
+        PGMQ can write to the archive (``archive``, ``archive_batch``) but
+        exposes nothing to read, count or delete from it, so those go through
+        Core rather than the client. Core also quotes the identifier and binds
+        the parameters, leaving no interpolation to get wrong.
+
+        The queue name must already be validated (``validate_queue_name``) since
+        it is interpolated as an identifier.
+        """
+        return Table(
+            f"a_{queue_name}",
+            MetaData(),
+            Column("msg_id", BigInteger),
+            Column("read_ct", Integer),
+            Column("enqueued_at", DateTime(timezone=True)),
+            Column("archived_at", DateTime(timezone=True)),
+            Column("vt", DateTime(timezone=True)),
+            Column("message", JSONB),
+            Column("headers", JSONB),
+            schema="pgmq",
+        )
+
+    def replay_archived_messages(
+        self,
+        queue_name: str,
+        *,
+        message_ids: Collection[str] | None = None,
+        actor_names: Collection[str] | None = None,
+        from_datetime: datetime | None = None,
+        to_datetime: datetime | None = None,
+        dry_run: bool = False,
+    ) -> list[str]:
+        """Send archived messages back onto their queue, and drop them from the archive.
+
+        These are messages a worker was already done with, taken out of
+        ``pgmq.a_<queue_name>`` -- unlike ``Consumer.requeue``, which only makes
+        in-flight messages visible again.
+
+        Payloads are re-enqueued verbatim, so a replayed message keeps its
+        original ``message_id``. Selecting and deleting the archived rows and
+        re-enqueueing them all happen in a single transaction.
+
+        At least one filter is required: an unfiltered call would replay the
+        whole retention window at once. ``message_ids`` and ``actor_names`` are
+        matched inside the ``message`` JSON column, which is not indexed, so
+        pairing them with a date range keeps the scan bounded to the relevant
+        archive partitions.
+
+        Note that the archive holds successes and failures alike — ``ack`` and
+        ``nack`` both archive — so a replay can re-run messages that already
+        succeeded. Use ``dry_run`` to check the selection first.
+
+        Parameters:
+          queue_name(str): The queue whose archive is replayed.
+          message_ids(Collection[str]|None): Remoulade message ids to match --
+            the ``message_id`` of the envelope, the one application logs report,
+            not PGMQ's ``msg_id``.
+          actor_names(Collection[str]|None): Actor names to match.
+          from_datetime(datetime|None): Only replay messages archived at or after
+            this point. Messages older than the archive retention are gone, so a
+            value beyond it matches nothing.
+          to_datetime(datetime|None): Only replay messages archived at or before
+            this point.
+          dry_run(bool): When set, return the messages that would be replayed
+            without enqueueing or deleting anything.
+
+        Returns:
+          list[str]: The ``message_id`` of every replayed message.
+
+        Raises:
+          QueueNotFound: If the queue has not been declared.
+          ValueError: If no filter was given.
+        """
+        if queue_name not in self.queues:
+            raise QueueNotFound(queue_name)
+
+        if self.client.engine is None:
+            raise ValueError("engine cannot be None")
+        with self.client.engine.begin() as connection:
+            self.client.validate_queue_name(queue_name, conn=connection)
+            archive_table = self._get_archive_table(queue_name)
+
+            stmt = select(archive_table.c.msg_id, archive_table.c.message)
+            if message_ids:
+                stmt = stmt.where(archive_table.c.message["message_id"].astext.in_(message_ids))
+            if actor_names:
+                stmt = stmt.where(archive_table.c.message["actor_name"].astext.in_(actor_names))
+            if from_datetime is not None:
+                stmt = stmt.where(archive_table.c.archived_at >= from_datetime)
+            if to_datetime is not None:
+                stmt = stmt.where(archive_table.c.archived_at <= to_datetime)
+
+            rows = connection.execute(stmt).all()
+            replayed_message_ids = [row.message["message_id"] for row in rows]
+
+            if dry_run or not rows:
+                return replayed_message_ids
+
+            self.client.send_batch(queue_name, [row.message for row in rows], conn=connection)
+            connection.execute(delete(archive_table).where(archive_table.c.msg_id.in_([row.msg_id for row in rows])))
+
+        return replayed_message_ids
 
     def _count_enqueued_messages(self, queue_name: str) -> int:
         """Count every message stored in the queue, on a connection of its own."""

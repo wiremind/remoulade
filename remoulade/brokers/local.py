@@ -138,11 +138,11 @@ class LocalBroker(Broker):
         return [self._enqueue(message, delay=delay) for message in messages]
 
     @override
-    def flush(self, _: str) -> None:
+    def flush(self, _: str, *, active_only: bool = False) -> None:
         pass
 
     @override
-    def flush_all(self) -> None:
+    def flush_all(self, *, active_only: bool = False) -> None:
         pass
 
     @override

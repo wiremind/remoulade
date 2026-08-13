@@ -5,6 +5,17 @@ Changelog
 
 All notable changes to this project will be documented in this file.
 
+`8.0.0`_ -- unreleased
+------------
+Breaking changes
+^^^^^^^^^^^^^^^^
+* Add an ``active_only`` keyword argument to ``Broker.flush``/``Broker.flush_all``, defaulting to False. Brokers overriding either method must accept it.
+* ``PostgresBroker.flush`` now empties the queue archive (``pgmq.a_<queue_name>``) as well, unless ``active_only`` is set. Only the archive rows are deleted; the partitions are left in place for pg_partman to keep managing.
+
+Feat
+^^^^
+* Add ``PostgresBroker.replay_archived_messages``, which sends archived messages back onto their queue and drops them from the archive, filtering on the remoulade ``message_id``, the actor name and an ``archived_at`` range, with a ``dry_run`` mode.
+
 `7.1.0`_ -- 2026-08-21
 ----------------------
 Feat

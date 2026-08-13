@@ -544,16 +544,27 @@ class Broker:
         """
         return self.delay_queues.copy()
 
-    def flush(self, queue_name: str) -> None:  # pragma: no cover
+    def flush(self, queue_name: str, *, active_only: bool = False) -> None:  # pragma: no cover
         """Drop all the messages from a queue.
+
+        By default this also drops the messages the broker kept aside once they
+        left the queue: the PGMQ archive, RabbitMQ's dead letter queue. Set
+        ``active_only`` to keep them and only drop the messages still waiting to
+        be processed — ready, in-flight and delayed ones.
 
         Parameters:
           queue_name(str): The name of the queue to flush.
+          active_only(bool): Whether to spare the messages that already left the
+            queue. Defaults to False, which drops them too.
         """
         raise NotImplementedError()
 
-    def flush_all(self) -> None:  # pragma: no cover
-        """Drop all messages from all declared queues."""
+    def flush_all(self, *, active_only: bool = False) -> None:  # pragma: no cover
+        """Drop all messages from all declared queues.
+
+        Parameters:
+          active_only(bool): See :meth:`flush`.
+        """
         raise NotImplementedError()
 
     def join(self, queue_name: str, *, timeout: int | None = None) -> None:  # pragma: no cover

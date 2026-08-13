@@ -404,24 +404,30 @@ class RabbitmqBroker(Broker):
         )
 
     @override
-    def flush(self, queue_name: str) -> None:
+    def flush(self, queue_name: str, *, active_only: bool = False) -> None:
         """Drop all the messages from a queue.
+
+        The delayed queue holds messages still waiting to be processed, so it is
+        always purged along with the queue itself. The dead letter queue is only
+        purged when ``active_only`` is False.
 
         Parameters:
           queue_name(str): The queue to flush.
+          active_only(bool): Whether to spare the dead letter queue. Defaults to
+            False, which purges it too.
         """
         queues = [queue_name, dq_name(queue_name)]
-        if self.dead_queue_enabled:
+        if self.dead_queue_enabled and not active_only:
             queues.append(xq_name(queue_name))
         for name in queues:
             with self.default_channel_pool.acquire() as channel:
                 channel.queue.purge(name)
 
     @override
-    def flush_all(self) -> None:
+    def flush_all(self, *, active_only: bool = False) -> None:
         """Drop all messages from all declared queues."""
         for queue_name in self.queues:
-            self.flush(queue_name)
+            self.flush(queue_name, active_only=active_only)
 
     @override
     def join(
