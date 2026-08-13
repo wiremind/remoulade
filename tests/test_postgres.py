@@ -1374,24 +1374,69 @@ def test_postgres_flush_active_only_spares_the_archive(postgres_broker):
     )
     postgres_broker.enqueue(Message(queue_name="default", actor_name="do_work", args=(), kwargs={}, options={}))
 
-    postgres_broker.flush("default", active_only=True)
+    postgres_broker.flush("default", target="active-only")
 
     assert _count_messages(postgres_broker) == 0
     assert _count_archived_messages(postgres_broker) == 1
 
 
 @pytest.mark.usefixtures("postgres_broker")
-def test_postgres_flush_all_forwards_active_only(postgres_broker):
+def test_postgres_flush_dead_only_spares_the_queue(postgres_broker):
+    postgres_broker.declare_queue("default")
+    _archive_messages(
+        postgres_broker, Message(queue_name="default", actor_name="do_work", args=(), kwargs={}, options={})
+    )
+    postgres_broker.enqueue(Message(queue_name="default", actor_name="do_work", args=(), kwargs={}, options={}))
+    partitions_before = _archive_partition_names(postgres_broker)
+
+    postgres_broker.flush("default", target="dead-only")
+
+    # Only the archive is emptied; the message waiting to be processed stays.
+    assert _count_archived_messages(postgres_broker) == 0
+    assert _count_messages(postgres_broker) == 1
+    assert _archive_partition_names(postgres_broker) == partitions_before
+
+
+@pytest.mark.usefixtures("postgres_broker")
+def test_postgres_flush_rejects_an_unknown_target(postgres_broker):
+    postgres_broker.declare_queue("default")
+
+    with pytest.raises(ValueError, match="invalid flush target"):
+        postgres_broker.flush("default", target="everything")
+
+
+@pytest.mark.usefixtures("postgres_broker")
+def test_postgres_flush_all_forwards_the_target(postgres_broker):
     postgres_broker.declare_queue("default")
     _archive_messages(
         postgres_broker, Message(queue_name="default", actor_name="do_work", args=(), kwargs={}, options={})
     )
 
-    postgres_broker.flush_all(active_only=True)
+    postgres_broker.flush_all(target="active-only")
     assert _count_archived_messages(postgres_broker) == 1
 
     postgres_broker.flush_all()
     assert _count_archived_messages(postgres_broker) == 0
+
+
+@pytest.mark.usefixtures("postgres_broker")
+def test_postgres_counts_enqueued_and_archived_messages(postgres_broker):
+    postgres_broker.declare_queue("default")
+    _archive_messages(
+        postgres_broker,
+        Message(queue_name="default", actor_name="do_work", args=(), kwargs={}, options={}),
+        Message(queue_name="default", actor_name="do_work", args=(), kwargs={}, options={}),
+    )
+    postgres_broker.enqueue(Message(queue_name="default", actor_name="do_work", args=(), kwargs={}, options={}))
+
+    assert postgres_broker.count_enqueued_messages("default") == 1
+    assert postgres_broker.count_archived_messages("default") == 2
+
+
+@pytest.mark.usefixtures("postgres_broker")
+def test_postgres_count_archived_messages_rejects_an_undeclared_queue(postgres_broker):
+    with pytest.raises(QueueNotFound):
+        postgres_broker.count_archived_messages("not-declared")
 
 
 @pytest.mark.usefixtures("postgres_broker")

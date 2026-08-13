@@ -37,12 +37,13 @@ from sqlalchemy import (
     MetaData,
     Table,
     delete,
+    func,
     select,
     text,
 )
 from sqlalchemy.dialects.postgresql import JSONB
 
-from ..broker import Broker, Consumer, MessageProxy
+from ..broker import Broker, Consumer, FlushTarget, MessageProxy, check_flush_target
 from ..errors import QueueJoinTimeout, QueueNotFound, UnsupportedMessageEncoding
 from ..helpers.postgres_client import RemouladePostgresClient, assert_valid_queue_name
 from ..message import Message
@@ -336,21 +337,26 @@ class PostgresBroker(Broker):
         return messages
 
     @override
-    def flush(self, queue_name: str, *, active_only: bool = False) -> None:
+    def flush(self, queue_name: str, *, target: FlushTarget = "all") -> None:
         """Remove every message currently stored in a queue.
 
-        Unless ``active_only`` is set, the archive (``pgmq.a_<queue_name>``) is
-        emptied too. Only its rows are deleted: the partitions themselves are
-        left in place for pg_partman to keep managing.
+        The archive (``pgmq.a_<queue_name>``) holds the messages a worker was
+        already done with, and is what ``dead-only`` targets. Only its rows are
+        deleted: the partitions themselves are left in place for pg_partman to
+        keep managing.
 
         Parameters:
           queue_name(str): The queue to flush.
-          active_only(bool): Whether to spare the archive. Defaults to False,
-            which empties it too.
+          target(FlushTarget): Which messages to drop: ``active-only`` for the
+            queue itself, ``dead-only`` for the archive, or ``all``. Defaults to
+            ``all``.
 
         Raises:
           QueueNotFound: If the queue has not been declared.
+          ValueError: If the target is not a known one.
         """
+        check_flush_target(target)
+
         if queue_name not in self.queues:
             raise QueueNotFound(queue_name)
 
@@ -358,17 +364,18 @@ class PostgresBroker(Broker):
             raise ValueError("engine cannot be None")
 
         with self.client.engine.begin() as connection:
-            self.client.purge(queue_name, conn=connection)
+            if target != "dead-only":
+                self.client.purge(queue_name, conn=connection)
 
-            if not active_only:
+            if target != "active-only":
                 self.client.validate_queue_name(queue_name, conn=connection)
                 connection.execute(delete(self._get_archive_table(queue_name)))
 
     @override
-    def flush_all(self, *, active_only: bool = False) -> None:
+    def flush_all(self, *, target: FlushTarget = "all") -> None:
         """Purge every declared queue."""
         for queue_name in self.queues:
-            self.flush(queue_name, active_only=active_only)
+            self.flush(queue_name, target=target)
 
     @staticmethod
     def _get_archive_table(queue_name: str) -> Table:
@@ -476,9 +483,29 @@ class PostgresBroker(Broker):
 
         return replayed_message_ids
 
-    def _count_enqueued_messages(self, queue_name: str) -> int:
-        """Count every message stored in the queue, on a connection of its own."""
+    def count_enqueued_messages(self, queue_name: str) -> int:
+        """Count every message stored in the queue, in-flight and delayed ones included.
+
+        Runs on a connection of its own.
+        """
         return self.client.metrics(queue_name).queue_length
+
+    def count_archived_messages(self, queue_name: str) -> int:
+        """Count the messages sitting in the queue's archive.
+
+        Raises:
+          QueueNotFound: If the queue has not been declared.
+        """
+        if queue_name not in self.queues:
+            raise QueueNotFound(queue_name)
+
+        if self.client.engine is None:
+            raise ValueError("engine cannot be None")
+
+        with self.client.engine.begin() as connection:
+            self.client.validate_queue_name(queue_name, conn=connection)
+            archive_table = self._get_archive_table(queue_name)
+            return connection.execute(select(func.count()).select_from(archive_table)).scalar_one()
 
     @override
     def join(
@@ -517,7 +544,7 @@ class PostgresBroker(Broker):
             if deadline and time.monotonic() >= deadline:
                 raise QueueJoinTimeout(queue_name)
 
-            total_messages = self._count_enqueued_messages(queue_name)
+            total_messages = self.count_enqueued_messages(queue_name)
             if total_messages == 0:
                 successes += 1
                 if successes >= min_successes:

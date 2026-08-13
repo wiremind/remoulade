@@ -18,7 +18,16 @@
 import importlib.metadata
 
 from .actor import Actor, actor
-from .broker import Broker, Consumer, MessageProxy, change_broker, declare_actors, get_broker, set_broker
+from .broker import (
+    Broker,
+    Consumer,
+    FlushTarget,
+    MessageProxy,
+    change_broker,
+    declare_actors,
+    get_broker,
+    set_broker,
+)
 from .collection_results import CollectionResults
 from .composition import group, pipeline
 from .encoder import Encoder, JSONEncoder, PickleEncoder
@@ -58,6 +67,7 @@ __all__ = [
     "Consumer",
     # Encoding
     "Encoder",
+    "FlushTarget",
     "GenericActor",
     "JSONEncoder",
     # Messages

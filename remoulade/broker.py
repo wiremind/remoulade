@@ -17,7 +17,7 @@
 from collections.abc import Iterable
 from contextlib import contextmanager, suppress
 from queue import Queue
-from typing import TYPE_CHECKING, Any, TypeVar
+from typing import TYPE_CHECKING, Any, Final, Literal, TypeVar
 
 from .cancel import Cancel, CancelBackend
 from .concurrent import ConcurrencyBackend, Concurrent
@@ -56,6 +56,28 @@ if TYPE_CHECKING:
     from .middleware import Middleware
 
     M = TypeVar("M", bound=Middleware)
+
+#: Which messages a flush drops. ``active-only`` spares the messages a broker
+#: kept aside once they left the queue -- the PGMQ archive, RabbitMQ's dead
+#: letter queue -- while ``dead-only`` drops just those and spares the ones
+#: still waiting to be processed.
+FlushTarget = Literal["active-only", "dead-only", "all"]
+FLUSH_TARGETS: Final[frozenset[str]] = frozenset(("active-only", "dead-only", "all"))
+
+
+def check_flush_target(target: str) -> None:
+    """Reject a flush target that is not one of :data:`FLUSH_TARGETS`.
+
+    ``FlushTarget`` only constrains type checkers, and silently treating an
+    unknown value as ``all`` would drop more messages than asked.
+
+    Raises:
+      ValueError: If the target is not a known one.
+    """
+    if target not in FLUSH_TARGETS:
+        raise ValueError(f"invalid flush target {target!r}, expected one of {', '.join(sorted(FLUSH_TARGETS))}")
+
+
 #: The global broker instance.
 global_broker: "Broker | None" = None
 
@@ -544,26 +566,29 @@ class Broker:
         """
         return self.delay_queues.copy()
 
-    def flush(self, queue_name: str, *, active_only: bool = False) -> None:  # pragma: no cover
+    def flush(self, queue_name: str, *, target: FlushTarget = "all") -> None:  # pragma: no cover
         """Drop all the messages from a queue.
 
-        By default this also drops the messages the broker kept aside once they
-        left the queue: the PGMQ archive, RabbitMQ's dead letter queue. Set
-        ``active_only`` to keep them and only drop the messages still waiting to
-        be processed — ready, in-flight and delayed ones.
+        By default this drops both the messages still waiting to be processed --
+        ready, in-flight and delayed ones -- and the ones the broker kept aside
+        once they left the queue: the PGMQ archive, RabbitMQ's dead letter
+        queue. ``target`` narrows it to either side.
 
         Parameters:
           queue_name(str): The name of the queue to flush.
-          active_only(bool): Whether to spare the messages that already left the
-            queue. Defaults to False, which drops them too.
+          target(FlushTarget): Which messages to drop: ``active-only``,
+            ``dead-only``, or ``all``. Defaults to ``all``.
+
+        Raises:
+          ValueError: If the target is not a known one.
         """
         raise NotImplementedError()
 
-    def flush_all(self, *, active_only: bool = False) -> None:  # pragma: no cover
+    def flush_all(self, *, target: FlushTarget = "all") -> None:  # pragma: no cover
         """Drop all messages from all declared queues.
 
         Parameters:
-          active_only(bool): See :meth:`flush`.
+          target(FlushTarget): See :meth:`flush`.
         """
         raise NotImplementedError()
 

@@ -392,7 +392,7 @@ def test_rabbitmq_broker_can_flush_queues(rabbitmq_broker):
     assert rabbitmq_broker.join(do_work.queue_name, min_successes=1, timeout=200) is None
 
 
-def _purged_queue_names(*, active_only):
+def _purged_queue_names(*, target):
     """Return the queues ``flush`` purges, without talking to a real RabbitMQ."""
     broker = RabbitmqBroker(url="amqp://guest:guest@localhost:5784", middleware=[])
     broker.queues = {"default": None}
@@ -401,19 +401,28 @@ def _purged_queue_names(*, active_only):
     with mock.patch.object(type(broker), "default_channel_pool", new_callable=mock.PropertyMock) as channel_pool:
         channel_pool.return_value.acquire.return_value.__enter__ = Mock(return_value=channel)
         channel_pool.return_value.acquire.return_value.__exit__ = Mock(return_value=None)
-        broker.flush("default", active_only=active_only)
+        broker.flush("default", target=target)
 
     return [purge_call.args[0] for purge_call in channel.queue.purge.call_args_list]
 
 
 def test_rabbitmq_broker_flush_purges_the_dead_queue_by_default():
-    # The delayed queue holds messages still waiting to be processed, so it goes
-    # with the queue itself either way; only the dead queue is conditional.
-    assert _purged_queue_names(active_only=False) == ["default", dq_name("default"), xq_name("default")]
+    assert _purged_queue_names(target="all") == ["default", dq_name("default"), xq_name("default")]
 
 
 def test_rabbitmq_broker_flush_active_only_spares_the_dead_queue():
-    assert _purged_queue_names(active_only=True) == ["default", dq_name("default")]
+    # The delayed queue holds messages still waiting to be processed, so it counts
+    # as active and goes with the queue itself.
+    assert _purged_queue_names(target="active-only") == ["default", dq_name("default")]
+
+
+def test_rabbitmq_broker_flush_dead_only_purges_just_the_dead_queue():
+    assert _purged_queue_names(target="dead-only") == [xq_name("default")]
+
+
+def test_rabbitmq_broker_flush_rejects_an_unknown_target():
+    with pytest.raises(ValueError, match="invalid flush target"):
+        _purged_queue_names(target="everything")
 
 
 def test_rabbitmq_broker_can_enqueue_messages_with_priority(rabbitmq_broker):
