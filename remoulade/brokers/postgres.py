@@ -33,6 +33,7 @@ from sqlalchemy import (
     Column,
     Connection,
     DateTime,
+    Executable,
     Integer,
     MetaData,
     Table,
@@ -183,6 +184,37 @@ class PostgresBroker(Broker):
     def _current_connection(self) -> Connection | None:
         """Return the transactional connection, if one is active."""
         return getattr(self.state, "transaction_connection", None)
+
+    @contextmanager
+    def _connection(self) -> Iterator[Connection]:
+        """Yield the transactional connection if one is open, else a new one.
+
+        Operations that need a real ``Connection`` -- Core statements, not just
+        PGMQ client calls, which accept ``conn=None`` and open their own -- must
+        join the transaction opened by ``tx()`` when there is one, so that they
+        see its uncommitted writes and roll back with it rather than committing
+        on their own. The lifecycle of a borrowed connection stays with ``tx()``:
+        it is neither committed nor closed here.
+
+        A connection opened here is published on the thread-local state for the
+        duration of the block, the way ``tx()`` does, so that nested broker calls
+        -- ``enqueue_many`` from :meth:`replay_archived_messages`, say -- join it
+        instead of writing on a second connection outside the transaction.
+        """
+        connection = self._current_connection
+        if connection is not None:
+            yield connection
+            return
+
+        if self.client.engine is None:
+            raise ValueError("engine cannot be None")
+
+        with self.client.engine.begin() as new_connection:
+            self.state.transaction_connection = new_connection
+            try:
+                yield new_connection
+            finally:
+                self.state.transaction_connection = None
 
     def _try_enable_notify(self, queue_name: str) -> None:
         """Try to enable LISTEN/NOTIFY for a queue.
@@ -360,10 +392,7 @@ class PostgresBroker(Broker):
         if queue_name not in self.queues:
             raise QueueNotFound(queue_name)
 
-        if self.client.engine is None:
-            raise ValueError("engine cannot be None")
-
-        with self.client.engine.begin() as connection:
+        with self._connection() as connection:
             if target != "dead-only":
                 self.client.purge(queue_name, conn=connection)
 
@@ -418,15 +447,18 @@ class PostgresBroker(Broker):
         ``pgmq.a_<queue_name>`` -- unlike ``Consumer.requeue``, which only makes
         in-flight messages visible again.
 
-        Payloads are re-enqueued verbatim, so a replayed message keeps its
-        original ``message_id``. Selecting and deleting the archived rows and
-        re-enqueueing them all happen in a single transaction.
+        A replayed message keeps its original ``message_id``. It goes back through
+        ``enqueue_many``, so the enqueue middleware runs exactly as it would for a
+        fresh send: the message is reset to Pending in the state backend, and
+        tracing and metrics account for it. Middleware is therefore free to alter
+        the payload on its way out, the way it does on any other enqueue. Deleting
+        the archived rows and re-enqueueing them happen in a single transaction.
 
-        At least one filter is required: an unfiltered call would replay the
-        whole retention window at once. ``message_ids`` and ``actor_names`` are
-        matched inside the ``message`` JSON column, which is not indexed, so
-        pairing them with a date range keeps the scan bounded to the relevant
-        archive partitions.
+        Every filter is optional, and an unfiltered call replays the whole
+        retention window at once -- rarely what you want. ``message_ids`` and
+        ``actor_names`` are matched inside the ``message`` JSON column, which is
+        not indexed, so pairing them with a date range keeps the scan bounded to
+        the relevant archive partitions.
 
         Note that the archive holds successes and failures alike — ``ack`` and
         ``nack`` both archive — so a replay can re-run messages that already
@@ -451,37 +483,36 @@ class PostgresBroker(Broker):
 
         Raises:
           QueueNotFound: If the queue has not been declared.
-          ValueError: If no filter was given.
         """
         if queue_name not in self.queues:
             raise QueueNotFound(queue_name)
 
-        if self.client.engine is None:
-            raise ValueError("engine cannot be None")
-        with self.client.engine.begin() as connection:
+        with self._connection() as connection:
             self.client.validate_queue_name(queue_name, conn=connection)
             archive_table = self._get_archive_table(queue_name)
 
-            stmt = select(archive_table.c.msg_id, archive_table.c.message)
-            if message_ids:
-                stmt = stmt.where(archive_table.c.message["message_id"].astext.in_(message_ids))
-            if actor_names:
-                stmt = stmt.where(archive_table.c.message["actor_name"].astext.in_(actor_names))
+            conditions = []
+            if message_ids is not None:
+                conditions.append(archive_table.c.message["message_id"].astext.in_(message_ids))
+            if actor_names is not None:
+                conditions.append(archive_table.c.message["actor_name"].astext.in_(actor_names))
             if from_datetime is not None:
-                stmt = stmt.where(archive_table.c.archived_at >= from_datetime)
+                conditions.append(archive_table.c.archived_at >= from_datetime)
             if to_datetime is not None:
-                stmt = stmt.where(archive_table.c.archived_at <= to_datetime)
+                conditions.append(archive_table.c.archived_at <= to_datetime)
 
-            rows = connection.execute(stmt).all()
-            replayed_message_ids = [row.message["message_id"] for row in rows]
+            stmt: Executable
+            if dry_run:
+                stmt = select(archive_table.c.message).where(*conditions)
+            else:
+                stmt = delete(archive_table).where(*conditions).returning(archive_table.c.message)
 
-            if dry_run or not rows:
-                return replayed_message_ids
+            messages = [Message.decode_json(row.message) for row in connection.execute(stmt).all()]
 
-            self.client.send_batch(queue_name, [row.message for row in rows], conn=connection)
-            connection.execute(delete(archive_table).where(archive_table.c.msg_id.in_([row.msg_id for row in rows])))
+            if messages and not dry_run:
+                self.enqueue_many(messages)
 
-        return replayed_message_ids
+        return [message.message_id for message in messages]
 
     def count_enqueued_messages(self, queue_name: str) -> int:
         """Count every message stored in the queue, in-flight and delayed ones included.
@@ -499,10 +530,7 @@ class PostgresBroker(Broker):
         if queue_name not in self.queues:
             raise QueueNotFound(queue_name)
 
-        if self.client.engine is None:
-            raise ValueError("engine cannot be None")
-
-        with self.client.engine.begin() as connection:
+        with self._connection() as connection:
             self.client.validate_queue_name(queue_name, conn=connection)
             archive_table = self._get_archive_table(queue_name)
             return connection.execute(select(func.count()).select_from(archive_table)).scalar_one()
