@@ -38,6 +38,7 @@ class MessageState(Middleware):
                 **kwargs,
             ),
             self.state_ttl,
+            message=message,
         )
 
     def _get_current_time(self):

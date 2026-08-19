@@ -2,6 +2,7 @@ import datetime
 import sys
 from collections import namedtuple
 from enum import Enum
+from typing import Any
 
 from dateutil.parser import parse
 
@@ -156,7 +157,7 @@ class StateBackend:
         """
         raise NotImplementedError(f"{type(self).__name__} does not implement get_state")
 
-    def set_state(self, state: State, ttl: int = 3600) -> None:
+    def set_state(self, state: State, ttl: int = 3600, *, message: Any = None) -> None:
         """Save a message in the backend if it does not exist,
             otherwise update it.
 
@@ -164,6 +165,12 @@ class StateBackend:
             state(State)
             ttl(seconds): The time to keep that state in the backend
              default is one hour(3600 seconds)
+            message(Message|MessageProxy|None): The message this state belongs
+             to, when the caller has it at hand. Most backends ignore it; a
+             backend that stores state alongside the message itself (see
+             ``PostgresBackend``) uses it to piggyback on the broker's own writes
+             instead of issuing its own. It may be a plain ``Message`` (from the
+             enqueue hooks) or a ``MessageProxy`` (from the processing hooks).
         """
         raise NotImplementedError(f"{type(self).__name__} does not implement set_state")
 

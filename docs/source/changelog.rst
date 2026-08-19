@@ -5,6 +5,43 @@ Changelog
 
 All notable changes to this project will be documented in this file.
 
+Unreleased
+----------
+Upgrading
+^^^^^^^^^
+* **PGMQ queues created before this version must be backfilled with their new indexes.** The PGMQ broker now
+  creates its indexes together with the queue, and declaring an already existing queue deliberately does
+  nothing. An existing queue therefore keeps only the ``msg_id`` index it was created with, and every state
+  lookup on it seq scans all of its partitions — the same failure mode that made throughput collapse when the
+  ``msg_id`` index itself was missing. Nothing raises, so this degrades silently. Run once, after upgrading::
+
+    for queue in broker.get_declared_queues():
+        broker.client.create_indexes(queue)
+
+  On a large queue the index build locks the table for its duration, so plan it like any other index creation.
+
+Feat
+^^^^
+* Add ``PostgresBackend``, a state backend for the PostgreSQL/PGMQ broker that stores state in the message itself
+  instead of a dedicated table. ``Pending``/``Started``, the timestamps and the attempt count are derived from
+  PGMQ's own columns, and the terminal status is merged into the archive the broker already writes on ack/nack,
+  so tracking a message's lifecycle costs no additional statement. Unlike the Redis and stub state backends,
+  ``get_states``/``get_states_count`` honour their filters, sorting and pagination in SQL. ``Message.set_progress``
+  is not supported by this backend and raises: storing a progress would mean an ``UPDATE`` on the broker's
+  queue table per call.
+* The PGMQ broker now also indexes ``(message->>'message_id')`` on queue and archive tables, and
+  ``(headers->>'status')`` on archive tables, so states can be looked up and failures found without seq scans.
+  Index creation moved into ``RemouladePostgresClient.create_partitioned_queue``, so a queue gets them the moment
+  it is created — see *Upgrading* for existing queues.
+
+Changed
+^^^^^^^
+* ``StateBackend.set_state`` accepts an optional ``message`` keyword argument, letting a backend persist state
+  through the broker's own writes rather than a statement of its own. Backends that do not need it ignore it,
+  but a state backend defined outside remoulade must accept it: the middleware now always passes it, so an
+  override still declared as ``set_state(self, state, ttl=3600)`` raises ``TypeError``.
+* Move the PGMQ broker's hand-written SQL into ``RemouladePostgresClient`` (``remoulade.helpers.postgres_client``).
+
 `7.0.0`_ -- 2026-06-15
 ------------
 Breaking changes

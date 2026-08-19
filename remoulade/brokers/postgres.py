@@ -26,13 +26,13 @@ from typing import TYPE_CHECKING, Any, Final, override
 from urllib.parse import urlparse
 
 import psycopg
-from pgmq import SQLAlchemyPGMQueue
 from pgmq.messages import Message as PostgresQueueMessage
 from psycopg import sql as psycopg_sql
 from sqlalchemy import Connection, text
 
 from ..broker import Broker, Consumer, MessageProxy
 from ..errors import QueueJoinTimeout, QueueNotFound, UnsupportedMessageEncoding
+from ..helpers.postgres_client import RemouladePostgresClient
 from ..message import Message
 
 if TYPE_CHECKING:
@@ -129,7 +129,7 @@ class PostgresBroker(Broker):
         self.enable_listen_notify = enable_listen_notify
         self.enqueue_batch_size = enqueue_batch_size
 
-        self.client = SQLAlchemyPGMQueue(
+        self.client = RemouladePostgresClient(
             conn_string=url,
             init_extension=False,
             vt=self.visibility_timeout_seconds,
@@ -217,10 +217,11 @@ class PostgresBroker(Broker):
     def declare_queue(self, queue_name: str) -> None:
         """Create a partitioned PGMQ queue if it does not already exist.
 
-        Also ensures the queue table has a btree index on ``msg_id`` — even
-        for pre-existing queues, so queues created before remoulade added the
-        index pick it up on the next declaration. On a large existing queue
-        the initial index build locks the table for its duration.
+        Creating the queue brings the indexes remoulade needs with it, through
+        :meth:`RemouladePostgresClient.create_partitioned_queue`. Nothing is done for
+        a queue that already exists, so a queue created by a version of remoulade
+        that did not yet declare one of those indexes will not gain it here; call
+        :meth:`RemouladePostgresClient.create_indexes` once to backfill it.
         """
         if queue_name in self.queues:
             return
@@ -244,28 +245,10 @@ class PostgresBroker(Broker):
                 if self.enable_listen_notify:
                     self._try_enable_notify(queue_name)
 
-            self._create_msg_id_index(queue_name, self._current_connection)
-
         self.queues[queue_name] = None
 
         if not queue_exists:
             self.emit_after("declare_queue", queue_name)
-
-    def _create_msg_id_index(self, queue_name: str, connection: "Connection") -> None:
-        """Ensure the queue table has a btree index on ``msg_id``.
-
-        PGMQ's time-partitioned queue tables ship without one, so every
-        ``archive`` (ack/nack) and ``set_vt`` (heartbeat, requeue) lookup seq
-        scans all partitions. Created on the partitioned parent, the index
-        propagates to existing and future partitions. ``msg_id`` never
-        changes, so the index does not defeat HOT updates of ``vt``/``read_ct``.
-
-        The queue name must already be validated (``validate_queue_name``)
-        since it is interpolated as an identifier.
-        """
-        connection.execute(
-            text(f'CREATE INDEX IF NOT EXISTS "q_{queue_name}_msg_id_idx" ON pgmq."q_{queue_name}" (msg_id)')
-        )
 
     def _encode_message(self, message: "Message") -> PostgresPayload:
         """Encode a Remoulade message into a JSON object payload for PGMQ.
@@ -768,17 +751,24 @@ class _PostgresConsumer(Consumer):
     def _archive_message(self, message: "MessageProxy") -> None:
         """Stop tracking a message and archive it, tolerating transient failures.
 
+        Any header metadata a middleware staged on the message (the state backend
+        recording its outcome, typically) is handed to the client, which merges it
+        as part of the archive rather than by a statement of its own — so
+        recording that a message succeeded or failed costs nothing on top of the
+        ack.
+
         A failed archive (connection blip, pool exhaustion, ...) is logged and
         swallowed rather than propagated: letting it bubble up would kill the
         worker thread, which has no restart logic. The message simply becomes
         visible again once its visibility timeout expires and is redelivered,
-        which is the broker's at-least-once guarantee.
+        which is the broker's at-least-once guarantee. A staged patch is lost
+        with it, and is rebuilt when the message is processed again.
         """
         if not isinstance(message, _PostgresMessage):
             raise ValueError("It must be a PostgresMessage")
         self._unregister_heartbeat_message_id(message._postgres_message.msg_id)
         try:
-            self.client.archive(self.queue_name, message._postgres_message.msg_id)
+            self.client.archive(self.queue_name, message._postgres_message.msg_id, headers=message._header_patch)
         except Exception:
             self.broker.logger.error(
                 "Failed to archive message %s on queue %s; it will be redelivered after its visibility timeout.",
@@ -866,3 +856,22 @@ class _PostgresMessage(MessageProxy):
             raise UnsupportedMessageEncoding("eta option isn't supported with postgres broker")
         super().__init__(message)
         self._postgres_message = postgres_message
+        self._header_patch: dict[str, Any] = {}
+
+    def stage_headers(self, patch: dict[str, Any]) -> bool:
+        """Merge a jsonb patch into the headers this message will be archived with.
+
+        Lets a state backend record a message's outcome without a write of its
+        own: the patch rides along with the archive that ack/nack performs
+        anyway.
+
+        Purely in memory: the patch is flushed by ``ack``/``nack``, folded into
+        the archive statement. Successive calls merge, so a progress update
+        followed by a terminal status both land.
+
+        Returns:
+          bool: Always True. The return value exists so a caller holding a proxy
+          of an unknown type can tell whether it still owes a write of its own.
+        """
+        self._header_patch.update(patch)
+        return True
