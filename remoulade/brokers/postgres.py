@@ -764,7 +764,7 @@ class _PostgresConsumer(Consumer):
         which is the broker's at-least-once guarantee. A staged patch is lost
         with it, and is rebuilt when the message is processed again.
         """
-        if not isinstance(message, _PostgresMessage):
+        if not isinstance(message, PostgresMessage):
             raise ValueError("It must be a PostgresMessage")
         self._unregister_heartbeat_message_id(message._postgres_message.msg_id)
         try:
@@ -790,17 +790,15 @@ class _PostgresConsumer(Consumer):
     @override
     def requeue(self, messages: Iterable["MessageProxy"]) -> None:
         """Make messages visible again immediately by resetting their visibility timeout."""
-        message_ids = [
-            message._postgres_message.msg_id for message in messages if isinstance(message, _PostgresMessage)
-        ]
+        message_ids = [message._postgres_message.msg_id for message in messages if isinstance(message, PostgresMessage)]
         self._requeue_message_ids(message_ids)
 
-    def _build_message(self, postgres_message: PostgresQueueMessage) -> "_PostgresMessage":
+    def _build_message(self, postgres_message: PostgresQueueMessage) -> "PostgresMessage":
         """Wrap a raw PGMQ row as a Remoulade message proxy."""
-        return _PostgresMessage(postgres_message)
+        return PostgresMessage(postgres_message)
 
     @override
-    def __next__(self) -> "_PostgresMessage | None":
+    def __next__(self) -> "PostgresMessage | None":
         """Return the next available message, or ``None`` if the queue stays empty
         or the consumer is at its in-flight capacity."""
         if self.messages:
@@ -840,7 +838,7 @@ class _PostgresConsumer(Consumer):
         self.messages.clear()
 
 
-class _PostgresMessage(MessageProxy):
+class PostgresMessage(MessageProxy):
     def __init__(self, postgres_message: PostgresQueueMessage) -> None:
         """Wrap a PGMQ message row as a Remoulade message proxy."""
         payload = postgres_message.message

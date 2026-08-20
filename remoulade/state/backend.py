@@ -189,7 +189,7 @@ class StateBackend:
         sort_direction: str | None = None,
     ) -> list[State]:
         """Return all the states in the backend"""
-        raise NotImplementedError(f"{type(self).__name__} does not implement get_all_messages")
+        raise NotImplementedError(f"{type(self).__name__} does not implement get_states")
 
     def get_states_count(
         self,

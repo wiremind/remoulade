@@ -9,11 +9,11 @@ Unreleased
 ----------
 Upgrading
 ^^^^^^^^^
-* **PGMQ queues created before this version must be backfilled with their new indexes.** The PGMQ broker now
+* **PGMQ queues created before this version must be backfilled with their new index.** The PGMQ broker now
   creates its indexes together with the queue, and declaring an already existing queue deliberately does
-  nothing. An existing queue therefore keeps only the ``msg_id`` index it was created with, and every state
-  lookup on it seq scans all of its partitions — the same failure mode that made throughput collapse when the
-  ``msg_id`` index itself was missing. Nothing raises, so this degrades silently. Run once, after upgrading::
+  nothing. An existing queue therefore keeps only the ``msg_id`` index it was created with, so the
+  ``PostgresBackend`` fallback that patches a message's headers by ``(message->>'message_id')`` seq scans all of
+  its partitions. Nothing raises, so this degrades silently. Run once, after upgrading::
 
     for queue in broker.get_declared_queues():
         broker.client.create_indexes(queue)
@@ -22,17 +22,18 @@ Upgrading
 
 Feat
 ^^^^
-* Add ``PostgresBackend``, a state backend for the PostgreSQL/PGMQ broker that stores state in the message itself
-  instead of a dedicated table. ``Pending``/``Started``, the timestamps and the attempt count are derived from
-  PGMQ's own columns, and the terminal status is merged into the archive the broker already writes on ack/nack,
-  so tracking a message's lifecycle costs no additional statement. Unlike the Redis and stub state backends,
-  ``get_states``/``get_states_count`` honour their filters, sorting and pagination in SQL. ``Message.set_progress``
-  is not supported by this backend and raises: storing a progress would mean an ``UPDATE`` on the broker's
-  queue table per call.
-* The PGMQ broker now also indexes ``(message->>'message_id')`` on queue and archive tables, and
-  ``(headers->>'status')`` on archive tables, so states can be looked up and failures found without seq scans.
-  Index creation moved into ``RemouladePostgresClient.create_partitioned_queue``, so a queue gets them the moment
-  it is created — see *Upgrading* for existing queues.
+* Add ``PostgresBackend``, a write-only state backend for the PostgreSQL/PGMQ broker that stores a message's
+  terminal status in the message itself instead of a dedicated table. The status is merged into the archive the
+  broker already writes on ack/nack, so tracking a message's outcome costs no additional statement, and
+  ``Pending``/``Started`` write nothing at all since PGMQ's own columns already record them. Reading state back
+  is not implemented: ``get_state``, ``get_states``, ``get_states_count`` and ``clean`` raise
+  ``NotImplementedError``, so the dashboard and the state routes of ``remoulade.api`` cannot be served by this
+  backend — query the PGMQ tables directly. ``Message.set_progress`` is not supported either and raises: storing
+  a progress would mean an ``UPDATE`` on the broker's queue table per call.
+* The PGMQ broker now also indexes ``(message->>'message_id')`` on its queue tables, so the ``PostgresBackend``
+  fallback can find a message by remoulade's own id without a seq scan. Index creation moved into
+  ``RemouladePostgresClient.create_partitioned_queue``, so a queue gets its indexes the moment it is created —
+  see *Upgrading* for existing queues.
 
 Changed
 ^^^^^^^

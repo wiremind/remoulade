@@ -27,16 +27,13 @@ def test_postgres_client_create_indexes_emits_every_index():
     broker.client.create_indexes("default", conn)
 
     executed = [str(call.args[0]) for call in conn.execute.call_args_list]
-    assert 'CREATE INDEX IF NOT EXISTS "q_default_msg_id_idx" ON pgmq."q_default" (msg_id)' in executed
-    # Remoulade looks messages up by its own id, which lives in the payload, on
-    # both the live and the archived side; and hunts failures in the archive.
-    assert (
-        'CREATE INDEX IF NOT EXISTS "q_default_rmsgid_idx" ON pgmq."q_default" ((message->>\'message_id\'))' in executed
-    )
-    assert (
-        'CREATE INDEX IF NOT EXISTS "a_default_rmsgid_idx" ON pgmq."a_default" ((message->>\'message_id\'))' in executed
-    )
-    assert 'CREATE INDEX IF NOT EXISTS "a_default_rstatus_idx" ON pgmq."a_default" ((headers->>\'status\'))' in executed
+    # Only the queue table: nothing remoulade runs reads the archive back, so an
+    # index there would be paid for on every archive and never used.
+    assert executed == [
+        'CREATE INDEX IF NOT EXISTS "q_default_msg_id_idx" ON pgmq."q_default" (msg_id)',
+        # patch_headers finds a message by remoulade's own id, in the payload.
+        'CREATE INDEX IF NOT EXISTS "q_default_rmsgid_idx" ON pgmq."q_default" ((message->>\'message_id\'))',
+    ]
 
 
 def test_postgres_client_archive_without_headers_uses_pgmq_archive():
@@ -74,6 +71,55 @@ def test_postgres_client_archive_with_headers_reports_a_missing_message(postgres
     assert postgres_broker.client.archive("default", 123456, headers={"status": "Success"}) is False
 
 
+def test_postgres_client_patch_headers_merges_into_a_live_message(postgres_broker):
+    postgres_broker.declare_queue("default")
+    postgres_broker.client.send("default", {"message_id": "m1"}, headers={"progress": 0.5})
+
+    assert postgres_broker.client.patch_headers(["default"], "m1", {"status": "Canceled"}) is True
+
+    with postgres_broker.client.engine.connect() as connection:
+        headers = connection.execute(text('SELECT headers FROM pgmq."q_default"')).scalar_one()
+
+    # Merged, not replaced, like the archive path.
+    assert headers == {"progress": 0.5, "status": "Canceled"}
+
+
+def test_postgres_client_patch_headers_leaves_archived_messages_alone(postgres_broker):
+    postgres_broker.declare_queue("default")
+    postgres_broker.client.send("default", {"message_id": "m1"})
+    with postgres_broker.client.engine.connect() as connection:
+        msg_id = connection.execute(text('SELECT msg_id FROM pgmq."q_default"')).scalar_one()
+    postgres_broker.client.archive("default", msg_id, headers={"status": "Success"})
+
+    assert postgres_broker.client.patch_headers(["default"], "m1", {"status": "Failure"}) is False
+
+    with postgres_broker.client.engine.connect() as connection:
+        headers = connection.execute(text('SELECT headers FROM pgmq."a_default"')).scalar_one()
+
+    assert headers == {"status": "Success"}
+
+
+def test_postgres_client_patch_headers_reports_an_unknown_message(postgres_broker):
+    postgres_broker.declare_queue("default")
+
+    assert postgres_broker.client.patch_headers(["default"], "nope", {"status": "Success"}) is False
+
+
+def test_postgres_client_patch_headers_walks_the_queues_it_is_given(postgres_broker):
+    postgres_broker.declare_queue("default")
+    postgres_broker.declare_queue("other")
+    postgres_broker.client.send("other", {"message_id": "m1"})
+
+    # One statement per queue until one matches, so the caller names as few as
+    # it can — but several are allowed when it does not know which one holds it.
+    assert postgres_broker.client.patch_headers(["default", "other"], "m1", {"status": "Success"}) is True
+
+    with postgres_broker.client.engine.connect() as connection:
+        headers = connection.execute(text('SELECT headers FROM pgmq."q_other"')).scalar_one()
+
+    assert headers == {"status": "Success"}
+
+
 def test_postgres_client_creating_a_queue_brings_its_indexes():
     # A queue without these indexes works but degrades badly, so creating one
     # must not leave them to a separate call a caller could forget.
@@ -99,13 +145,13 @@ def test_postgres_client_create_indexes_backfills_an_existing_queue(postgres_bro
     postgres_broker.declare_queue("default")
 
     with postgres_broker.client.engine.begin() as connection:
-        connection.execute(text('DROP INDEX pgmq."q_default_msg_id_idx"'))
+        connection.execute(text('DROP INDEX pgmq."q_default_rmsgid_idx"'))
 
     # Re-declaring is deliberately not enough.
     postgres_broker.queues.pop("default")
     postgres_broker.declare_queue("default")
-    assert not _index_exists(postgres_broker, "q_default_msg_id_idx")
+    assert not _index_exists(postgres_broker, "q_default_rmsgid_idx")
 
     postgres_broker.client.create_indexes("default")
 
-    assert _index_exists(postgres_broker, "q_default_msg_id_idx")
+    assert _index_exists(postgres_broker, "q_default_rmsgid_idx")

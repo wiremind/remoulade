@@ -452,11 +452,8 @@ table, which is partitioned the same way. Two broker parameters control this:
 Postgres State Backend
 ^^^^^^^^^^^^^^^^^^^^^^
 
-With the Postgres broker, message state can be tracked without a table of its
-own: a message's state *is* its PGMQ row. ``PostgresBackend`` reads most of a state
-straight off PGMQ's own columns and the message payload, and stores only what
-they cannot express — the terminal status — in the message's ``headers``
-column::
+With the Postgres broker, the status of a message can be tracked without a table
+of its own: it is written into the very PGMQ row that carries the message::
 
   import remoulade
 
@@ -468,55 +465,51 @@ column::
   broker.add_middleware(MessageState(PostgresBackend(broker)))
   remoulade.set_broker(broker)
 
-``Pending`` and ``Started``, the enqueued/started/end timestamps and the attempt
-count are *derived* at read time from ``read_ct``, ``last_read_at``,
-``enqueued_at``, ``archived_at`` and from whether the row still sits in the
-queue table. Nothing is written for them. The terminal status is handed to the
+Only the terminal status (``Success``, ``Failure``, ``Skipped``, ``Canceled``) is
+stored, in the message's ``headers`` column. ``Pending`` and ``Started`` write
+nothing at all: PGMQ already records whether a message has been read
+(``read_ct``), when (``last_read_at``), when it was enqueued (``enqueued_at``),
+when it finished (``archived_at``) and — by moving the row from ``pgmq.q_<queue>``
+to ``pgmq.a_<queue>`` — whether it finished at all. The status is handed to the
 broker, which folds it into the archive it performs on ack or nack anyway, so
-tracking a message's whole lifecycle costs **no additional statement**.
+tracking a message's outcome costs **no additional statement**.
 
-``Message.set_progress`` is **not supported** by this backend and raises. It is
-called while the actor runs and has to be visible before the message finishes, so
-it cannot ride along with the ack: every call would be an ``UPDATE`` on the
-broker's queue table, which is its throughput-critical one. Report the progress
-of long-running work through your metrics instead.
+This backend is **write-only**. ``get_state``, ``get_states``,
+``get_states_count`` and ``clean`` are not implemented and raise
+``NotImplementedError``, so the dashboard and the state routes of
+``remoulade.api`` cannot be served by it. Read the PGMQ tables directly instead::
+
+  SELECT message->>'message_id', message->>'actor_name', headers->>'status', read_ct, archived_at
+  FROM pgmq.a_default
+  WHERE archived_at > now() - interval '1 day';
 
 Because a retried message keeps its ``message_id`` and is re-enqueued as a new
-row, the archive keeps one row per attempt — a ready-made audit trail::
+row, the archive holds one row per attempt, each with its own status — a
+ready-made audit trail.
 
-  SELECT message->>'message_id', message->>'actor_name', read_ct, archived_at
-  FROM pgmq.a_default
-  WHERE headers->>'status' = 'Failure'
-    AND archived_at > now() - interval '1 day';
+``Message.set_progress`` is **not supported** either and raises. It is called
+while the actor runs and has to be visible before the message finishes, so it
+cannot ride along with the ack: every call would be an ``UPDATE`` on the broker's
+queue table, which is its throughput-critical one. Report the progress of
+long-running work through your metrics instead.
 
-Reads always resolve to the current attempt, so ``get_state`` and the dashboard
-filters see a message's present status, not a past failure.
-
-Two differences from the Redis state backend are worth planning for:
+Two more differences from the Redis state backend are worth planning for:
 
 * **Retention is the archive's.** ``state_ttl`` no longer bounds how long a
-  state is kept; ``archive_retention_interval_in_days`` does, through
-  ``pg_partman``. A state disappears when its message's archive partition is
-  dropped, and purging or dropping a queue destroys its states with it.
-* **A state cannot outlive its message.** The backend stores nothing of its own,
+  status is kept; ``archive_retention_interval_in_days`` does, through
+  ``pg_partman``. A status disappears when its message's archive partition is
+  dropped, and purging or dropping a queue destroys the statuses with it.
+* **A status cannot outlive its message.** The backend stores nothing of its own,
   so ``set_state`` for a message that was never enqueued is a no-op.
-* **No progress.** ``Message.set_progress`` raises with this backend, and
-  ``State.progress`` is always ``None``.
-
-In exchange, ``get_states`` and ``get_states_count`` actually honour their
-filters, sorting and pagination — the Redis and stub backends ignore them and
-paginate in Python after reading everything.
-
-The indexes those lookups need are created with the queue itself, including one
-on ``(message->>'message_id')`` on the queue table. That index is on the broker's
-hot insert path, so it is worth measuring on a high-throughput queue.
 
 .. note::
 
-   Only queues *created* by this version get those indexes: declaring a queue
-   that already exists does nothing. A queue created by an earlier version of
-   remoulade will keep seq scanning every partition on state lookups until you
-   backfill it once::
+   Recording a terminal status without the in-flight message at hand falls back
+   to an ``UPDATE`` on the queue table, matched on
+   ``(message->>'message_id')``. That index is created with the queue, but
+   declaring a queue that already exists does nothing, so a queue created by an
+   earlier version of remoulade will seq scan every partition on that path until
+   you backfill it once::
 
      for queue in broker.get_declared_queues():
          broker.client.create_indexes(queue)
