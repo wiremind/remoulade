@@ -502,18 +502,16 @@ Two more differences from the Redis state backend are worth planning for:
   ``pg_partman``. A status disappears when its message's archive partition is
   dropped, and purging or dropping a queue destroys the statuses with it.
 * **A status cannot outlive its message.** The backend stores nothing of its own,
-  so ``set_state`` for a message that was never enqueued is a no-op, as is one
-  naming a queue this broker never declared.
+  so it has nowhere to keep a status for a message that is not there.
 
 .. note::
 
-   Recording a terminal status without the in-flight message at hand falls back
-   to an ``UPDATE`` on the queue table, matched on
-   ``(message->>'message_id')``. ``declare_queue`` ensures that index, on a new
-   queue as well as on one created by an earlier version of remoulade, so this
-   path never degrades into a seq scan over every partition. On a large existing
-   queue the first declaration after the upgrade builds the index, which locks
-   the table for its duration.
+   ``set_state`` needs the message it is recording a status for, and raises
+   ``NotImplementedError`` without it. The state middleware always passes it, so
+   this only concerns a call of your own. A message id would not be enough on its
+   own: a retry is the same message re-enqueued, so one id can name several rows
+   of a queue at once, and nothing in such a call would say which of them the
+   status belongs to.
 
 
 Local Broker

@@ -9,10 +9,11 @@ Unreleased
 ----------
 Upgrading
 ^^^^^^^^^
-* **PGMQ queues created before this version gain a new index on their next declaration.** The PGMQ broker now
-  indexes ``(message->>'message_id')`` as well as ``msg_id``, and ``declare_queue`` ensures both on an already
-  existing queue, so no manual backfill is needed. On a large existing queue the initial index build locks the
-  table for its duration, so plan the first start after the upgrade like any other index creation.
+* **A PGMQ queue missing its ``msg_id`` index gets it on its next declaration.** ``declare_queue`` now ensures
+  the index on an already existing queue and not only on one it creates, so a queue that predates it stops seq
+  scanning every partition on each ack without any manual backfill. On a large existing queue the initial index
+  build locks the table for its duration, so plan the first start after the upgrade like any other index
+  creation.
 
 Feat
 ^^^^
@@ -23,10 +24,12 @@ Feat
   is not implemented: ``get_state``, ``get_states``, ``get_states_count`` and ``clean`` raise
   ``NotImplementedError``, so the dashboard and the state routes of ``remoulade.api`` cannot be served by this
   backend — query the PGMQ tables directly. ``Message.set_progress`` is silently dropped: storing a progress
-  would mean an ``UPDATE`` on the broker's queue table per call.
-* The PGMQ broker now also indexes ``(message->>'message_id')`` on its queue tables, so the ``PostgresBackend``
-  fallback can find a message by remoulade's own id without a seq scan. ``declare_queue`` ensures the indexes on
-  every declaration, whether the queue was just created or already existed — see *Upgrading*.
+  would mean an ``UPDATE`` on the broker's queue table per call. And ``set_state`` needs the message it is given
+  a status for: the middleware always passes it, but a direct call without it raises ``NotImplementedError``,
+  since a message id can name several rows of a queue at once — a retry is the same message re-enqueued.
+* ``declare_queue`` ensures the PGMQ broker's indexes on every declaration, whether the queue was just created
+  or already existed, so a queue that predates one of them is repaired rather than left to degrade quietly —
+  see *Upgrading*.
 
 Changed
 ^^^^^^^

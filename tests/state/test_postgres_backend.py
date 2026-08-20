@@ -14,6 +14,7 @@ from sqlalchemy import event, text
 import remoulade
 from remoulade import Worker
 from remoulade.brokers.stub import StubBroker
+from remoulade.errors import QueueNotFound
 from remoulade.middleware import CurrentMessage, SkipMessage
 from remoulade.state import MessageState, State, StateStatusesEnum
 from remoulade.state.backends import PostgresBackend
@@ -189,83 +190,49 @@ class TestTerminalStates:
 
         assert _archived_status(postgres_broker, message.message_id) == "Canceled"
 
-    def test_a_status_reported_without_the_message_patches_the_queued_row(
-        self, postgres_broker, postgres_state_backend
-    ):
-        """The fallback path: no in-flight proxy to hand the patch to.
+    def test_a_terminal_status_without_the_message_is_refused(self, postgres_broker, postgres_state_backend):
+        """The status rides on the message's archive, so the message is required.
 
-        The middleware always passes one, so this is what a direct ``set_state``
-        call — or an enqueue that failed after the row was written — falls back to.
-        """
-
-        @remoulade.actor
-        def do_work():
-            return None
-
-        postgres_broker.declare_actor(do_work)
-        message = do_work.send()
-
-        postgres_state_backend.set_state(State(message.message_id, StateStatusesEnum.Canceled, queue_name="default"))
-
-        with postgres_broker.client.engine.connect() as connection:
-            headers = connection.execute(text('SELECT headers FROM pgmq."q_default"')).scalar_one()
-        assert headers == {"status": "Canceled"}
-
-    def test_a_status_reported_inside_a_transaction_sees_its_own_rows(self, postgres_broker, postgres_state_backend):
-        """The fallback runs on the broker's open transaction, not a second connection.
-
-        A connection of its own could not see the row the transaction just wrote, and
-        would ask the pool for a second connection on a thread already holding one.
-        """
-
-        @remoulade.actor
-        def do_work():
-            return None
-
-        postgres_broker.declare_actor(do_work)
-
-        with postgres_broker.tx():
-            message = do_work.send()
-            postgres_state_backend.set_state(
-                State(message.message_id, StateStatusesEnum.Canceled, queue_name="default")
-            )
-
-        with postgres_broker.client.engine.connect() as connection:
-            headers = connection.execute(text('SELECT headers FROM pgmq."q_default"')).scalar_one()
-        assert headers == {"status": "Canceled"}
-
-    def test_a_status_naming_an_undeclared_queue_runs_no_statement(self, postgres_broker, postgres_state_backend):
-        """A queue the broker never declared holds no message to patch.
-
-        ``Message(queue_name=...)`` skips the validation the actor API does, so the
-        name here is plain application data — and it would be interpolated into the
-        UPDATE as an identifier. Reaching the database at all is both a wasted
-        statement and a SQL error raised from inside exception handling.
+        The middleware always passes it. A message id alone would not do: a retry is
+        the same message re-enqueued, so one id can name several rows at once and
+        nothing here would say which of them the status belongs to.
         """
         postgres_broker.declare_queue("default")
         recorder = _StatementRecorder(postgres_broker)
         try:
-            postgres_state_backend.set_state(
-                State(
-                    "mid",
-                    StateStatusesEnum.Failure,
-                    queue_name='default" SET headers = CAST(:patch AS jsonb) WHERE true --',
+            with pytest.raises(NotImplementedError, match="without the message itself"):
+                postgres_state_backend.set_state(
+                    State("does-not-exist", StateStatusesEnum.Success, queue_name="default")
                 )
-            )
+        finally:
+            recorder.stop()
+
+        # Refused before touching the database, not after failing to find the row.
+        assert recorder.writes == []
+
+    def test_a_failed_enqueue_records_nothing(self, postgres_broker, postgres_state_backend):
+        """The one place the middleware reports a status without an in-flight message.
+
+        ``MessageState.after_enqueue`` only saves a status when the enqueue raised, and
+        an enqueue that raised wrote no row -- so there is nothing to record it on, and
+        nothing to refuse either.
+        """
+        _attach_state_middleware(postgres_broker, postgres_state_backend)
+        postgres_broker.declare_queue("default")
+
+        @remoulade.actor(queue_name="default")
+        def do_work():
+            return None
+
+        postgres_broker.declare_actor(do_work)
+        recorder = _StatementRecorder(postgres_broker)
+        try:
+            with pytest.raises(QueueNotFound):
+                postgres_broker.enqueue(do_work.message().copy(queue_name="never-declared"))
         finally:
             recorder.stop()
 
         assert recorder.writes == []
-
-    def test_a_status_for_an_unknown_message_is_a_no_op(self, postgres_broker, postgres_state_backend):
-        # The backend stores nothing of its own, so a state cannot outlive — or
-        # precede — its message.
-        postgres_broker.declare_queue("default")
-
-        postgres_state_backend.set_state(State("does-not-exist", StateStatusesEnum.Success, queue_name="default"))
-
-        with postgres_broker.client.engine.connect() as connection:
-            assert connection.execute(text('SELECT count(*) FROM pgmq."q_default"')).scalar_one() == 0
 
 
 @pytest.mark.usefixtures("postgres_broker")
@@ -305,26 +272,6 @@ class TestProgress:
 
         assert recorder.writes == []
 
-    def test_a_state_carrying_both_a_progress_and_a_status_keeps_the_status(
-        self, postgres_broker, postgres_state_backend
-    ):
-        """Only the progress is dropped; the terminal status is still recorded."""
-
-        @remoulade.actor
-        def do_work():
-            return None
-
-        postgres_broker.declare_actor(do_work)
-        message = do_work.send()
-
-        postgres_state_backend.set_state(
-            State(message.message_id, StateStatusesEnum.Canceled, progress=0.5, queue_name="default")
-        )
-
-        with postgres_broker.client.engine.connect() as connection:
-            headers = connection.execute(text('SELECT headers FROM pgmq."q_default"')).scalar_one()
-        assert headers == {"status": "Canceled"}
-
     def test_an_actor_reporting_its_progress_keeps_working(self, postgres_broker, postgres_state_backend):
         """Raising here would fail the message mid-work and retry it forever."""
         postgres_broker.add_middleware(CurrentMessage())
@@ -343,47 +290,6 @@ class TestProgress:
 
         assert reported == [0.25, 0.5, 1]
         assert _archived_status(postgres_broker, message.message_id) == "Success"
-
-
-@pytest.mark.usefixtures("postgres_broker")
-class TestIndexes:
-    def test_message_id_lookup_can_use_an_index_on_every_partition(self, postgres_broker, postgres_state_backend):
-        """A missing index here degrades quietly, then catastrophically at scale.
-
-        The test tables are tiny, so the planner would rightly prefer a seq scan;
-        disabling it asserts what matters, that a usable index exists on every
-        partition of the queue table.
-        """
-        _attach_state_middleware(postgres_broker, postgres_state_backend)
-
-        @remoulade.actor
-        def do_work():
-            return None
-
-        postgres_broker.declare_actor(do_work)
-        do_work.send()
-
-        with postgres_broker.client.engine.begin() as connection:
-            # SET LOCAL, not SET: a plain SET would follow the connection back
-            # into the pool and silently change later queries' plans.
-            connection.execute(text("SET LOCAL enable_seqscan = off"))
-            # The WHERE of patch_headers, the only lookup remoulade makes by its
-            # own message id. EXPLAIN does not run the statement, so the UPDATE
-            # is safe to plan here.
-            plan = "\n".join(
-                row[0]
-                for row in connection.execute(
-                    text("""
-                        EXPLAIN UPDATE pgmq."q_default"
-                        SET headers = coalesce(headers, '{}'::jsonb) || '{"status": "Success"}'::jsonb
-                        WHERE message->>'message_id' = 'whatever'
-                    """)
-                ).all()
-            )
-
-        assert "Seq Scan" not in plan
-        # The filter reaches each partition rather than being applied above them.
-        assert plan.count("(message ->> 'message_id'::text) = 'whatever'::text") >= 1
 
 
 class TestConfiguration:

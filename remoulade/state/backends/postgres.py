@@ -16,15 +16,12 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 """A state backend that records a message's status inside the pgmq message itself."""
 
-from typing import TYPE_CHECKING, Any, Final
+from typing import Any, Final
 
 from ...broker import Broker
 from ...encoder import Encoder
 from ...helpers.postgres_client import RemouladePostgresClient
 from ..backend import State, StateBackend, StateStatusesEnum
-
-if TYPE_CHECKING:
-    from sqlalchemy import Connection
 
 #: The only statuses this backend writes. ``Pending`` and ``Started`` are already
 #: implied by PGMQ's own ``read_ct`` and by which table the row sits in, so they
@@ -105,26 +102,24 @@ class PostgresBackend(StateBackend):
         """The broker's PGMQ client, which owns every statement this backend runs."""
         return self.broker.client
 
-    @property
-    def connection(self) -> "Connection | None":
-        """The broker's open transaction, if there is one.
-
-        Every statement this backend runs has to go through it rather than take a
-        connection of its own: inside ``broker.tx()`` the rows to patch are those the
-        still-open transaction wrote, which a second connection cannot see, and asking
-        the pool for a second connection on a thread that already holds one deadlocks
-        until the pool times out. ``None`` outside a transaction, which lets the client
-        open one for the single statement.
-        """
-        return self.broker._current_connection
-
     def set_state(self, state: State, ttl: int = 3600, *, message: Any = None) -> None:
-        """Record ``state``'s status, if it is not one the pgmq row already implies.
+        """Record ``state``'s status on the message it belongs to.
 
-        Pending and Started do no I/O at all. Only a terminal status reported without the message at hand costs
-        a statement of its own, and only if the state names a queue the broker declared — anything else holds no
-        message to patch, so there is nothing to look in and the status is dropped.
-        A progress the state carries is ignored
+        This backend runs no statement of its own: the status is staged on the
+        in-flight message and written by the archive the broker performs on ack or
+        nack anyway. It therefore needs that message, and ``message`` is where it
+        comes from.
+
+        ``Pending`` and ``Started`` do no I/O at all -- PGMQ's own ``enqueued_at``,
+        ``read_ct`` and the table the row sits in already record them -- and a progress
+        the state carries is ignored, since storing one would mean an ``UPDATE`` on the
+        broker's queue table per ``Message.set_progress`` call.
+
+        Raises:
+          NotImplementedError: If no ``message`` is given. Without it there is nothing
+            to stage the status on, and a message id is not enough to find the row:
+            a retry is the same message re-enqueued, so an id can name several rows at
+            once and nothing here would say which one the status belongs to.
         """
         # Pending/Started are already implied by the pgmq row itself, so they are
         # nothing to write.
@@ -132,13 +127,22 @@ class PostgresBackend(StateBackend):
             return
         patch: dict[str, Any] = {"status": state.status.value}
 
-        # PostgresBackend refuses any other broker, so an in-flight proxy is
-        # always a PostgresMessage: it carries the patch to the archive for free.
+        # PostgresBackend refuses any other broker, so an in-flight proxy is always a
+        # PostgresMessage: it carries the patch to the archive for free.
         from ...brokers.postgres import PostgresMessage
 
-        if isinstance(message, PostgresMessage) and message.stage_headers(patch):
+        if isinstance(message, PostgresMessage):
+            message.stage_headers(patch)
             return
 
-        if state.queue_name not in self.broker.queues:
+        if message is not None:
+            # A plain Message comes from the enqueue hooks, where MessageState records a
+            # terminal status only when the enqueue raised -- and an enqueue that raised
+            # wrote no row, so there is nothing to record it on.
             return
-        self.client.patch_headers([state.queue_name], state.message_id, patch, conn=self.connection)
+
+        raise NotImplementedError(
+            f"PostgresBackend cannot record {state.status.value} for message {state.message_id!r} without the "
+            "message itself: it stores a status inside the pgmq message rather than in a table of its own. Pass "
+            "message= (the middleware always does), or use another state backend."
+        )
