@@ -217,11 +217,14 @@ class PostgresBroker(Broker):
     def declare_queue(self, queue_name: str) -> None:
         """Create a partitioned PGMQ queue if it does not already exist.
 
-        Creating the queue brings the indexes remoulade needs with it, through
-        :meth:`RemouladePostgresClient.create_partitioned_queue`. Nothing is done for
-        a queue that already exists, so a queue created by a version of remoulade
-        that did not yet declare one of those indexes will not gain it here; call
-        :meth:`RemouladePostgresClient.create_indexes` once to backfill it.
+        Whether the queue was just created or already existed, this also ensures the
+        indexes remoulade needs on it. Doing it on every declaration is what repairs
+        a queue created by a version of remoulade that did not yet declare one of
+        them: nothing warns when one is missing and nothing fails, the queue merely
+        seq scans every partition on each ``archive`` and ``set_vt``.
+        ``CREATE INDEX IF NOT EXISTS`` is a catalog lookup once the index is there,
+        but on a large existing queue the initial build locks the table for its
+        duration.
 
         This is the one gate every queue name goes through before it reaches the
         broker, so it is where the name is checked against
@@ -255,6 +258,8 @@ class PostgresBroker(Broker):
                 )
                 if self.enable_listen_notify:
                     self._try_enable_notify(queue_name)
+
+            self.client.create_indexes(queue_name, self._current_connection)
 
         self.queues[queue_name] = None
 

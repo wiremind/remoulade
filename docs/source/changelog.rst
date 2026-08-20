@@ -9,16 +9,10 @@ Unreleased
 ----------
 Upgrading
 ^^^^^^^^^
-* **PGMQ queues created before this version must be backfilled with their new index.** The PGMQ broker now
-  creates its indexes together with the queue, and declaring an already existing queue deliberately does
-  nothing. An existing queue therefore keeps only the ``msg_id`` index it was created with, so the
-  ``PostgresBackend`` fallback that patches a message's headers by ``(message->>'message_id')`` seq scans all of
-  its partitions. Nothing raises, so this degrades silently. Run once, after upgrading::
-
-    for queue in broker.get_declared_queues():
-        broker.client.create_indexes(queue)
-
-  On a large queue the index build locks the table for its duration, so plan it like any other index creation.
+* **PGMQ queues created before this version gain a new index on their next declaration.** The PGMQ broker now
+  indexes ``(message->>'message_id')`` as well as ``msg_id``, and ``declare_queue`` ensures both on an already
+  existing queue, so no manual backfill is needed. On a large existing queue the initial index build locks the
+  table for its duration, so plan the first start after the upgrade like any other index creation.
 
 Feat
 ^^^^
@@ -31,9 +25,8 @@ Feat
   backend — query the PGMQ tables directly. ``Message.set_progress`` is not supported either and raises: storing
   a progress would mean an ``UPDATE`` on the broker's queue table per call.
 * The PGMQ broker now also indexes ``(message->>'message_id')`` on its queue tables, so the ``PostgresBackend``
-  fallback can find a message by remoulade's own id without a seq scan. Index creation moved into
-  ``RemouladePostgresClient.create_partitioned_queue``, so a queue gets its indexes the moment it is created —
-  see *Upgrading* for existing queues.
+  fallback can find a message by remoulade's own id without a seq scan. ``declare_queue`` ensures the indexes on
+  every declaration, whether the queue was just created or already existed — see *Upgrading*.
 
 Changed
 ^^^^^^^

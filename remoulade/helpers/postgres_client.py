@@ -73,23 +73,6 @@ class RemouladePostgresClient(SQLAlchemyPGMQueue):
     needs on top of it.
     """
 
-    @override
-    def create_partitioned_queue(
-        self,
-        queue: str,
-        partition_interval: int | str = 10000,
-        retention_interval: int | str = 100000,
-        conn: Connection | None = None,
-    ) -> None:
-        """Create a partitioned PGMQ queue, with the indexes remoulade needs."""
-        super().create_partitioned_queue(
-            queue,
-            partition_interval=partition_interval,
-            retention_interval=retention_interval,
-            conn=conn,
-        )
-        self.create_indexes(queue, conn)
-
     def create_indexes(self, queue_name: str, conn: Connection | None = None) -> None:
         """Ensure the queue table carries the indexes remoulade needs."""
         # (table prefix, index name suffix, indexed expression including its parentheses)

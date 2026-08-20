@@ -211,6 +211,29 @@ class TestTerminalStates:
             headers = connection.execute(text('SELECT headers FROM pgmq."q_default"')).scalar_one()
         assert headers == {"status": "Canceled"}
 
+    def test_a_status_reported_inside_a_transaction_sees_its_own_rows(self, postgres_broker, postgres_state_backend):
+        """The fallback runs on the broker's open transaction, not a second connection.
+
+        A connection of its own could not see the row the transaction just wrote, and
+        would ask the pool for a second connection on a thread already holding one.
+        """
+
+        @remoulade.actor
+        def do_work():
+            return None
+
+        postgres_broker.declare_actor(do_work)
+
+        with postgres_broker.tx():
+            message = do_work.send()
+            postgres_state_backend.set_state(
+                State(message.message_id, StateStatusesEnum.Canceled, queue_name="default")
+            )
+
+        with postgres_broker.client.engine.connect() as connection:
+            headers = connection.execute(text('SELECT headers FROM pgmq."q_default"')).scalar_one()
+        assert headers == {"status": "Canceled"}
+
     def test_a_status_for_an_unknown_message_is_a_no_op(self, postgres_broker, postgres_state_backend):
         # The backend stores nothing of its own, so a state cannot outlive — or
         # precede — its message.

@@ -9,6 +9,8 @@ from sqlalchemy import text
 
 from remoulade.brokers.postgres import PostgresBroker
 from remoulade.helpers.postgres_client import assert_valid_queue_name
+from remoulade.state import State, StateStatusesEnum
+from remoulade.state.backends import PostgresBackend
 
 TEST_POSTGRES_URL = os.getenv("REMOULADE_TEST_DB_URL") or "postgresql://remoulade@localhost:5544/test"
 
@@ -121,39 +123,24 @@ def test_postgres_client_patch_headers_walks_the_queues_it_is_given(postgres_bro
     assert headers == {"status": "Success"}
 
 
-def test_postgres_client_creating_a_queue_brings_its_indexes():
-    # A queue without these indexes works but degrades badly, so creating one
-    # must not leave them to a separate call a caller could forget.
-    broker = PostgresBroker(url=TEST_POSTGRES_URL, middleware=[])
-    conn = Mock()
-    broker.client.create_indexes = Mock()
-
-    with patch.object(SQLAlchemyPGMQueue, "create_partitioned_queue") as create:
-        broker.client.create_partitioned_queue("default", "1 day", "7 days", conn=conn)
-
-    create.assert_called_once()
-    broker.client.create_indexes.assert_called_once_with("default", conn)
-
-
 @pytest.mark.usefixtures("postgres_broker")
-def test_postgres_client_create_indexes_backfills_an_existing_queue(postgres_broker):
-    """The supported way to give an index to a queue that predates it.
+def test_postgres_client_declaring_an_existing_queue_backfills_its_indexes(postgres_broker):
+    """How a queue that predates an index gains it.
 
-    Declaring a queue that already exists does nothing, so a queue created by a
-    version of remoulade that did not declare one of these indexes only gains it
-    through an explicit create_indexes call.
+    Nothing warns when one is missing and nothing fails — the queue just seq scans
+    every partition on each archive — so the declaration has to be what repairs it,
+    rather than a manual call an operator has to know about.
     """
     postgres_broker.declare_queue("default")
 
     with postgres_broker.client.engine.begin() as connection:
         connection.execute(text('DROP INDEX pgmq."q_default_rmsgid_idx"'))
-
-    # Re-declaring is deliberately not enough.
-    postgres_broker.queues.pop("default")
-    postgres_broker.declare_queue("default")
     assert not _index_exists(postgres_broker, "q_default_rmsgid_idx")
 
-    postgres_broker.client.create_indexes("default")
+    # Re-declaring the queue is enough: the broker caches what it declared, so this
+    # is what a restart against an existing database does.
+    postgres_broker.queues.pop("default")
+    postgres_broker.declare_queue("default")
 
     assert _index_exists(postgres_broker, "q_default_rmsgid_idx")
 
@@ -192,3 +179,34 @@ def test_postgres_broker_declares_no_queue_it_cannot_name():
 
     tx.assert_not_called()
     assert broker.queues == {}
+
+
+def test_postgres_backend_patches_headers_on_the_brokers_transaction():
+    """Without the broker's connection the UPDATE runs outside its transaction.
+
+    Mocked so it is checked without a database: the DB-backed counterpart lives in
+    ``tests/state/test_postgres_backend.py``.
+    """
+    broker = PostgresBroker(url=TEST_POSTGRES_URL, middleware=[])
+    backend = PostgresBackend(broker=broker)
+    connection = Mock()
+
+    with patch.object(broker.client, "patch_headers") as patch_headers:
+        broker.state.transaction_connection = connection
+        try:
+            backend.set_state(State("mid", StateStatusesEnum.Success, queue_name="default"))
+        finally:
+            broker.state.transaction_connection = None
+
+    assert patch_headers.call_args.kwargs["conn"] is connection
+
+
+def test_postgres_backend_patches_headers_on_its_own_connection_outside_a_transaction():
+    broker = PostgresBroker(url=TEST_POSTGRES_URL, middleware=[])
+    backend = PostgresBackend(broker=broker)
+
+    with patch.object(broker.client, "patch_headers") as patch_headers:
+        backend.set_state(State("mid", StateStatusesEnum.Success, queue_name="default"))
+
+    # None lets the client open a transaction for the single statement.
+    assert patch_headers.call_args.kwargs["conn"] is None

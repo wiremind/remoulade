@@ -506,13 +506,11 @@ Two more differences from the Redis state backend are worth planning for:
 
    Recording a terminal status without the in-flight message at hand falls back
    to an ``UPDATE`` on the queue table, matched on
-   ``(message->>'message_id')``. That index is created with the queue, but
-   declaring a queue that already exists does nothing, so a queue created by an
-   earlier version of remoulade will seq scan every partition on that path until
-   you backfill it once::
-
-     for queue in broker.get_declared_queues():
-         broker.client.create_indexes(queue)
+   ``(message->>'message_id')``. ``declare_queue`` ensures that index, on a new
+   queue as well as on one created by an earlier version of remoulade, so this
+   path never degrades into a seq scan over every partition. On a large existing
+   queue the first declaration after the upgrade builds the index, which locks
+   the table for its duration.
 
 
 Local Broker

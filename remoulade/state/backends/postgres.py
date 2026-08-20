@@ -16,12 +16,15 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 """A state backend that records a message's status inside the pgmq message itself."""
 
-from typing import Any, Final
+from typing import TYPE_CHECKING, Any, Final
 
 from ...broker import Broker
 from ...encoder import Encoder
 from ...helpers.postgres_client import RemouladePostgresClient
 from ..backend import State, StateBackend, StateStatusesEnum
+
+if TYPE_CHECKING:
+    from sqlalchemy import Connection
 
 #: The only statuses this backend writes. ``Pending`` and ``Started`` are already
 #: implied by PGMQ's own ``read_ct`` and by which table the row sits in, so they
@@ -102,12 +105,25 @@ class PostgresBackend(StateBackend):
         """The broker's PGMQ client, which owns every statement this backend runs."""
         return self.broker.client
 
+    @property
+    def connection(self) -> "Connection | None":
+        """The broker's open transaction, if there is one.
+
+        Every statement this backend runs has to go through it rather than take a
+        connection of its own: inside ``broker.tx()`` the rows to patch are those the
+        still-open transaction wrote, which a second connection cannot see, and asking
+        the pool for a second connection on a thread that already holds one deadlocks
+        until the pool times out. ``None`` outside a transaction, which lets the client
+        open one for the single statement.
+        """
+        return self.broker._current_connection
+
     def set_state(self, state: State, ttl: int = 3600, *, message: Any = None) -> None:
         """Record ``state``'s status, if it is not one the pgmq row already implies.
 
-        Pending and Started do no I/O at all. Only a terminal status reported without the message at hand costs a
-        statementof its own, and only if the state names the queue holding the message — without one there is nothing to
-        look in, and it is dropped.
+        Pending and Started do no I/O at all. Only a terminal status reported without the message at hand costs
+        a statement of its own, and only if the state names the queue holding the message — without one there is
+        nothing to look in, and it is dropped.
 
         Raises:
           NotImplementedError: If the state carries a progress. This backend does
@@ -136,4 +152,4 @@ class PostgresBackend(StateBackend):
 
         if not state.queue_name:
             return
-        self.client.patch_headers([state.queue_name], state.message_id, patch)
+        self.client.patch_headers([state.queue_name], state.message_id, patch, conn=self.connection)

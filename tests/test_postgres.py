@@ -190,6 +190,7 @@ def test_postgres_broker_does_not_fail_when_enable_notify_raises(caplog):
     broker.client.create_partitioned_queue = Mock()
     broker.client.enable_notify = Mock(side_effect=RuntimeError("notify unavailable"))
     broker._queue_exists = Mock(return_value=False)
+    broker.client.create_indexes = Mock()
 
     broker.declare_queue("default")
 
@@ -209,10 +210,14 @@ def test_postgres_broker_declare_queue_is_idempotent_when_queue_already_exists()
 
     broker.client.create_partitioned_queue.assert_not_called()
     broker.client.enable_notify.assert_not_called()
-    # Declaring an existing queue touches nothing: its indexes came with its
-    # creation. A queue predating one of them is backfilled by calling
-    # create_indexes directly.
-    broker.client.create_indexes.assert_not_called()
+    # The queue itself is left alone, but its indexes are still ensured: a queue
+    # created by a version of remoulade that predates one of them gains it here
+    # instead of seq scanning every partition forever.
+    # Called on the declaration's own transaction, which is closed by now, so the
+    # connection is checked for being that one rather than compared to it.
+    broker.client.create_indexes.assert_called_once()
+    assert broker.client.create_indexes.call_args.args[0] == "default"
+    assert broker.client.create_indexes.call_args.args[1] is not None
     assert "default" in broker.queues
 
 
@@ -222,6 +227,7 @@ def test_postgres_broker_poll_only_mode_opens_no_listener_and_skips_enable_notif
     broker.client.create_partitioned_queue = Mock()
     broker.client.enable_notify = Mock()
     broker._queue_exists = Mock(return_value=False)
+    broker.client.create_indexes = Mock()
 
     broker.declare_queue("default")
 
@@ -811,6 +817,7 @@ def test_postgres_consumer_decodes_payload_with_global_encoder(pydantic_encoder)
     broker.client.create_partitioned_queue = Mock()
     broker.client.enable_notify = Mock()
     broker._queue_exists = Mock(return_value=False)
+    broker.client.create_indexes = Mock()
     _install_listener(broker, available=False)
 
     @remoulade.actor(actor_name="typed.actor", queue_name="default")
