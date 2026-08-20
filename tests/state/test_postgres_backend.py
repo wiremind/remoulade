@@ -293,30 +293,55 @@ class TestRetries:
 
 @pytest.mark.usefixtures("postgres_broker")
 class TestProgress:
-    """This backend does not store progress, and says so rather than dropping it."""
+    """This backend drops progress: storing it would cost an UPDATE per call."""
 
-    def test_set_state_refuses_a_progress(self, postgres_state_backend):
-        with pytest.raises(NotImplementedError, match="does not store progress"):
+    def test_a_state_carrying_only_a_progress_runs_no_statement(self, postgres_broker, postgres_state_backend):
+        postgres_broker.declare_queue("default")
+        recorder = _StatementRecorder(postgres_broker)
+        try:
             postgres_state_backend.set_state(State("some-id", progress=0.5))
+        finally:
+            recorder.stop()
 
-    def test_set_progress_from_an_actor_raises(self, postgres_broker, postgres_state_backend):
+        assert recorder.writes == []
+
+    def test_a_state_carrying_both_a_progress_and_a_status_keeps_the_status(
+        self, postgres_broker, postgres_state_backend
+    ):
+        """Only the progress is dropped; the terminal status is still recorded."""
+
+        @remoulade.actor
+        def do_work():
+            return None
+
+        postgres_broker.declare_actor(do_work)
+        message = do_work.send()
+
+        postgres_state_backend.set_state(
+            State(message.message_id, StateStatusesEnum.Canceled, progress=0.5, queue_name="default")
+        )
+
+        with postgres_broker.client.engine.connect() as connection:
+            headers = connection.execute(text('SELECT headers FROM pgmq."q_default"')).scalar_one()
+        assert headers == {"status": "Canceled"}
+
+    def test_an_actor_reporting_its_progress_keeps_working(self, postgres_broker, postgres_state_backend):
+        """Raising here would fail the message mid-work and retry it forever."""
         postgres_broker.add_middleware(CurrentMessage())
         _attach_state_middleware(postgres_broker, postgres_state_backend)
-        failures = []
+        reported = []
 
         @remoulade.actor(max_retries=0)
         def reporting():
-            try:
-                CurrentMessage.get_current_message().set_progress(0.5)
-            except NotImplementedError:
-                failures.append(True)
+            for step in (0.25, 0.5, 1):
+                CurrentMessage.get_current_message().set_progress(step)
+                reported.append(step)
 
         postgres_broker.declare_actor(reporting)
         message = reporting.send()
         _drain(postgres_broker)
 
-        assert failures == [True]
-        # The message itself still completes and is recorded normally.
+        assert reported == [0.25, 0.5, 1]
         assert _archived_status(postgres_broker, message.message_id) == "Success"
 
 

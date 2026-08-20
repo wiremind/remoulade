@@ -124,19 +124,8 @@ class PostgresBackend(StateBackend):
         Pending and Started do no I/O at all. Only a terminal status reported without the message at hand costs
         a statement of its own, and only if the state names a queue the broker declared — anything else holds no
         message to patch, so there is nothing to look in and the status is dropped.
-
-        Raises:
-          NotImplementedError: If the state carries a progress. This backend does
-            not store progress, and accepting the call would mean silently
-            dropping it.
+        A progress the state carries is ignored
         """
-        if state.progress is not None:
-            raise NotImplementedError(
-                "PostgresBackend does not store progress: it would mean an UPDATE on the broker's queue table "
-                "for every Message.set_progress call. Track long-running work through your metrics instead, "
-                "or use another state backend."
-            )
-
         # Pending/Started are already implied by the pgmq row itself, so they are
         # nothing to write.
         if state.status not in TERMINAL_STATUSES:
@@ -144,16 +133,12 @@ class PostgresBackend(StateBackend):
         patch: dict[str, Any] = {"status": state.status.value}
 
         # PostgresBackend refuses any other broker, so an in-flight proxy is
-        # always a _PostgresMessage: it carries the patch to the archive for free.
+        # always a PostgresMessage: it carries the patch to the archive for free.
         from ...brokers.postgres import PostgresMessage
 
         if isinstance(message, PostgresMessage) and message.stage_headers(patch):
             return
 
-        # A queue the broker never declared holds no message to patch, so there is
-        # nothing to look in. Checking it also keeps a queue name that only ever was
-        # application data -- Message(queue_name=...) bypasses the validation the
-        # actor API does -- out of a statement that interpolates it as an identifier.
         if state.queue_name not in self.broker.queues:
             return
         self.client.patch_headers([state.queue_name], state.message_id, patch, conn=self.connection)

@@ -487,11 +487,13 @@ Because a retried message keeps its ``message_id`` and is re-enqueued as a new
 row, the archive holds one row per attempt, each with its own status — a
 ready-made audit trail.
 
-``Message.set_progress`` is **not supported** either and raises. It is called
-while the actor runs and has to be visible before the message finishes, so it
-cannot ride along with the ack: every call would be an ``UPDATE`` on the broker's
-queue table, which is its throughput-critical one. Report the progress of
-long-running work through your metrics instead.
+``Message.set_progress`` is **silently dropped**. It is called while the actor
+runs and has to be visible before the message finishes, so it cannot ride along
+with the ack: every call would be an ``UPDATE`` on the broker's queue table,
+which is its throughput-critical one. Dropping it rather than raising keeps an
+actor that reports its progress working when it is pointed at this backend —
+raising would fail the message mid-work and retry it forever. Report the
+progress of long-running work through your metrics instead.
 
 Two more differences from the Redis state backend are worth planning for:
 

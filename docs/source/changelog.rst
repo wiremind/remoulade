@@ -22,8 +22,8 @@ Feat
   ``Pending``/``Started`` write nothing at all since PGMQ's own columns already record them. Reading state back
   is not implemented: ``get_state``, ``get_states``, ``get_states_count`` and ``clean`` raise
   ``NotImplementedError``, so the dashboard and the state routes of ``remoulade.api`` cannot be served by this
-  backend — query the PGMQ tables directly. ``Message.set_progress`` is not supported either and raises: storing
-  a progress would mean an ``UPDATE`` on the broker's queue table per call.
+  backend — query the PGMQ tables directly. ``Message.set_progress`` is silently dropped: storing a progress
+  would mean an ``UPDATE`` on the broker's queue table per call.
 * The PGMQ broker now also indexes ``(message->>'message_id')`` on its queue tables, so the ``PostgresBackend``
   fallback can find a message by remoulade's own id without a seq scan. ``declare_queue`` ensures the indexes on
   every declaration, whether the queue was just created or already existed — see *Upgrading*.

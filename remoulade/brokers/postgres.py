@@ -880,8 +880,8 @@ class PostgresMessage(MessageProxy):
         anyway.
 
         Purely in memory: the patch is flushed by ``ack``/``nack``, folded into
-        the archive statement. Successive calls merge, so a progress update
-        followed by a terminal status both land.
+        the archive statement. Successive calls merge, key by key, so a backend
+        staging several patches over a message's life gets all of them archived.
 
         Returns:
           bool: Always True. The return value exists so a caller holding a proxy
