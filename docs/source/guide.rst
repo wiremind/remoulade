@@ -500,7 +500,8 @@ Two more differences from the Redis state backend are worth planning for:
   ``pg_partman``. A status disappears when its message's archive partition is
   dropped, and purging or dropping a queue destroys the statuses with it.
 * **A status cannot outlive its message.** The backend stores nothing of its own,
-  so ``set_state`` for a message that was never enqueued is a no-op.
+  so ``set_state`` for a message that was never enqueued is a no-op, as is one
+  naming a queue this broker never declared.
 
 .. note::
 

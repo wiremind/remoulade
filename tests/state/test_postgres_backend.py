@@ -234,6 +234,29 @@ class TestTerminalStates:
             headers = connection.execute(text('SELECT headers FROM pgmq."q_default"')).scalar_one()
         assert headers == {"status": "Canceled"}
 
+    def test_a_status_naming_an_undeclared_queue_runs_no_statement(self, postgres_broker, postgres_state_backend):
+        """A queue the broker never declared holds no message to patch.
+
+        ``Message(queue_name=...)`` skips the validation the actor API does, so the
+        name here is plain application data — and it would be interpolated into the
+        UPDATE as an identifier. Reaching the database at all is both a wasted
+        statement and a SQL error raised from inside exception handling.
+        """
+        postgres_broker.declare_queue("default")
+        recorder = _StatementRecorder(postgres_broker)
+        try:
+            postgres_state_backend.set_state(
+                State(
+                    "mid",
+                    StateStatusesEnum.Failure,
+                    queue_name='default" SET headers = CAST(:patch AS jsonb) WHERE true --',
+                )
+            )
+        finally:
+            recorder.stop()
+
+        assert recorder.writes == []
+
     def test_a_status_for_an_unknown_message_is_a_no_op(self, postgres_broker, postgres_state_backend):
         # The backend stores nothing of its own, so a state cannot outlive — or
         # precede — its message.

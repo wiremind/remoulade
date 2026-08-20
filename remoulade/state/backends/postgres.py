@@ -122,8 +122,8 @@ class PostgresBackend(StateBackend):
         """Record ``state``'s status, if it is not one the pgmq row already implies.
 
         Pending and Started do no I/O at all. Only a terminal status reported without the message at hand costs
-        a statement of its own, and only if the state names the queue holding the message — without one there is
-        nothing to look in, and it is dropped.
+        a statement of its own, and only if the state names a queue the broker declared — anything else holds no
+        message to patch, so there is nothing to look in and the status is dropped.
 
         Raises:
           NotImplementedError: If the state carries a progress. This backend does
@@ -150,6 +150,10 @@ class PostgresBackend(StateBackend):
         if isinstance(message, PostgresMessage) and message.stage_headers(patch):
             return
 
-        if not state.queue_name:
+        # A queue the broker never declared holds no message to patch, so there is
+        # nothing to look in. Checking it also keeps a queue name that only ever was
+        # application data -- Message(queue_name=...) bypasses the validation the
+        # actor API does -- out of a statement that interpolates it as an identifier.
+        if state.queue_name not in self.broker.queues:
             return
         self.client.patch_headers([state.queue_name], state.message_id, patch, conn=self.connection)

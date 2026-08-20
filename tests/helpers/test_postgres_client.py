@@ -188,6 +188,7 @@ def test_postgres_backend_patches_headers_on_the_brokers_transaction():
     ``tests/state/test_postgres_backend.py``.
     """
     broker = PostgresBroker(url=TEST_POSTGRES_URL, middleware=[])
+    broker.queues["default"] = None  # what declare_queue records, without a database
     backend = PostgresBackend(broker=broker)
     connection = Mock()
 
@@ -203,6 +204,7 @@ def test_postgres_backend_patches_headers_on_the_brokers_transaction():
 
 def test_postgres_backend_patches_headers_on_its_own_connection_outside_a_transaction():
     broker = PostgresBroker(url=TEST_POSTGRES_URL, middleware=[])
+    broker.queues["default"] = None
     backend = PostgresBackend(broker=broker)
 
     with patch.object(broker.client, "patch_headers") as patch_headers:
@@ -210,3 +212,14 @@ def test_postgres_backend_patches_headers_on_its_own_connection_outside_a_transa
 
     # None lets the client open a transaction for the single statement.
     assert patch_headers.call_args.kwargs["conn"] is None
+
+
+def test_postgres_backend_drops_a_status_for_a_queue_the_broker_never_declared():
+    broker = PostgresBroker(url=TEST_POSTGRES_URL, middleware=[])
+    backend = PostgresBackend(broker=broker)
+
+    with patch.object(broker.client, "patch_headers") as patch_headers:
+        backend.set_state(State("mid", StateStatusesEnum.Success, queue_name="never-declared"))
+        backend.set_state(State("mid", StateStatusesEnum.Success))
+
+    patch_headers.assert_not_called()
