@@ -32,7 +32,7 @@ from sqlalchemy import Connection, text
 
 from ..broker import Broker, Consumer, MessageProxy
 from ..errors import QueueJoinTimeout, QueueNotFound, UnsupportedMessageEncoding
-from ..helpers.postgres_client import RemouladePostgresClient
+from ..helpers.postgres_client import RemouladePostgresClient, assert_valid_queue_name
 from ..message import Message
 
 if TYPE_CHECKING:
@@ -222,7 +222,18 @@ class PostgresBroker(Broker):
         a queue that already exists, so a queue created by a version of remoulade
         that did not yet declare one of those indexes will not gain it here; call
         :meth:`RemouladePostgresClient.create_indexes` once to backfill it.
+
+        This is the one gate every queue name goes through before it reaches the
+        broker, so it is where the name is checked against
+        :func:`~remoulade.helpers.postgres_client.assert_valid_queue_name`: the
+        statements remoulade writes itself interpolate it as a SQL identifier, which
+        no bind parameter can carry. Failing here means failing loudly at startup,
+        when actors are declared, rather than on a malformed identifier later.
+
+        Raises:
+          ValueError: If ``queue_name`` cannot be used as a SQL identifier.
         """
+        assert_valid_queue_name(queue_name)
         if queue_name in self.queues:
             return
         with self.tx():

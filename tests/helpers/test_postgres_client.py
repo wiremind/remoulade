@@ -8,6 +8,7 @@ from pgmq import SQLAlchemyPGMQueue
 from sqlalchemy import text
 
 from remoulade.brokers.postgres import PostgresBroker
+from remoulade.helpers.postgres_client import assert_valid_queue_name
 
 TEST_POSTGRES_URL = os.getenv("REMOULADE_TEST_DB_URL") or "postgresql://remoulade@localhost:5544/test"
 
@@ -155,3 +156,39 @@ def test_postgres_client_create_indexes_backfills_an_existing_queue(postgres_bro
     postgres_broker.client.create_indexes("default")
 
     assert _index_exists(postgres_broker, "q_default_rmsgid_idx")
+
+
+@pytest.mark.parametrize("queue_name", ["default", "sales", "sales_eu", "sales.DQ", "sales-eu", "_x", "q" * 47])
+def test_postgres_client_accepts_usable_queue_names(queue_name):
+    assert assert_valid_queue_name(queue_name) is None
+
+
+@pytest.mark.parametrize(
+    "queue_name",
+    [
+        "",
+        "q" * 48,  # would truncate to the same index name as any other 48-character name
+        'default" ; DROP TABLE pgmq.q_default; --',
+        "default'",
+        "with space",
+        "with\nnewline",
+        "accentué",
+        "semi;colon",
+        "back\\slash",
+        "1leading-digit",
+    ],
+)
+def test_postgres_client_rejects_queue_names_it_cannot_quote(queue_name):
+    with pytest.raises(ValueError, match="not a usable queue name"):
+        assert_valid_queue_name(queue_name)
+
+
+def test_postgres_broker_declares_no_queue_it_cannot_name():
+    """The gate rejects the name before any statement is built, so nothing hits the database."""
+    broker = PostgresBroker(url=TEST_POSTGRES_URL, middleware=[])
+
+    with patch.object(broker, "tx") as tx, pytest.raises(ValueError, match="not a usable queue name"):
+        broker.declare_queue('default" ; DROP TABLE pgmq.q_default; --')
+
+    tx.assert_not_called()
+    assert broker.queues == {}

@@ -29,7 +29,7 @@ if TYPE_CHECKING:
 
 
 #: The regular expression that represents valid queue names.
-_queue_name_re = re.compile(r"[a-zA-Z_][a-zA-Z0-9._-]*")
+QUEUE_NAME_PATTERN = re.compile(r"[a-zA-Z_][a-zA-Z0-9._-]*")
 
 P = ParamSpec("P")
 R = TypeVar("R")
@@ -126,7 +126,7 @@ def actor(
         queues_names = [queue_name]
         if alternative_queues is not None:
             queues_names += alternative_queues
-        if any(not _queue_name_re.fullmatch(name) for name in queues_names):
+        if any(not QUEUE_NAME_PATTERN.fullmatch(name) for name in queues_names):
             raise ValueError(
                 "Queue names must start with a letter or an underscore followed "
                 "by any number of letters, digits, dashes or underscores."

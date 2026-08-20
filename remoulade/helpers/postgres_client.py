@@ -35,6 +35,35 @@ from typing import Any, override
 from pgmq import SQLAlchemyPGMQueue
 from sqlalchemy import Connection, text
 
+from ..actor import QUEUE_NAME_PATTERN
+
+#: pgmq's own limit on a queue name. It also keeps the longest identifier remoulade
+#: derives from one (``q_<queue>_msg_id_idx``) under PostgreSQL's 63-byte cap, past
+#: which PostgreSQL truncates -- and two long queue names would collide on one index.
+QUEUE_NAME_MAX_LENGTH = 47
+
+
+def assert_valid_queue_name(queue_name: str) -> None:
+    """Check that ``queue_name`` is safe to interpolate as a SQL identifier.
+
+    The character set is remoulade's own (:data:`~remoulade.actor.QUEUE_NAME_PATTERN`,
+    already enforced on every actor declaration), which holds nothing needing quotes
+    or escaping; only the length bound is specific to PostgreSQL.
+
+    Parameters:
+      queue_name(str): The name to check.
+
+    Raises:
+      ValueError: If the name does not match :data:`~remoulade.actor.QUEUE_NAME_PATTERN`
+        or is longer than :data:`QUEUE_NAME_MAX_LENGTH`.
+    """
+    if not QUEUE_NAME_PATTERN.fullmatch(queue_name) or len(queue_name) > QUEUE_NAME_MAX_LENGTH:
+        raise ValueError(
+            f"{queue_name!r} is not a usable queue name for a PostgresBroker: it becomes a SQL identifier, so it "
+            f"must start with a letter or an underscore, hold only letters, digits, dashes, dots and underscores, "
+            f"and be at most {QUEUE_NAME_MAX_LENGTH} characters long."
+        )
+
 
 class RemouladePostgresClient(SQLAlchemyPGMQueue):
     """A PGMQ client that also knows how to patch a remoulade message's headers.

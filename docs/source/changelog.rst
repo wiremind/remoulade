@@ -42,6 +42,12 @@ Changed
   but a state backend defined outside remoulade must accept it: the middleware now always passes it, so an
   override still declared as ``set_state(self, state, ttl=3600)`` raises ``TypeError``.
 * Move the PGMQ broker's hand-written SQL into ``RemouladePostgresClient`` (``remoulade.helpers.postgres_client``).
+* ``PostgresBroker.declare_queue`` now rejects a queue name it could not use as a SQL identifier, since the
+  statements remoulade writes itself interpolate the name into one. The character set is the one remoulade
+  already enforces on every actor declaration; on top of it, the PGMQ broker caps a name at 47 characters, so
+  that the longest index name it derives stays under PostgreSQL's 63-byte limit instead of being truncated into
+  a collision. A name over that length used to be accepted here and now raises ``ValueError`` when actors are
+  declared.
 
 `7.0.0`_ -- 2026-06-15
 ------------
