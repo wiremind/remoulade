@@ -14,7 +14,7 @@ except ImportError:  # pragma: no cover
 
 try:
     from .postgres import PostgresBackend
-except ImportError:  # pragma: no cover
+except (ImportError, TypeError):  # pragma: no cover
     import warnings
 
     warnings.warn(
