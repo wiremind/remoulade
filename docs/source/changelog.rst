@@ -45,6 +45,8 @@ Changed
   a collision. A name over that length used to be accepted here and now raises ``ValueError`` when actors are
   declared.
 
+Fixed
+^^^^^
 `7.0.0`_ -- 2026-06-15
 ------------
 Breaking changes

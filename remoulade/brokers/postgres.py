@@ -189,7 +189,8 @@ class PostgresBroker(Broker):
 
     def _queue_exists(self, queue_name: str) -> bool:
         """Return whether the queue already exists in PostgreSQL."""
-        return queue_name in {queue.queue_name for queue in self.client.list_queues()}
+        queues = self.client.list_queues(conn=self._current_connection)
+        return queue_name in {queue.queue_name for queue in queues}
 
     @override
     def close(self) -> None:
@@ -352,7 +353,7 @@ class PostgresBroker(Broker):
 
     def _count_enqueued_messages(self, queue_name: str) -> int:
         """Count every message stored in the queue."""
-        return self.client.metrics(queue_name).queue_length
+        return self.client.metrics(queue_name, conn=self._current_connection).queue_length
 
     @override
     def join(
