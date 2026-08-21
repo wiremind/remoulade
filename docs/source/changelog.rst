@@ -5,44 +5,30 @@ Changelog
 
 All notable changes to this project will be documented in this file.
 
-Unreleased
-----------
-Upgrading
-^^^^^^^^^
-* **A PGMQ queue missing its ``msg_id`` index gets it on its next declaration.** ``declare_queue`` now ensures
-  the index on an already existing queue and not only on one it creates, so a queue that predates it stops seq
-  scanning every partition on each ack without any manual backfill. On a large existing queue the initial index
-  build locks the table for its duration, so plan the first start after the upgrade like any other index
-  creation.
-
+`7.1.0`_ -- 2026-08-21
+----------------------
 Feat
 ^^^^
 * Add ``PostgresBackend``, a write-only state backend for the PostgreSQL/PGMQ broker that stores a message's
-  terminal status in the message itself instead of a dedicated table. The status costs one ``UPDATE`` on the
-  broker's queue table per processed message, run before the ack archives the row; ``Pending``/``Started`` write
-  nothing at all since PGMQ's own columns already record them. Reading state back is not implemented:
-  ``get_state``, ``get_states``, ``get_states_count`` and ``clean`` raise ``NotImplementedError``, so the
-  dashboard and the state routes of ``remoulade.api`` cannot be served by this backend — query the PGMQ tables
-  directly. ``Message.set_progress`` is silently dropped: storing a progress would mean one more ``UPDATE`` per
-  call. A status is written on the row named by ``State.delivery_id``; a state without one records nothing,
-  which is what a failed enqueue reports, having written no row to record it on.
-* ``declare_queue`` ensures the PGMQ broker's indexes on every declaration, whether the queue was just created
-  or already existed, so a queue that predates one of them is repaired rather than left to degrade quietly —
-  see *Upgrading*.
+  terminal status in the pgmq message itself rather than in a table of its own: one ``UPDATE`` per processed
+  message, ``Pending``/``Started`` left to PGMQ's own columns, ``Message.set_progress`` silently dropped, and
+  retention bounded by the archive's rather than by ``state_ttl``. No read path — ``get_state``, ``get_states``,
+  ``get_states_count`` and ``clean`` raise ``NotImplementedError``, so the dashboard and the state routes of
+  ``remoulade.api`` cannot be served by it; query the PGMQ tables instead.
+* ``State`` carries a ``delivery_id``, the broker's own id for the delivery a state was observed on, which
+  ``PostgresBackend`` uses to name the row to write on. ``None`` for a broker that has no such id.
 
-Changed
-^^^^^^^
-* ``State`` carries a ``delivery_id``, the broker's own id for the delivery a state was observed on, filled by
-  the state middleware from the in-flight message and ``None`` when there is no delivery. A retry gets a new
-  one, unlike ``message_id``. ``StateBackend.set_state`` keeps its signature; backends that do not need the
-  field ignore it.
-* Move the PGMQ broker's hand-written SQL into ``RemouladePostgresClient`` (``remoulade.helpers.postgres_client``).
-* ``PostgresBroker.declare_queue`` now rejects a queue name it could not use as a SQL identifier, since the
-  statements remoulade writes itself interpolate the name into one. The character set is the one remoulade
-  already enforces on every actor declaration; on top of it, the PGMQ broker caps a name at 47 characters, so
+Fix
+^^^
+* ``PostgresBroker.declare_queue`` ensures the ``msg_id`` index on a queue that already exists and not only on
+  one it creates, so a queue predating the index stops seq scanning every partition on each ack. The initial
+  build locks the table for its duration: plan the first start after the upgrade like any index creation.
+
+Breaking changes
+^^^^^^^^^^^^^^^^
+* ``PostgresBroker`` rejects a queue name it could not use as a SQL identifier, and caps it at 47 characters so
   that the longest index name it derives stays under PostgreSQL's 63-byte limit instead of being truncated into
-  a collision. A name over that length used to be accepted here and now raises ``ValueError`` when actors are
-  declared.
+  a collision. Declaring an actor on a longer name now raises ``ValueError``.
 
 `7.0.0`_ -- 2026-06-15
 ------------
