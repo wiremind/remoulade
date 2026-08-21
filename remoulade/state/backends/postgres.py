@@ -16,7 +16,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 """A state backend that records a message's status inside the pgmq message itself."""
 
-from typing import Final
+from typing import Final, override
 
 from ...broker import Broker
 from ...encoder import Encoder
@@ -97,6 +97,7 @@ class PostgresBackend(StateBackend):
         """The broker's PGMQ client, which owns every statement this backend runs."""
         return self.broker.client
 
+    @override
     def set_state(self, state: State, ttl: int = 3600) -> None:
         """Record ``state``'s status on the pgmq row it was observed on.
 
