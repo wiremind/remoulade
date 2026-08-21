@@ -16,21 +16,14 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 """Remoulade's hand-written SQL on top of the PGMQ client.
 
-PGMQ archives a message as it found it, with no way to write anything alongside,
-which is what remoulade needs to record a message's outcome in the message itself.
 Every statement remoulade writes itself lives here, so ``PostgresBroker`` and the
 pgmq state backend never build SQL of their own.
-
-The terminal outcome (success vs failure vs skipped vs canceled) is the only
-thing stored: the rest of a message's lifecycle is *already* recorded by PGMQ
-through ``enqueued_at``, ``last_read_at``, ``read_ct`` and — crucially — whether
-the row sits in ``pgmq.q_<queue>`` or has been moved to ``pgmq.a_<queue>``.
 """
 
 import json
 from collections.abc import Iterator
 from contextlib import contextmanager
-from typing import Any, override
+from typing import Any
 
 from pgmq import SQLAlchemyPGMQueue
 from sqlalchemy import Connection, text
@@ -86,34 +79,22 @@ class RemouladePostgresClient(SQLAlchemyPGMQueue):
                     text(f'CREATE INDEX IF NOT EXISTS "{index}" ON pgmq."{table_prefix}_{queue_name}" {expression}')
                 )
 
-    @override
-    def archive(
-        self,
-        queue: str,
-        msg_id: int,
-        conn: Connection | None = None,
-        *,
-        headers: dict[str, Any] | None = None,
-    ) -> bool:
-        """Archive a message, merging ``headers`` into its stored headers if given.
-        Returns:
-          bool: Whether a message was archived.
-        """
-        if not headers:
-            return super().archive(queue, msg_id, conn=conn)
+    def patch_headers(self, queue: str, msg_id: int, patch: dict[str, Any], conn: Connection | None = None) -> bool:
+        """Merge ``patch`` into an enqueued message's headers, key by key.
 
+        Only reaches a message still in ``pgmq.q_<queue>``; once archived, its
+        headers are out of reach. ``pgmq.archive`` carries them over.
+
+        Returns:
+          bool: Whether a row was patched.
+        """
+        assert_valid_queue_name(queue)
         statement = text(f"""
-            WITH archived AS (
-                DELETE FROM pgmq."q_{queue}"
-                WHERE msg_id = :msg_id
-                RETURNING msg_id, vt, read_ct, enqueued_at, last_read_at, message, headers
-            )
-            INSERT INTO pgmq."a_{queue}" (msg_id, vt, read_ct, enqueued_at, last_read_at, message, headers)
-            SELECT msg_id, vt, read_ct, enqueued_at, last_read_at, message,
-                   coalesce(headers, '{{}}'::jsonb) || CAST(:patch AS jsonb)
-            FROM archived
+            UPDATE pgmq."q_{queue}"
+            SET headers = coalesce(headers, '{{}}'::jsonb) || CAST(:patch AS jsonb)
+            WHERE msg_id = :msg_id
         """)  # noqa: S608
-        return self._run(statement, {"msg_id": msg_id, "patch": json.dumps(headers)}, conn) > 0
+        return self._run(statement, {"msg_id": msg_id, "patch": json.dumps(patch)}, conn) > 0
 
     @contextmanager
     def _connection(self, conn: Connection | None) -> Iterator[Connection]:

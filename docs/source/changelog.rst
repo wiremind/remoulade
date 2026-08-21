@@ -18,25 +18,24 @@ Upgrading
 Feat
 ^^^^
 * Add ``PostgresBackend``, a write-only state backend for the PostgreSQL/PGMQ broker that stores a message's
-  terminal status in the message itself instead of a dedicated table. The status is merged into the archive the
-  broker already writes on ack/nack, so tracking a message's outcome costs no additional statement, and
-  ``Pending``/``Started`` write nothing at all since PGMQ's own columns already record them. Reading state back
-  is not implemented: ``get_state``, ``get_states``, ``get_states_count`` and ``clean`` raise
-  ``NotImplementedError``, so the dashboard and the state routes of ``remoulade.api`` cannot be served by this
-  backend — query the PGMQ tables directly. ``Message.set_progress`` is silently dropped: storing a progress
-  would mean an ``UPDATE`` on the broker's queue table per call. And ``set_state`` needs the message it is given
-  a status for: the middleware always passes it, but a direct call without it raises ``NotImplementedError``,
-  since a message id can name several rows of a queue at once — a retry is the same message re-enqueued.
+  terminal status in the message itself instead of a dedicated table. The status costs one ``UPDATE`` on the
+  broker's queue table per processed message, run before the ack archives the row; ``Pending``/``Started`` write
+  nothing at all since PGMQ's own columns already record them. Reading state back is not implemented:
+  ``get_state``, ``get_states``, ``get_states_count`` and ``clean`` raise ``NotImplementedError``, so the
+  dashboard and the state routes of ``remoulade.api`` cannot be served by this backend — query the PGMQ tables
+  directly. ``Message.set_progress`` is silently dropped: storing a progress would mean one more ``UPDATE`` per
+  call. A status is written on the row named by ``State.delivery_id``; a state without one records nothing,
+  which is what a failed enqueue reports, having written no row to record it on.
 * ``declare_queue`` ensures the PGMQ broker's indexes on every declaration, whether the queue was just created
   or already existed, so a queue that predates one of them is repaired rather than left to degrade quietly —
   see *Upgrading*.
 
 Changed
 ^^^^^^^
-* ``StateBackend.set_state`` accepts an optional ``message`` keyword argument, letting a backend persist state
-  through the broker's own writes rather than a statement of its own. Backends that do not need it ignore it,
-  but a state backend defined outside remoulade must accept it: the middleware now always passes it, so an
-  override still declared as ``set_state(self, state, ttl=3600)`` raises ``TypeError``.
+* ``State`` carries a ``delivery_id``, the broker's own id for the delivery a state was observed on, filled by
+  the state middleware from the in-flight message and ``None`` when there is no delivery. A retry gets a new
+  one, unlike ``message_id``. ``StateBackend.set_state`` keeps its signature; backends that do not need the
+  field ignore it.
 * Move the PGMQ broker's hand-written SQL into ``RemouladePostgresClient`` (``remoulade.helpers.postgres_client``).
 * ``PostgresBroker.declare_queue`` now rejects a queue name it could not use as a SQL identifier, since the
   statements remoulade writes itself interpolate the name into one. The character set is the one remoulade
@@ -45,8 +44,6 @@ Changed
   a collision. A name over that length used to be accepted here and now raises ``ValueError`` when actors are
   declared.
 
-Fixed
-^^^^^
 `7.0.0`_ -- 2026-06-15
 ------------
 Breaking changes

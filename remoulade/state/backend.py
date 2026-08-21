@@ -2,7 +2,6 @@ import datetime
 import sys
 from collections import namedtuple
 from enum import Enum
-from typing import Any
 
 from dateutil.parser import parse
 
@@ -39,6 +38,7 @@ class State(
             "end_datetime",
             "queue_name",
             "composition_id",
+            "delivery_id",
         ),
     )
 ):
@@ -46,6 +46,8 @@ class State(
     Parameters:
         status: The current status of the message state
         args: List of arguments in the state
+        delivery_id: The broker's own id for the delivery this state was observed
+            on, when it has one. A retry gets a new one, unlike message_id.
     """
 
     def __new__(
@@ -64,6 +66,7 @@ class State(
         end_datetime=None,
         queue_name=None,
         composition_id=None,
+        delivery_id=None,
     ):
         if status and status not in list(StateStatusesEnum):
             raise InvalidStateError(f"The {status} State is not defined")
@@ -82,6 +85,7 @@ class State(
             end_datetime,
             queue_name,
             composition_id,
+            delivery_id,
         )
 
     def as_dict(self, exclude_keys=(), encode_args=False):
@@ -157,7 +161,7 @@ class StateBackend:
         """
         raise NotImplementedError(f"{type(self).__name__} does not implement get_state")
 
-    def set_state(self, state: State, ttl: int = 3600, *, message: Any = None) -> None:
+    def set_state(self, state: State, ttl: int = 3600) -> None:
         """Save a message in the backend if it does not exist,
             otherwise update it.
 
@@ -165,12 +169,6 @@ class StateBackend:
             state(State)
             ttl(seconds): The time to keep that state in the backend
              default is one hour(3600 seconds)
-            message(Message|MessageProxy|None): The message this state belongs
-             to, when the caller has it at hand. Most backends ignore it; a
-             backend that stores state alongside the message itself (see
-             ``PostgresBackend``) uses it to piggyback on the broker's own writes
-             instead of issuing its own. It may be a plain ``Message`` (from the
-             enqueue hooks) or a ``MessageProxy`` (from the processing hooks).
         """
         raise NotImplementedError(f"{type(self).__name__} does not implement set_state")
 

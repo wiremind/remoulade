@@ -16,7 +16,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 """A state backend that records a message's status inside the pgmq message itself."""
 
-from typing import Any, Final
+from typing import Final
 
 from ...broker import Broker
 from ...encoder import Encoder
@@ -40,21 +40,17 @@ class PostgresBackend(StateBackend):
     """A write-only state backend that stores a message's status in its pgmq row.
 
     Requires a :class:`~remoulade.brokers.postgres.PostgresBroker`, because it
-    keeps no store of its own: a message's status is written into the ``headers``
-    column of the very pgmq row that carries the message.
+    keeps no store of its own: a status is written into the ``headers`` column of
+    the very pgmq row that carries the message, which bounds what it can do.
 
-    Only :meth:`set_state` is implemented, and only for the terminal statuses:
-    everything else about a message's lifecycle is already recorded by PGMQ
-    (``enqueued_at``, ``last_read_at``, ``read_ct``, ``archived_at``, and which of
-    ``pgmq.q_<queue>``/``pgmq.a_<queue>`` the row sits in) or by the message
-    payload
-
-    Consequences worth knowing:
-
+    * Only the terminal statuses are stored, and only while the message is still
+      enqueued. The rest of a lifecycle is already recorded by PGMQ
+      (``enqueued_at``, ``last_read_at``, ``read_ct``, ``archived_at``, and which
+      of ``pgmq.q_<queue>``/``pgmq.a_<queue>`` the row sits in).
+    * Reads are not implemented: query the pgmq tables instead.
     * ``ttl`` is ignored. Retention is the archive's, set by the broker's
-      ``archive_retention_interval_in_days`` and enforced by pg_partman, so how
-      long a status is kept is how long its archived message is kept.
-    * Purging or dropping a queue destroys the statuses along with the messages.
+      ``archive_retention_interval_in_days``, so a status lives as long as its
+      archived message. Purging or dropping a queue destroys the statuses too.
     * A retried message keeps its ``message_id`` and is re-enqueued as a new row,
       so the archive ends up with one row per attempt, each with its own status.
 
@@ -76,11 +72,10 @@ class PostgresBackend(StateBackend):
     ) -> None:
         """Build a backend writing through ``broker``.
 
-        The broker is required, and checked here: a misconfiguration must raise
-        while the application is being wired up. Failing later would be much
-        worse, since the processing hooks run inside ``emit_before``/
-        ``emit_after``, which log and swallow anything that is not a
-        ``MiddlewareError`` — this backend would silently record nothing.
+        The broker is checked here rather than on first write: the processing hooks
+        run inside ``emit_before``/``emit_after``, which log and swallow anything
+        that is not a ``MiddlewareError``, so a misconfiguration found later would
+        silently record nothing.
 
         Raises:
           ValueError: If ``broker`` is not a
@@ -102,47 +97,32 @@ class PostgresBackend(StateBackend):
         """The broker's PGMQ client, which owns every statement this backend runs."""
         return self.broker.client
 
-    def set_state(self, state: State, ttl: int = 3600, *, message: Any = None) -> None:
-        """Record ``state``'s status on the message it belongs to.
+    def set_state(self, state: State, ttl: int = 3600) -> None:
+        """Record ``state``'s status on the pgmq row it was observed on.
 
-        This backend runs no statement of its own: the status is staged on the
-        in-flight message and written by the archive the broker performs on ack or
-        nack anyway. It therefore needs that message, and ``message`` is where it
-        comes from.
-
-        ``Pending`` and ``Started`` do no I/O at all -- PGMQ's own ``enqueued_at``,
-        ``read_ct`` and the table the row sits in already record them -- and a progress
-        the state carries is ignored, since storing one would mean an ``UPDATE`` on the
-        broker's queue table per ``Message.set_progress`` call.
-
-        Raises:
-          NotImplementedError: If no ``message`` is given. Without it there is nothing
-            to stage the status on, and a message id is not enough to find the row:
-            a retry is the same message re-enqueued, so an id can name several rows at
-            once and nothing here would say which one the status belongs to.
+        One ``UPDATE`` on the broker's queue table, on top of the archive that
+        ack/nack performs anyway. Nothing is written unless the status is terminal
+        and ``state.delivery_id`` names the row to write it on -- a progress, a
+        ``Pending``/``Started`` the row already implies, and an enqueue that raised
+        before writing any row are all silently ignored.
         """
-        # Pending/Started are already implied by the pgmq row itself, so they are
-        # nothing to write.
-        if state.status not in TERMINAL_STATUSES:
-            return
-        patch: dict[str, Any] = {"status": state.status.value}
-
-        # PostgresBackend refuses any other broker, so an in-flight proxy is always a
-        # PostgresMessage: it carries the patch to the archive for free.
-        from ...brokers.postgres import PostgresMessage
-
-        if isinstance(message, PostgresMessage):
-            message.stage_headers(patch)
+        if state.status not in TERMINAL_STATUSES or state.delivery_id is None:
             return
 
-        if message is not None:
-            # A plain Message comes from the enqueue hooks, where MessageState records a
-            # terminal status only when the enqueue raised -- and an enqueue that raised
-            # wrote no row, so there is nothing to record it on.
-            return
-
-        raise NotImplementedError(
-            f"PostgresBackend cannot record {state.status.value} for message {state.message_id!r} without the "
-            "message itself: it stores a status inside the pgmq message rather than in a table of its own. Pass "
-            "message= (the middleware always does), or use another state backend."
+        patched = self.client.patch_headers(
+            state.queue_name,
+            state.delivery_id,
+            {"status": state.status.value},
+            # Join the caller's transaction when there is one, rather than waiting on
+            # a row it may itself be holding.
+            conn=self.broker._current_connection,
         )
+        if not patched:
+            self.broker.logger.warning(
+                "Could not record status %s for message %s: pgmq message %s is gone from queue %s, so it was "
+                "either already archived or redelivered elsewhere.",
+                state.status.value,
+                state.message_id,
+                state.delivery_id,
+                state.queue_name,
+            )

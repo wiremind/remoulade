@@ -77,9 +77,9 @@ class _StatementRecorder:
 
 @pytest.mark.usefixtures("postgres_broker")
 class TestWriteCost:
-    """The terminal status must not cost a statement of its own."""
+    """What tracking a status costs on the broker's queue table."""
 
-    def test_tracking_state_adds_no_statement(self, postgres_broker, postgres_state_backend):
+    def test_tracking_state_adds_one_statement_per_message(self, postgres_broker, postgres_state_backend):
         @remoulade.actor
         def do_work():
             return None
@@ -103,11 +103,12 @@ class TestWriteCost:
         finally:
             recorder.stop()
 
-        assert len(with_state) == len(without_state) == 1
-        # The one statement changed shape rather than gaining a sibling: the
-        # header patch rides along with the archive ack performs anyway.
+        assert len(without_state) == 1
         assert "pgmq.archive" in without_state[0]
-        assert "DELETE FROM pgmq." in with_state[0]
+        # The status is its own UPDATE, run before the ack archives the row.
+        assert len(with_state) == 2
+        assert 'UPDATE pgmq."q_default"' in with_state[0]
+        assert "pgmq.archive" in with_state[1]
 
     def test_pending_and_started_write_nothing(self, postgres_broker, postgres_state_backend):
         @remoulade.actor
@@ -190,24 +191,20 @@ class TestTerminalStates:
 
         assert _archived_status(postgres_broker, message.message_id) == "Canceled"
 
-    def test_a_terminal_status_without_the_message_is_refused(self, postgres_broker, postgres_state_backend):
-        """The status rides on the message's archive, so the message is required.
+    def test_a_terminal_status_without_a_delivery_id_writes_nothing(self, postgres_broker, postgres_state_backend):
+        """The status is written on a row named by its delivery id, so it is required.
 
-        The middleware always passes it. A message id alone would not do: a retry is
-        the same message re-enqueued, so one id can name several rows at once and
-        nothing here would say which of them the status belongs to.
+        The middleware fills it from the in-flight message. A message id would not do:
+        a retry is the same message re-enqueued, so one id can name several rows at once
+        and nothing here would say which of them the status belongs to.
         """
         postgres_broker.declare_queue("default")
         recorder = _StatementRecorder(postgres_broker)
         try:
-            with pytest.raises(NotImplementedError, match="without the message itself"):
-                postgres_state_backend.set_state(
-                    State("does-not-exist", StateStatusesEnum.Success, queue_name="default")
-                )
+            postgres_state_backend.set_state(State("does-not-exist", StateStatusesEnum.Success, queue_name="default"))
         finally:
             recorder.stop()
 
-        # Refused before touching the database, not after failing to find the row.
         assert recorder.writes == []
 
     def test_a_failed_enqueue_records_nothing(self, postgres_broker, postgres_state_backend):

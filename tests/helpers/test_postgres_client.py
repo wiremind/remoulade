@@ -4,7 +4,6 @@ import os
 from unittest.mock import Mock, patch
 
 import pytest
-from pgmq import SQLAlchemyPGMQueue
 from sqlalchemy import text
 
 from remoulade.brokers.postgres import PostgresBroker
@@ -37,39 +36,54 @@ def test_postgres_client_create_indexes_emits_every_index():
     ]
 
 
-def test_postgres_client_archive_without_headers_uses_pgmq_archive():
-    broker = PostgresBroker(url=TEST_POSTGRES_URL, middleware=[])
-
-    with patch.object(SQLAlchemyPGMQueue, "archive", return_value=True) as archive:
-        assert broker.client.archive("default", 7) is True
-        assert broker.client.archive("default", 7, headers={}) is True
-
-    # An empty patch is nothing to merge, so it must not take the custom path.
-    assert archive.call_count == 2
-
-
 @pytest.mark.usefixtures("postgres_broker")
-def test_postgres_client_archive_with_headers_merges_them_in_one_statement(postgres_broker):
+def test_postgres_client_patch_headers_merges_into_the_existing_headers(postgres_broker):
     postgres_broker.declare_queue("default")
     postgres_broker.client.send("default", {"message_id": "m1"}, headers={"progress": 0.5})
 
     with postgres_broker.client.engine.connect() as connection:
         msg_id = connection.execute(text('SELECT msg_id FROM pgmq."q_default"')).scalar_one()
 
-    assert postgres_broker.client.archive("default", msg_id, headers={"status": "Success"}) is True
+    assert postgres_broker.client.patch_headers("default", msg_id, {"status": "Success"}) is True
+
+    with postgres_broker.client.engine.connect() as connection:
+        headers = connection.execute(text('SELECT headers FROM pgmq."q_default"')).scalar_one()
+
+    # Merged, not replaced: a header written earlier survives the outcome.
+    assert headers == {"progress": 0.5, "status": "Success"}
+
+
+@pytest.mark.usefixtures("postgres_broker")
+def test_postgres_client_patched_headers_survive_the_archive(postgres_broker):
+    """What makes a status written before the ack durable: pgmq.archive carries headers over."""
+    postgres_broker.declare_queue("default")
+    postgres_broker.client.send("default", {"message_id": "m1"})
+
+    with postgres_broker.client.engine.connect() as connection:
+        msg_id = connection.execute(text('SELECT msg_id FROM pgmq."q_default"')).scalar_one()
+
+    postgres_broker.client.patch_headers("default", msg_id, {"status": "Success"})
+    assert postgres_broker.client.archive("default", msg_id) is True
 
     with postgres_broker.client.engine.connect() as connection:
         assert connection.execute(text('SELECT count(*) FROM pgmq."q_default"')).scalar_one() == 0
-        archived = connection.execute(text('SELECT headers FROM pgmq."a_default"')).scalar_one()
-
-    # Merged, not replaced: a progress written earlier survives the outcome.
-    assert archived == {"progress": 0.5, "status": "Success"}
+        assert connection.execute(text('SELECT headers FROM pgmq."a_default"')).scalar_one() == {"status": "Success"}
 
 
-def test_postgres_client_archive_with_headers_reports_a_missing_message(postgres_broker):
+def test_postgres_client_patch_headers_reports_a_missing_message(postgres_broker):
     postgres_broker.declare_queue("default")
 
-    assert postgres_broker.client.archive("default", 123456, headers={"status": "Success"}) is False
+    assert postgres_broker.client.patch_headers("default", 123456, {"status": "Success"}) is False
+
+
+def test_postgres_client_patch_headers_refuses_a_queue_name_it_cannot_quote():
+    """The name reaches the client from a State, so the gate has to be here too."""
+    broker = PostgresBroker(url=TEST_POSTGRES_URL, middleware=[])
+
+    with patch.object(broker.client, "_run") as run, pytest.raises(ValueError, match="not a usable queue name"):
+        broker.client.patch_headers('default" ; DROP TABLE pgmq.q_default; --', 7, {"status": "Success"})
+
+    run.assert_not_called()
 
 
 @pytest.mark.usefixtures("postgres_broker")
@@ -130,24 +144,29 @@ def test_postgres_broker_declares_no_queue_it_cannot_name():
     assert broker.queues == {}
 
 
-def test_postgres_backend_refuses_a_terminal_status_without_the_message():
-    """The status is written by the archive of the message, so the message is required.
+def test_postgres_backend_ignores_a_terminal_status_without_a_delivery_id():
+    """Nothing names the row to write on, so there is nothing to write.
 
-    A message id would not be enough to find the row on its own: a retry is the same
-    message re-enqueued, so one id can name several rows and nothing would say which.
+    That is the failed-enqueue case: MessageState reports a Failure, but an enqueue
+    that raised wrote no row to record it on.
     """
     broker = PostgresBroker(url=TEST_POSTGRES_URL, middleware=[])
     backend = PostgresBackend(broker=broker)
 
-    with pytest.raises(NotImplementedError, match="without the message itself"):
+    with patch.object(broker.client, "patch_headers") as patch_headers:
         backend.set_state(State("mid", StateStatusesEnum.Success, queue_name="default"))
+
+    patch_headers.assert_not_called()
 
 
 def test_postgres_backend_ignores_a_state_the_pgmq_row_already_implies():
-    """No message is needed for those: they are not written at all."""
+    """Those are not written even when the row is known."""
     broker = PostgresBroker(url=TEST_POSTGRES_URL, middleware=[])
     backend = PostgresBackend(broker=broker)
 
-    backend.set_state(State("mid", StateStatusesEnum.Pending))
-    backend.set_state(State("mid", StateStatusesEnum.Started))
-    backend.set_state(State("mid", progress=0.5))
+    with patch.object(broker.client, "patch_headers") as patch_headers:
+        backend.set_state(State("mid", StateStatusesEnum.Pending, queue_name="default", delivery_id=7))
+        backend.set_state(State("mid", StateStatusesEnum.Started, queue_name="default", delivery_id=7))
+        backend.set_state(State("mid", progress=0.5, queue_name="default", delivery_id=7))
+
+    patch_headers.assert_not_called()

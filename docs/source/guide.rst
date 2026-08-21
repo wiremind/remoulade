@@ -470,9 +470,13 @@ stored, in the message's ``headers`` column. ``Pending`` and ``Started`` write
 nothing at all: PGMQ already records whether a message has been read
 (``read_ct``), when (``last_read_at``), when it was enqueued (``enqueued_at``),
 when it finished (``archived_at``) and — by moving the row from ``pgmq.q_<queue>``
-to ``pgmq.a_<queue>`` — whether it finished at all. The status is handed to the
-broker, which folds it into the archive it performs on ack or nack anyway, so
-tracking a message's outcome costs **no additional statement**.
+to ``pgmq.a_<queue>`` — whether it finished at all.
+
+The status is written by an ``UPDATE`` of its own on ``pgmq.q_<queue>``, so
+tracking an outcome costs **one statement per processed message**, on top of the
+archive the ack performs anyway. It runs while the row is still enqueued, before
+the ack, and ``pgmq.archive`` carries the headers over — which is also why a
+status is durable even when the archive fails and the message is redelivered.
 
 This backend is **write-only**. ``get_state``, ``get_states``,
 ``get_states_count`` and ``clean`` are not implemented and raise
@@ -487,13 +491,12 @@ Because a retried message keeps its ``message_id`` and is re-enqueued as a new
 row, the archive holds one row per attempt, each with its own status — a
 ready-made audit trail.
 
-``Message.set_progress`` is **silently dropped**. It is called while the actor
-runs and has to be visible before the message finishes, so it cannot ride along
-with the ack: every call would be an ``UPDATE`` on the broker's queue table,
-which is its throughput-critical one. Dropping it rather than raising keeps an
-actor that reports its progress working when it is pointed at this backend —
-raising would fail the message mid-work and retry it forever. Report the
-progress of long-running work through your metrics instead.
+``Message.set_progress`` is **silently dropped**. Storing it would mean one more
+``UPDATE`` on the broker's queue table — its throughput-critical one — per call,
+in a loop the actor controls. Dropping it rather than raising keeps an actor that
+reports its progress working when it is pointed at this backend: raising would
+fail the message mid-work and retry it forever. Report the progress of
+long-running work through your metrics instead.
 
 Two more differences from the Redis state backend are worth planning for:
 
@@ -506,12 +509,12 @@ Two more differences from the Redis state backend are worth planning for:
 
 .. note::
 
-   ``set_state`` needs the message it is recording a status for, and raises
-   ``NotImplementedError`` without it. The state middleware always passes it, so
-   this only concerns a call of your own. A message id would not be enough on its
-   own: a retry is the same message re-enqueued, so one id can name several rows
-   of a queue at once, and nothing in such a call would say which of them the
-   status belongs to.
+   A status is written on the row named by ``State.delivery_id``, the PGMQ
+   ``msg_id`` the state middleware reads off the in-flight message. A state
+   without one records nothing — which is what a failed enqueue reports, having
+   written no row to record it on. A ``message_id`` would not do instead: a retry
+   is the same message re-enqueued, so one id can name several rows of a queue at
+   once, and nothing would say which of them the status belongs to.
 
 
 Local Broker
