@@ -32,7 +32,7 @@ from sqlalchemy import Connection, text
 
 from ..broker import Broker, Consumer, MessageProxy
 from ..errors import QueueJoinTimeout, QueueNotFound, UnsupportedMessageEncoding
-from ..helpers.postgres_client import RemouladePostgresClient, assert_valid_queue_name
+from ..helpers.postgres_client import RemouladePostgresClient
 from ..message import Message
 
 if TYPE_CHECKING:
@@ -220,7 +220,6 @@ class PostgresBroker(Broker):
         Raises:
           ValueError: If ``queue_name`` cannot be used as a SQL identifier.
         """
-        assert_valid_queue_name(queue_name)
         if queue_name in self.queues:
             return
         with self.tx():
@@ -335,8 +334,8 @@ class PostgresBroker(Broker):
             self.flush(queue_name)
 
     def _count_enqueued_messages(self, queue_name: str) -> int:
-        """Count every message stored in the queue."""
-        return self.client.metrics(queue_name, conn=self._current_connection).queue_length
+        """Count every message stored in the queue, on a connection of its own."""
+        return self.client.metrics(queue_name).queue_length
 
     @override
     def join(

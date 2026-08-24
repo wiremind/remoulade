@@ -1,7 +1,7 @@
 """Tests for the PGMQ client's hand-written SQL (``remoulade.helpers.postgres_client``)."""
 
 import os
-from unittest.mock import Mock, patch
+from unittest.mock import MagicMock, Mock, patch
 
 import pytest
 from sqlalchemy import text
@@ -133,14 +133,29 @@ def test_postgres_client_rejects_queue_names_it_cannot_quote(queue_name):
         assert_valid_queue_name(queue_name)
 
 
-def test_postgres_broker_declares_no_queue_it_cannot_name():
-    """The gate rejects the name before any statement is built, so nothing hits the database."""
+def test_postgres_client_create_indexes_refuses_a_queue_name_it_cannot_quote():
+    """The gate sits on the method that interpolates the name, not on its callers."""
     broker = PostgresBroker(url=TEST_POSTGRES_URL, middleware=[])
+    conn = Mock()
 
-    with patch.object(broker, "tx") as tx, pytest.raises(ValueError, match="not a usable queue name"):
+    with pytest.raises(ValueError, match="not a usable queue name"):
+        broker.client.create_indexes('default" ; DROP TABLE pgmq.q_default; --', conn)
+
+    conn.execute.assert_not_called()
+
+
+def test_postgres_broker_declares_no_queue_it_cannot_name():
+    """create_indexes rejects the name, and the transaction declare_queue opened rolls back."""
+    broker = PostgresBroker(url=TEST_POSTGRES_URL, middleware=[])
+    broker.client.validate_queue_name = Mock()
+    broker.client.create_partitioned_queue = Mock()
+    broker.client.enable_notify = Mock()
+    broker.client.list_queues = Mock(return_value=[])
+    broker.client.engine.begin = MagicMock()
+
+    with pytest.raises(ValueError, match="not a usable queue name"):
         broker.declare_queue('default" ; DROP TABLE pgmq.q_default; --')
 
-    tx.assert_not_called()
     assert broker.queues == {}
 
 

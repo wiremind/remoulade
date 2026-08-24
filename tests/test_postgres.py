@@ -181,7 +181,8 @@ def test_postgres_broker_checks_queue_existence_on_its_transaction_connection():
     broker.client.list_queues.assert_called_once_with(conn=transaction_connection)
 
 
-def test_postgres_broker_counts_messages_through_the_current_transaction():
+def test_postgres_broker_counts_messages_outside_the_current_transaction():
+    """Counting on the caller's transaction would see sends no worker can consume yet."""
     broker = PostgresBroker(url=TEST_POSTGRES_URL, middleware=[])
     broker.queues["default"] = None
     broker.client.metrics = Mock(return_value=Mock(queue_length=0))
@@ -192,7 +193,7 @@ def test_postgres_broker_counts_messages_through_the_current_transaction():
     with broker.tx():
         broker.join("default", min_successes=1, idle_time=0)
 
-    broker.client.metrics.assert_called_once_with("default", conn=transaction_connection)
+    broker.client.metrics.assert_called_once_with("default")
 
 
 def test_postgres_broker_enables_notify_on_postgresql_queue_init():

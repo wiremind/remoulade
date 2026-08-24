@@ -38,7 +38,6 @@ class State(
             "end_datetime",
             "queue_name",
             "composition_id",
-            "delivery_id",
         ),
     )
 ):
@@ -46,9 +45,11 @@ class State(
     Parameters:
         status: The current status of the message state
         args: List of arguments in the state
-        delivery_id: The broker's own id for the delivery this state was observed
-            on, when it has one. A retry gets a new one, unlike message_id.
+        delivery_id: The broker's own id for the delivery this state was observed on,
+            when it has one. A retry gets a new one, unlike message_id.
     """
+
+    delivery_id: int | None = None
 
     def __new__(
         cls,
@@ -70,7 +71,7 @@ class State(
     ):
         if status and status not in list(StateStatusesEnum):
             raise InvalidStateError(f"The {status} State is not defined")
-        return super().__new__(
+        state = super().__new__(
             cls,
             message_id,
             status,
@@ -85,8 +86,9 @@ class State(
             end_datetime,
             queue_name,
             composition_id,
-            delivery_id,
         )
+        state.delivery_id = delivery_id
+        return state
 
     def as_dict(self, exclude_keys=(), encode_args=False):
         """Transform a State into a dict, can exclude some keys"""

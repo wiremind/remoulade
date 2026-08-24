@@ -67,7 +67,11 @@ class RemouladePostgresClient(SQLAlchemyPGMQueue):
     """
 
     def create_indexes(self, queue_name: str, conn: Connection | None = None) -> None:
-        """Ensure the queue table carries the indexes remoulade needs."""
+        """Ensure the queue table carries the indexes remoulade needs.
+        Raises:
+          ValueError: If ``queue_name`` cannot be used as a SQL identifier.
+        """
+        assert_valid_queue_name(queue_name)
         with self._connection(conn) as connection:
             connection.execute(
                 text(f'CREATE INDEX IF NOT EXISTS "q_{queue_name}_msg_id_idx" ON pgmq."q_{queue_name}" (msg_id)')
