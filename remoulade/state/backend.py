@@ -202,12 +202,16 @@ class StateBackend:
     ) -> int:
         raise NotImplementedError(f"{type(self).__name__} does not implement get_states_count")
 
+    def _fits(self, encoded_value: bytes) -> bool:
+        """Whether an encoded value is small enough to store, per ``max_size``."""
+        return sys.getsizeof(encoded_value) <= self.max_size
+
     def _encode_dict(self, data):
         """Return the (keys, values) of a dictionary encoded"""
         encoded_data = {}
         for key, value in data.items():
             encoded_value = self.encoder.encode_in_bytes(value)
-            if sys.getsizeof(encoded_value) <= self.max_size:
+            if self._fits(encoded_value):
                 encoded_data[self.encoder.encode_in_bytes(key)] = self.encoder.encode_in_bytes(value)
         return encoded_data
 

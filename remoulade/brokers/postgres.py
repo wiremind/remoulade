@@ -217,23 +217,6 @@ class PostgresBroker(Broker):
     @override
     def declare_queue(self, queue_name: str) -> None:
         """Create a partitioned PGMQ queue if it does not already exist.
-
-        Whether the queue was just created or already existed, this also ensures the
-        indexes remoulade needs on it. Doing it on every declaration is what repairs
-        a queue created by a version of remoulade that did not yet declare one of
-        them: nothing warns when one is missing and nothing fails, the queue merely
-        seq scans every partition on each ``archive`` and ``set_vt``.
-        ``CREATE INDEX IF NOT EXISTS`` is a catalog lookup once the index is there,
-        but on a large existing queue the initial build locks the table for its
-        duration.
-
-        This is the one gate every queue name goes through before it reaches the
-        broker, so it is where the name is checked against
-        :func:`~remoulade.helpers.postgres_client.assert_valid_queue_name`: the
-        statements remoulade writes itself interpolate it as a SQL identifier, which
-        no bind parameter can carry. Failing here means failing loudly at startup,
-        when actors are declared, rather than on a malformed identifier later.
-
         Raises:
           ValueError: If ``queue_name`` cannot be used as a SQL identifier.
         """

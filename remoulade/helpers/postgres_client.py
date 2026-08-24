@@ -68,16 +68,10 @@ class RemouladePostgresClient(SQLAlchemyPGMQueue):
 
     def create_indexes(self, queue_name: str, conn: Connection | None = None) -> None:
         """Ensure the queue table carries the indexes remoulade needs."""
-        # (table prefix, index name suffix, indexed expression including its parentheses)
-        indexes = [
-            ("q", "msg_id_idx", "(msg_id)"),
-        ]
         with self._connection(conn) as connection:
-            for table_prefix, suffix, expression in indexes:
-                index = f"{table_prefix}_{queue_name}_{suffix}"
-                connection.execute(
-                    text(f'CREATE INDEX IF NOT EXISTS "{index}" ON pgmq."{table_prefix}_{queue_name}" {expression}')
-                )
+            connection.execute(
+                text(f'CREATE INDEX IF NOT EXISTS "q_{queue_name}_msg_id_idx" ON pgmq."q_{queue_name}" (msg_id)')
+            )
 
     def patch_headers(self, queue: str, msg_id: int, patch: dict[str, Any], conn: Connection | None = None) -> bool:
         """Merge ``patch`` into an enqueued message's headers, key by key.

@@ -467,52 +467,17 @@ of its own: it is written into the very PGMQ row that carries the message::
 
 Only the terminal status (``Success``, ``Failure``, ``Skipped``, ``Canceled``) is
 stored, in the message's ``headers`` column. ``Pending`` and ``Started`` write
-nothing at all: PGMQ already records whether a message has been read
-(``read_ct``), when (``last_read_at``), when it was enqueued (``enqueued_at``),
-when it finished (``archived_at``) and — by moving the row from ``pgmq.q_<queue>``
-to ``pgmq.a_<queue>`` — whether it finished at all.
-
-The status is written by an ``UPDATE`` of its own on ``pgmq.q_<queue>``, so
-tracking an outcome costs **one statement per processed message**, on top of the
-archive the ack performs anyway. It runs while the row is still enqueued, before
-the ack, and ``pgmq.archive`` carries the headers over — which is also why a
-status is durable even when the archive fails and the message is redelivered.
-
-This backend is **write-only**. ``get_state``, ``get_states``,
-``get_states_count`` and ``clean`` are not implemented and raise
-``NotImplementedError``, so the dashboard and the state routes of
-``remoulade.api`` cannot be served by it. Read the PGMQ tables directly instead::
-
-  SELECT message->>'message_id', message->>'actor_name', headers->>'status', read_ct, archived_at
-  FROM pgmq.a_default
-  WHERE archived_at > now() - interval '1 day';
+nothing at all.
 
 Because a retried message keeps its ``message_id`` and is re-enqueued as a new
 row, the archive holds one row per attempt, each with its own status — a
 ready-made audit trail.
 
-``Message.set_progress`` is **silently dropped**. Storing it would mean one more
-``UPDATE`` on the broker's queue table — its throughput-critical one — per call,
-in a loop the actor controls. Dropping it rather than raising keeps an actor that
-reports its progress working when it is pointed at this backend: raising would
-fail the message mid-work and retry it forever. Report the progress of
-long-running work through your metrics instead.
-
-Two more differences from the Redis state backend are worth planning for:
-
-* **Retention is the archive's.** ``state_ttl`` no longer bounds how long a
-  status is kept; ``archive_retention_interval_in_days`` does, through
-  ``pg_partman``. A status disappears when its message's archive partition is
-  dropped, and purging or dropping a queue destroys the statuses with it.
-* **A status cannot outlive its message.** The backend stores nothing of its own,
-  so it has nowhere to keep a status for a message that is not there.
+``Message.set_progress`` is **silently dropped**.
 
 .. note::
 
-   A status is written on the row named by ``State.delivery_id``, the PGMQ
-   ``msg_id`` the state middleware reads off the in-flight message. A state
-   without one records nothing — which is what a failed enqueue reports, having
-   written no row to record it on. A ``message_id`` would not do instead: a retry
+   A status is written on the row named by ``State.delivery_id``. A ``message_id`` would not do instead: a retry
    is the same message re-enqueued, so one id can name several rows of a queue at
    once, and nothing would say which of them the status belongs to.
 

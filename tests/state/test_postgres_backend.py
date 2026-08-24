@@ -207,6 +207,27 @@ class TestTerminalStates:
 
         assert recorder.writes == []
 
+    def test_a_patch_over_max_size_is_not_written(self, postgres_broker, postgres_state_backend, caplog):
+        """``max_size`` caps the header patch, as it caps a stored field on the other backends.
+
+        A status alone never comes near the default cap, so the guard is here to make the
+        parameter mean the same thing on every backend -- and, unlike the field the other
+        backends drop, it says in the log that it gave up.
+        """
+        postgres_broker.declare_queue("default")
+        postgres_state_backend.max_size = 1
+
+        recorder = _StatementRecorder(postgres_broker)
+        try:
+            postgres_state_backend.set_state(
+                State("a-message", StateStatusesEnum.Success, queue_name="default", delivery_id=1)
+            )
+        finally:
+            recorder.stop()
+
+        assert recorder.writes == []
+        assert "is over the backend's max_size" in caplog.text
+
     def test_a_failed_enqueue_records_nothing(self, postgres_broker, postgres_state_backend):
         """The one place the middleware reports a status without an in-flight message.
 

@@ -16,11 +16,11 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 """A state backend that records a message's status inside the pgmq message itself."""
 
+import json
 from typing import Final, override
 
 from ...broker import Broker
 from ...encoder import Encoder
-from ...helpers.postgres_client import RemouladePostgresClient
 from ..backend import State, StateBackend, StateStatusesEnum
 
 #: The only statuses this backend writes. ``Pending`` and ``Started`` are already
@@ -59,7 +59,10 @@ class PostgresBackend(StateBackend):
       namespace(str): Unused; kept for interface compatibility. A status is
         stored on the message itself, not under a namespaced key.
       encoder(Encoder): Unused; the only thing stored is a status string.
-      max_size(int): Unused; nothing this backend stores in a header is unbounded.
+      max_size(int): Largest header patch this backend will write, in bytes. It caps
+        the patch itself, not the ``headers`` column it is merged into: reading the
+        column back would cost a statement the backend is built not to spend. A
+        status alone never comes close to the default.
     """
 
     def __init__(
@@ -92,11 +95,6 @@ class PostgresBackend(StateBackend):
             )
         self.broker = broker
 
-    @property
-    def client(self) -> RemouladePostgresClient:
-        """The broker's PGMQ client, which owns every statement this backend runs."""
-        return self.broker.client
-
     @override
     def set_state(self, state: State, ttl: int = 3600) -> None:
         """Record ``state``'s status on the pgmq row it was observed on.
@@ -105,17 +103,27 @@ class PostgresBackend(StateBackend):
         ack/nack performs anyway. Nothing is written unless the status is terminal
         and ``state.delivery_id`` names the row to write it on -- a progress, a
         ``Pending``/``Started`` the row already implies, and an enqueue that raised
-        before writing any row are all silently ignored.
+        before writing any row are all silently ignored. A patch over ``max_size``
+        is dropped too, but logged rather than passed over in silence.
         """
         if state.status not in TERMINAL_STATUSES or state.delivery_id is None:
             return
 
-        patched = self.client.patch_headers(
+        patch = {"status": state.status.value}
+        if not self._fits(json.dumps(patch).encode()):
+            self.broker.logger.warning(
+                "Could not record status %s for message %s: its header patch is over the backend's max_size "
+                "of %s bytes.",
+                state.status.value,
+                state.message_id,
+                self.max_size,
+            )
+            return
+
+        patched = self.broker.client.patch_headers(
             state.queue_name,
             state.delivery_id,
-            {"status": state.status.value},
-            # Join the caller's transaction when there is one, rather than waiting on
-            # a row it may itself be holding.
+            patch,
             conn=self.broker._current_connection,
         )
         if not patched:
