@@ -100,13 +100,23 @@ class PostgresBackend(StateBackend):
         """Record ``state``'s status on the pgmq row it was observed on.
 
         One ``UPDATE`` on the broker's queue table, on top of the archive that
-        ack/nack performs anyway. Nothing is written unless the status is terminal
-        and ``state.delivery_id`` names the row to write it on -- a progress, a
-        ``Pending``/``Started`` the row already implies, and an enqueue that raised
-        before writing any row are all silently ignored. A patch over ``max_size``
-        is dropped too, but logged rather than passed over in silence.
+        ack/nack performs anyway. A progress and the ``Pending``/``Started`` the row
+        already implies write nothing at all.
         """
-        if state.status not in TERMINAL_STATUSES or state.delivery_id is None:
+        if state.status not in TERMINAL_STATUSES:
+            return
+
+        if state.delivery_id is None:
+            # Every in-flight hook reports a MessageProxy, so a terminal status with no
+            # delivery id comes from the enqueue hooks, where MessageState only records
+            # a Failure. Any other status here means the state was built by hand.
+            if state.status is not StateStatusesEnum.Failure:
+                self.broker.logger.warning(
+                    "Could not record status %s for message %s: it carries no delivery_id, so there is no pgmq "
+                    "row to record it on.",
+                    state.status.value,
+                    state.message_id,
+                )
             return
 
         patch = {"status": state.status.value}

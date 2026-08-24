@@ -191,7 +191,9 @@ class TestTerminalStates:
 
         assert _archived_status(postgres_broker, message.message_id) == "Canceled"
 
-    def test_a_terminal_status_without_a_delivery_id_writes_nothing(self, postgres_broker, postgres_state_backend):
+    def test_a_terminal_status_without_a_delivery_id_is_dropped_and_logged(
+        self, postgres_broker, postgres_state_backend, caplog
+    ):
         """The status is written on a row named by its delivery id, so it is required.
 
         The middleware fills it from the in-flight message. A message id would not do:
@@ -206,6 +208,7 @@ class TestTerminalStates:
             recorder.stop()
 
         assert recorder.writes == []
+        assert "carries no delivery_id" in caplog.text
 
     def test_a_patch_over_max_size_is_not_written(self, postgres_broker, postgres_state_backend, caplog):
         """``max_size`` caps the header patch, as it caps a stored field on the other backends.
@@ -228,12 +231,12 @@ class TestTerminalStates:
         assert recorder.writes == []
         assert "is over the backend's max_size" in caplog.text
 
-    def test_a_failed_enqueue_records_nothing(self, postgres_broker, postgres_state_backend):
+    def test_a_failed_enqueue_records_nothing(self, postgres_broker, postgres_state_backend, caplog):
         """The one place the middleware reports a status without an in-flight message.
 
         ``MessageState.after_enqueue`` only saves a status when the enqueue raised, and
         an enqueue that raised wrote no row -- so there is nothing to record it on, and
-        nothing to refuse either.
+        nothing to warn about either.
         """
         _attach_state_middleware(postgres_broker, postgres_state_backend)
         postgres_broker.declare_queue("default")
@@ -251,6 +254,7 @@ class TestTerminalStates:
             recorder.stop()
 
         assert recorder.writes == []
+        assert "carries no delivery_id" not in caplog.text
 
 
 @pytest.mark.usefixtures("postgres_broker")
