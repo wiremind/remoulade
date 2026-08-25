@@ -13,8 +13,7 @@ Feat
   terminal status in the pgmq message itself rather than in a table of its own: one ``UPDATE`` per processed
   message, ``Pending``/``Started`` left to PGMQ's own columns, ``Message.set_progress`` silently dropped, and
   retention bounded by the archive's rather than by ``state_ttl``. No read path — ``get_state``, ``get_states``,
-  ``get_states_count`` and ``clean`` raise ``NotImplementedError``, so the dashboard and the state routes of
-  ``remoulade.api`` cannot be served by it; query the PGMQ tables instead.
+  ``get_states_count`` and ``clean`` raise ``NotImplementedError``
 * ``State`` carries a ``delivery_id``, the broker's own id for the delivery a state was observed on, which
   ``PostgresBackend`` uses to name the row to write on. ``None`` for a broker that has no such id.
 
@@ -22,7 +21,7 @@ Fix
 ^^^
 * ``PostgresBroker.declare_queue`` ensures the ``msg_id`` index on a queue that already exists and not only on
   one it creates, so a queue predating the index stops seq scanning every partition on each ack. The initial
-  build locks the table for its duration: plan the first start after the upgrade like any index creation.
+  build locks the table for its duration.
 
 Breaking changes
 ^^^^^^^^^^^^^^^^
