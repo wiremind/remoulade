@@ -134,7 +134,6 @@ class PostgresBackend(StateBackend):
             state.queue_name,
             state.delivery_id,
             patch,
-            conn=self.broker._current_connection,
         )
         if not patched:
             self.broker.logger.warning(

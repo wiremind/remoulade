@@ -32,7 +32,7 @@ from sqlalchemy import Connection, text
 
 from ..broker import Broker, Consumer, MessageProxy
 from ..errors import QueueJoinTimeout, QueueNotFound, UnsupportedMessageEncoding
-from ..helpers.postgres_client import RemouladePostgresClient
+from ..helpers.postgres_client import RemouladePostgresClient, assert_valid_queue_name
 from ..message import Message
 
 if TYPE_CHECKING:
@@ -222,6 +222,7 @@ class PostgresBroker(Broker):
         """
         if queue_name in self.queues:
             return
+        assert_valid_queue_name(queue_name)
         with self.tx():
             if self._current_connection is None:
                 raise ValueError("cannot be None we are inside a tx")
