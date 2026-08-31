@@ -18,7 +18,7 @@ import time
 from itertools import chain
 from queue import Empty, Queue
 
-from ..broker import Broker, Consumer, MessageProxy
+from ..broker import Broker, Consumer, MessageProxy, check_flush_target
 from ..common import current_millis
 from ..errors import QueueNotFound
 from ..helpers.queues import dq_name, iter_queue, join_queue
@@ -105,19 +105,32 @@ class StubBroker(Broker):
     def _enqueue_many(self, messages, *, delay=None):
         return [self._enqueue(message, delay=delay) for message in messages]
 
-    def flush(self, queue_name):
+    def flush(self, queue_name, *, target="all"):
         """Drop all the messages from a queue.
+
+        An in-memory queue keeps nothing aside once a message left it, so there
+        is nothing for ``dead-only`` to drop and nothing for ``active-only`` to
+        spare.
 
         Parameters:
           queue_name(str): The queue to flush.
+          target(FlushTarget): Which messages to drop. Only ``dead-only`` makes
+            a difference here, by leaving the queue untouched.
+
+        Raises:
+          ValueError: If the target is not a known one.
         """
+        check_flush_target(target)
+        if target == "dead-only":
+            return
+
         for _ in iter_queue(self.queues[queue_name]):
             self.queues[queue_name].task_done()
 
-    def flush_all(self):
+    def flush_all(self, *, target="all"):
         """Drop all messages from all declared queues."""
         for queue_name in chain(self.queues, self.delay_queues):
-            self.flush(queue_name)
+            self.flush(queue_name, target=target)
 
     def join(self, queue_name, *, timeout=None):
         """Wait for all the messages on the given queue to be

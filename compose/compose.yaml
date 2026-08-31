@@ -1,17 +1,21 @@
+# Mirrors the `services:` block of .github/workflows/tests.yml, so a local run
+# hits the same images, ports and database as CI does.
 services:
   redis:
     image: redis:7
     ports:
-      - "127.0.0.1:6379:6379"
+      - "127.0.0.1:6481:6379"
   rabbitmq:
     image: rabbitmq:4.1
     ports:
-      - "127.0.0.1:5672:5672"
+      - "127.0.0.1:5784:5672"
   postgres:
-    image: postgres:16
+    image: ghcr.io/pgmq/pg18-pgmq:v1.10.0
     ports:
-      - "127.0.0.1:5432:5432"
+      - "127.0.0.1:5544:5432"
     environment:
       POSTGRES_USER: remoulade
       POSTGRES_HOST_AUTH_METHOD: trust
-      POSTGRES_DB: remoulade
+      POSTGRES_DB: test
+    volumes:
+      - ../tests/docker/postgres/01-create-postgres-extension.sql:/docker-entrypoint-initdb.d/01-create-postgres-extension.sql:ro

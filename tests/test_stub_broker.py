@@ -54,6 +54,49 @@ def test_stub_broker_can_be_flushed(stub_broker):
     assert stub_broker.queues[do_work.queue_name].unfinished_tasks == 0
 
 
+def test_stub_broker_active_only_still_empties_the_queue(stub_broker):
+    # Given a declared actor with a message on its queue
+    @remoulade.actor
+    def do_work():
+        pass
+
+    stub_broker.declare_actor(do_work)
+    do_work.send()
+    assert stub_broker.queues[do_work.queue_name].qsize() == 1
+
+    # When I flush it keeping only the active messages
+    stub_broker.flush(do_work.queue_name, target="active-only")
+
+    # Then the queue is emptied all the same: an in-memory broker keeps nothing
+    # aside once a message left its queue, so there is nothing to spare.
+    assert stub_broker.queues[do_work.queue_name].qsize() == 0
+
+
+def test_stub_broker_dead_only_leaves_the_queue_untouched(stub_broker):
+    @remoulade.actor
+    def do_work():
+        pass
+
+    stub_broker.declare_actor(do_work)
+    do_work.send()
+
+    # There is no dead store to empty, so the queue must survive untouched.
+    stub_broker.flush(do_work.queue_name, target="dead-only")
+
+    assert stub_broker.queues[do_work.queue_name].qsize() == 1
+
+
+def test_stub_broker_flush_rejects_an_unknown_target(stub_broker):
+    @remoulade.actor
+    def do_work():
+        pass
+
+    stub_broker.declare_actor(do_work)
+
+    with pytest.raises(ValueError, match="invalid flush target"):
+        stub_broker.flush(do_work.queue_name, target="everything")
+
+
 def test_stub_broker_can_join_with_timeout(stub_broker, stub_worker):
     # Given that I have an actor that takes a long time to run
     @remoulade.actor

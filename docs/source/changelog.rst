@@ -16,6 +16,9 @@ Feat
   ``get_states_count`` and ``clean`` raise ``NotImplementedError``
 * ``State`` carries a ``delivery_id``, the broker's own id for the delivery a state was observed on, which
   ``PostgresBackend`` uses to name the row to write on. ``None`` for a broker that has no such id.
+* Add ``PostgresBroker.replay_archived_messages``, which sends archived messages back onto their queue and drops them from the archive, filtering on the remoulade ``message_id``, the actor name and an ``archived_at`` range, with a ``dry_run`` mode.
+* ``PostgresBroker.flush``, ``flush_all`` and ``replay_archived_messages`` take a ``status`` filter, read from the ``status`` header the pgmq state backend writes: ``flush(queue, status=StateStatusesEnum.Success)`` reclaims what went well, ``replay_archived_messages(queue, status=StateStatusesEnum.Failure)`` runs the failures again. Filtering raises ``NoStateBackend`` unless that backend is attached, since nothing else records a status and the filter would silently match nothing.
+* Add ``PostgresBroker.count_archived_messages``, since PGMQ exposes no way to count the archive.
 
 Fix
 ^^^
@@ -28,6 +31,9 @@ Breaking changes
 * ``PostgresBroker`` rejects a queue name it could not use as a SQL identifier, and caps it at 47 characters so
   that the longest index name it derives stays under PostgreSQL's 63-byte limit instead of being truncated into
   a collision. Declaring an actor on a longer name now raises ``ValueError``.
+* Add a ``target`` keyword argument to ``Broker.flush``/``Broker.flush_all``, a ``FlushTarget`` (``"active-only"``, ``"dead-only"`` or ``"all"``) defaulting to ``"all"``. It selects whether to drop the messages still waiting to be processed, the ones the broker kept aside once they left the queue, or both. Brokers overriding either method must accept it.
+* ``flush`` now drops the messages the broker kept aside once they left the queue -- the PGMQ archive, RabbitMQ's dead letter queue -- as well, unless ``target`` is ``"active-only"``. On PostgreSQL only the archive rows are deleted; the partitions are left in place for pg_partman to keep managing.
+* Rename ``PostgresBroker._count_enqueued_messages`` to ``PostgresBroker.count_enqueued_messages``, now public.
 
 `7.0.0`_ -- 2026-06-15
 ------------

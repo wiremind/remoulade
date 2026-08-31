@@ -494,6 +494,41 @@ Two differences with the Redis state backend are worth planning for:
    status belongs to.
 
 
+Queue Maintenance
+^^^^^^^^^^^^^^^^^
+
+``broker.flush("default")`` drops everything: the queue, and the archive of what
+already ran. ``target="active-only"`` or ``"dead-only"`` narrows it to one side.
+``replay_archived_messages`` goes the other way, sending archived messages back
+onto their queue.
+
+With the state backend above attached, both narrow down to the messages recorded
+with a given status, read from the ``status`` header it writes. Two calls make up
+most of what you will need::
+
+  from remoulade.state import StateStatusesEnum
+
+  # Reclaim the archive of everything that went well.
+  broker.flush("default", status=StateStatusesEnum.Success)
+
+  # Run the failures again. Check the selection first with dry_run=True.
+  broker.replay_archived_messages("default", status=StateStatusesEnum.Failure)
+
+``replay_archived_messages`` also filters on ``message_ids``, ``actor_names`` and
+an ``archived_at`` range. Those are matched inside JSON columns that carry no
+index, so pairing them with a date range keeps the scan bounded to the relevant
+archive partitions.
+
+.. note::
+
+   Filtering on a status raises ``NoStateBackend`` unless ``PostgresBackend`` is
+   the attached state backend: nothing else writes that header, so the filter
+   would match no row and report having done nothing. It only sees the messages
+   that ran while the backend was attached, and since a status is written on the
+   queue row moments before the ack that archives it, in practice only the
+   archive carries one.
+
+
 Local Broker
 ^^^^^^^^^^^^^^^
 

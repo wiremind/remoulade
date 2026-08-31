@@ -17,7 +17,7 @@
 
 from typing import TYPE_CHECKING, Any, override
 
-from ..broker import Broker, Consumer, MessageProxy
+from ..broker import Broker, Consumer, FlushTarget, MessageProxy, check_flush_target
 from ..common import current_millis
 from ..message import Message
 from ..middleware import SkipMessage
@@ -138,12 +138,12 @@ class LocalBroker(Broker):
         return [self._enqueue(message, delay=delay) for message in messages]
 
     @override
-    def flush(self, _: str) -> None:
-        pass
+    def flush(self, _: str, *, target: FlushTarget = "all") -> None:
+        check_flush_target(target)
 
     @override
-    def flush_all(self) -> None:
-        pass
+    def flush_all(self, *, target: FlushTarget = "all") -> None:
+        check_flush_target(target)
 
     @override
     def join(self, queue_name: str, *, timeout: int | None = None) -> None:

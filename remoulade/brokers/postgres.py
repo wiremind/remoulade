@@ -18,7 +18,7 @@ import logging
 import math
 import time
 from collections import deque
-from collections.abc import Iterable, Iterator
+from collections.abc import Collection, Iterable, Iterator
 from contextlib import contextmanager
 from datetime import UTC, datetime, timedelta
 from threading import Event, Lock, Thread, local
@@ -28,12 +28,26 @@ from urllib.parse import urlparse
 import psycopg
 from pgmq.messages import Message as PostgresQueueMessage
 from psycopg import sql as psycopg_sql
-from sqlalchemy import Connection, text
+from sqlalchemy import (
+    ColumnElement,
+    Connection,
+    Delete,
+    Executable,
+    Table,
+    delete,
+    func,
+    select,
+    text,
+)
 
-from ..broker import Broker, Consumer, MessageProxy
-from ..errors import QueueJoinTimeout, QueueNotFound, UnsupportedMessageEncoding
-from ..helpers.postgres_client import RemouladePostgresClient, assert_valid_queue_name
+from ..broker import Broker, Consumer, FlushTarget, MessageProxy, check_flush_target
+from ..errors import NoStateBackend, QueueJoinTimeout, QueueNotFound, UnsupportedMessageEncoding
+from ..helpers.postgres_client import RemouladePostgresClient, assert_valid_queue_name, get_pgmq_table
 from ..message import Message
+from ..state import StateStatusesEnum
+
+#: A status filter: one status, several, or no filter at all.
+StatusFilter = StateStatusesEnum | Collection[StateStatusesEnum] | None
 
 if TYPE_CHECKING:
     from sqlalchemy import Engine
@@ -156,6 +170,9 @@ class PostgresBroker(Broker):
         The active SQLAlchemy connection is stored on thread-local state so
         queue operations can reuse it while the context is open.
         """
+        if self.client.engine is None:
+            raise ValueError("engine cannot be None")
+
         with self.client.engine.begin() as connection:
             self.state.transaction_connection = connection
             try:
@@ -167,6 +184,37 @@ class PostgresBroker(Broker):
     def _current_connection(self) -> Connection | None:
         """Return the transactional connection, if one is active."""
         return getattr(self.state, "transaction_connection", None)
+
+    @contextmanager
+    def _connection(self) -> Iterator[Connection]:
+        """Yield the transactional connection if one is open, else a new one.
+
+        Operations that need a real ``Connection`` -- Core statements, not just
+        PGMQ client calls, which accept ``conn=None`` and open their own -- must
+        join the transaction opened by ``tx()`` when there is one, so that they
+        see its uncommitted writes and roll back with it rather than committing
+        on their own. The lifecycle of a borrowed connection stays with ``tx()``:
+        it is neither committed nor closed here.
+
+        A connection opened here is published on the thread-local state for the
+        duration of the block, the way ``tx()`` does, so that nested broker calls
+        -- the ``enqueue_many`` of a maintenance replay, say -- join it
+        instead of writing on a second connection outside the transaction.
+        """
+        connection = self._current_connection
+        if connection is not None:
+            yield connection
+            return
+
+        if self.client.engine is None:
+            raise ValueError("engine cannot be None")
+
+        with self.client.engine.begin() as new_connection:
+            self.state.transaction_connection = new_connection
+            try:
+                yield new_connection
+            finally:
+                self.state.transaction_connection = None
 
     def _try_enable_notify(self, queue_name: str) -> None:
         """Try to enable LISTEN/NOTIFY for a queue.
@@ -321,22 +369,184 @@ class PostgresBroker(Broker):
         return messages
 
     @override
-    def flush(self, queue_name: str) -> None:
-        """Remove every message currently stored in a queue."""
+    def flush(self, queue_name: str, *, target: FlushTarget = "all", status: StatusFilter = None) -> None:
+        """Remove every message currently stored in a queue.
+
+        The archive (``pgmq.a_<queue_name>``) holds the messages a worker was
+        already done with, and is what ``dead-only`` targets. Only its rows are
+        deleted: the partitions themselves are left in place for pg_partman to
+        keep managing.
+
+        Parameters:
+          queue_name(str): The queue to flush.
+          target(FlushTarget): Which messages to drop: ``active-only`` for the
+            queue itself, ``dead-only`` for the archive, or ``all``. Defaults to
+            ``all``.
+          status(StatusFilter): Only drop the messages recorded with one of these
+            statuses. Costs the queue its ``purge``, since the rows then have to
+            be picked one by one. Needs the pgmq state backend attached, and only
+            sees what ran while it was.
+
+        Raises:
+          QueueNotFound: If the queue has not been declared.
+          ValueError: If the target is not a known one.
+          NoStateBackend: If a status is given and no pgmq state backend records one.
+        """
+        check_flush_target(target)
+        self._check_status_is_recorded(status)
+
         if queue_name not in self.queues:
             raise QueueNotFound(queue_name)
 
-        self.client.purge(queue_name, conn=self._current_connection)
+        with self._connection() as connection:
+            if target != "dead-only":
+                if status is None:
+                    self.client.purge(queue_name, conn=connection)
+                else:
+                    connection.execute(_delete_where_status(get_pgmq_table(queue_name), status))
+
+            if target != "active-only":
+                connection.execute(_delete_where_status(get_pgmq_table(queue_name, archive=True), status))
 
     @override
-    def flush_all(self) -> None:
+    def flush_all(self, *, target: FlushTarget = "all", status: StatusFilter = None) -> None:
         """Purge every declared queue."""
         for queue_name in self.queues:
-            self.flush(queue_name)
+            self.flush(queue_name, target=target, status=status)
 
-    def _count_enqueued_messages(self, queue_name: str) -> int:
-        """Count every message stored in the queue, on a connection of its own."""
+    def replay_archived_messages(
+        self,
+        queue_name: str,
+        *,
+        message_ids: Collection[str] | None = None,
+        actor_names: Collection[str] | None = None,
+        from_datetime: datetime | None = None,
+        to_datetime: datetime | None = None,
+        status: StatusFilter = None,
+        dry_run: bool = False,
+    ) -> list[str]:
+        """Send archived messages back onto their queue, and drop them from the archive.
+
+        These are messages a worker was already done with, taken out of
+        ``pgmq.a_<queue_name>`` -- unlike ``Consumer.requeue``, which only makes
+        in-flight messages visible again.
+
+        A replayed message keeps its original ``message_id``. It goes back through
+        ``enqueue_many``, so the enqueue middleware runs exactly as it would for a
+        fresh send: the message is reset to Pending in the state backend, and
+        tracing and metrics account for it. Middleware is therefore free to alter
+        the payload on its way out, the way it does on any other enqueue. Deleting
+        the archived rows and re-enqueueing them happen in a single transaction.
+
+        Every filter is optional, and an unfiltered call replays the whole
+        retention window at once -- rarely what you want. ``message_ids`` and
+        ``actor_names`` are matched inside the ``message`` JSON column, which is
+        not indexed, so pairing them with a date range keeps the scan bounded to
+        the relevant archive partitions.
+
+        Note that the archive holds successes and failures alike — ``ack`` and
+        ``nack`` both archive — so a replay can re-run messages that already
+        succeeded. Use ``dry_run`` to check the selection first.
+
+        Parameters:
+          queue_name(str): The queue whose archive is replayed.
+          message_ids(Collection[str]|None): Remoulade message ids to match --
+            the ``message_id`` of the envelope, the one application logs report,
+            not PGMQ's ``msg_id``.
+          actor_names(Collection[str]|None): Actor names to match.
+          from_datetime(datetime|None): Only replay messages archived at or after
+            this point. Messages older than the archive retention are gone, so a
+            value beyond it matches nothing.
+          to_datetime(datetime|None): Only replay messages archived at or before
+            this point.
+          status(StatusFilter): Only replay the messages recorded with one of
+            these statuses. Needs the pgmq state backend attached, and only sees
+            what ran while it was.
+          dry_run(bool): When set, return the messages that would be replayed
+            without enqueueing or deleting anything.
+
+        Returns:
+          list[str]: The ``message_id`` of every replayed message.
+
+        Raises:
+          QueueNotFound: If the queue has not been declared.
+          NoStateBackend: If a status is given and no pgmq state backend records one.
+        """
+        self._check_status_is_recorded(status)
+
+        if queue_name not in self.queues:
+            raise QueueNotFound(queue_name)
+
+        archive_table = get_pgmq_table(queue_name, archive=True)
+
+        with self._connection() as connection:
+            conditions = []
+            if message_ids is not None:
+                conditions.append(archive_table.c.message["message_id"].astext.in_(message_ids))
+            if actor_names is not None:
+                conditions.append(archive_table.c.message["actor_name"].astext.in_(actor_names))
+            if from_datetime is not None:
+                conditions.append(archive_table.c.archived_at >= from_datetime)
+            if to_datetime is not None:
+                conditions.append(archive_table.c.archived_at <= to_datetime)
+            status_condition = _status_condition(archive_table, status)
+            if status_condition is not None:
+                conditions.append(status_condition)
+
+            stmt: Executable
+            if dry_run:
+                stmt = select(archive_table.c.message).where(*conditions)
+            else:
+                stmt = delete(archive_table).where(*conditions).returning(archive_table.c.message)
+
+            messages = [Message.decode_json(row.message) for row in connection.execute(stmt).all()]
+
+            if messages and not dry_run:
+                self.enqueue_many(messages)
+
+        return [message.message_id for message in messages]
+
+    def _check_status_is_recorded(self, status: "StatusFilter") -> None:
+        """Reject a status filter when nothing is writing a status on the messages.
+
+        The filter reads the ``status`` header that
+        :class:`~remoulade.state.backends.postgres.PostgresBackend` writes, and
+        nothing else ever writes it. Without that backend a filtered call would
+        quietly match no row and report having dropped or replayed nothing, which
+        reads exactly like "there was nothing to do".
+        """
+        if status is None:
+            return
+
+        from ..state.backends.postgres import PostgresBackend
+
+        backend = self.get_state_backend()
+        if not isinstance(backend, PostgresBackend):
+            raise NoStateBackend(
+                f"filtering on a status needs the pgmq state backend, which writes it on the message itself; "
+                f"{type(backend).__name__} keeps its own store, so no pgmq row carries a status to match."
+            )
+
+    def count_enqueued_messages(self, queue_name: str) -> int:
+        """Count every message stored in the queue, in-flight and delayed ones included.
+
+        Runs on a connection of its own.
+        """
         return self.client.metrics(queue_name).queue_length
+
+    def count_archived_messages(self, queue_name: str) -> int:
+        """Count the messages sitting in the queue's archive.
+
+        Raises:
+          QueueNotFound: If the queue has not been declared.
+        """
+        if queue_name not in self.queues:
+            raise QueueNotFound(queue_name)
+
+        with self._connection() as connection:
+            self.client.validate_queue_name(queue_name, conn=connection)
+            archive_table = get_pgmq_table(queue_name, archive=True)
+            return connection.execute(select(func.count()).select_from(archive_table)).scalar_one()
 
     @override
     def join(
@@ -375,7 +585,7 @@ class PostgresBroker(Broker):
             if deadline and time.monotonic() >= deadline:
                 raise QueueJoinTimeout(queue_name)
 
-            total_messages = self._count_enqueued_messages(queue_name)
+            total_messages = self.count_enqueued_messages(queue_name)
             if total_messages == 0:
                 successes += 1
                 if successes >= min_successes:
@@ -853,3 +1063,19 @@ class PostgresMessage(MessageProxy):
     def delivery_id(self) -> int:
         """This delivery's PGMQ ``msg_id``, which a retry does not keep."""
         return self._postgres_message.msg_id
+
+
+def _status_condition(table: Table, status: "StatusFilter") -> "ColumnElement[bool] | None":
+    """Match the status the pgmq state backend wrote in ``headers``, if one is asked for."""
+    if status is None:
+        return None
+
+    statuses = [status] if isinstance(status, StateStatusesEnum) else list(status)
+    return table.c.headers["status"].astext.in_([one.value for one in statuses])
+
+
+def _delete_where_status(table: Table, status: "StatusFilter") -> Delete:
+    """Delete every row of ``table``, or only those matching ``status``."""
+    condition = _status_condition(table, status)
+    statement = delete(table)
+    return statement if condition is None else statement.where(condition)

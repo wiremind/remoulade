@@ -3,6 +3,7 @@ import logging
 import os
 import threading
 import time
+from datetime import UTC, datetime, timedelta
 from unittest.mock import Mock, patch
 
 import pytest
@@ -14,9 +15,12 @@ import remoulade
 from remoulade import Message, QueueJoinTimeout, UnsupportedMessageEncoding, Worker, group
 from remoulade.brokers.postgres import PostgresBroker, _PostgresListener
 from remoulade.encoder import Encoder, MessageData
-from remoulade.errors import QueueNotFound
+from remoulade.errors import NoStateBackend, QueueNotFound
+from remoulade.middleware import Middleware
 from remoulade.results import Results
 from remoulade.results.backends import StubBackend
+from remoulade.state import MessageState, StateStatusesEnum
+from remoulade.state.backends import StubBackend as StateStubBackend
 
 TEST_POSTGRES_URL = os.getenv("REMOULADE_TEST_DB_URL") or "postgresql://remoulade@localhost:5544/test"
 
@@ -1307,3 +1311,472 @@ def test_listener_wakes_all_consumers_on_a_queue_and_unregister_spares_siblings(
     listener.unregister("default", second)
     assert channel not in listener._channel_to_queue
     assert "default" not in listener._events
+
+
+def _archive_messages(broker, *messages):
+    """Enqueue then consume the given messages so they end up in the archive."""
+    for message in messages:
+        broker.enqueue(message)
+
+    consumer = broker.consume("default", prefetch=len(messages), timeout=200)
+    for _ in messages:
+        consumed_message = next(consumer)
+        assert consumed_message is not None
+        consumer.ack(consumed_message)
+    consumer.close()
+
+
+def _archived_message_ids(broker, queue_name="default"):
+    archive_table = Table(
+        f"a_{queue_name}",
+        MetaData(),
+        Column("msg_id", Integer),
+        Column("message", JSON),
+        schema="pgmq",
+    )
+    with broker.client.session() as session:
+        rows = session.execute(select(archive_table.c.message).order_by(archive_table.c.msg_id)).all()
+    return [row[0]["message_id"] for row in rows]
+
+
+def _archive_partition_names(broker, queue_name="default"):
+    query = text(
+        "SELECT c.relname FROM pg_class c "
+        "JOIN pg_inherits i ON i.inhrelid = c.oid "
+        "JOIN pg_class parent ON parent.oid = i.inhparent "
+        "JOIN pg_namespace n ON n.oid = parent.relnamespace "
+        "WHERE n.nspname = 'pgmq' AND parent.relname = :parent"
+    )
+    with broker.client.session() as session:
+        return sorted(row[0] for row in session.execute(query, {"parent": f"a_{queue_name}"}).all())
+
+
+@pytest.mark.usefixtures("postgres_broker")
+def test_postgres_flush_empties_the_archive_by_default(postgres_broker):
+    postgres_broker.declare_queue("default")
+    _archive_messages(
+        postgres_broker, Message(queue_name="default", actor_name="do_work", args=(), kwargs={}, options={})
+    )
+    postgres_broker.enqueue(Message(queue_name="default", actor_name="do_work", args=(), kwargs={}, options={}))
+    partitions_before = _archive_partition_names(postgres_broker)
+
+    postgres_broker.flush("default")
+
+    assert _count_messages(postgres_broker) == 0
+    assert _count_archived_messages(postgres_broker) == 0
+    # The rows go, the partitions stay: pg_partman keeps managing their lifecycle.
+    assert _archive_partition_names(postgres_broker) == partitions_before
+    assert partitions_before != []
+
+
+@pytest.mark.usefixtures("postgres_broker")
+def test_postgres_flush_active_only_spares_the_archive(postgres_broker):
+    postgres_broker.declare_queue("default")
+    _archive_messages(
+        postgres_broker, Message(queue_name="default", actor_name="do_work", args=(), kwargs={}, options={})
+    )
+    postgres_broker.enqueue(Message(queue_name="default", actor_name="do_work", args=(), kwargs={}, options={}))
+
+    postgres_broker.flush("default", target="active-only")
+
+    assert _count_messages(postgres_broker) == 0
+    assert _count_archived_messages(postgres_broker) == 1
+
+
+@pytest.mark.usefixtures("postgres_broker")
+def test_postgres_flush_dead_only_spares_the_queue(postgres_broker):
+    postgres_broker.declare_queue("default")
+    _archive_messages(
+        postgres_broker, Message(queue_name="default", actor_name="do_work", args=(), kwargs={}, options={})
+    )
+    postgres_broker.enqueue(Message(queue_name="default", actor_name="do_work", args=(), kwargs={}, options={}))
+    partitions_before = _archive_partition_names(postgres_broker)
+
+    postgres_broker.flush("default", target="dead-only")
+
+    # Only the archive is emptied; the message waiting to be processed stays.
+    assert _count_archived_messages(postgres_broker) == 0
+    assert _count_messages(postgres_broker) == 1
+    assert _archive_partition_names(postgres_broker) == partitions_before
+
+
+@pytest.mark.usefixtures("postgres_broker")
+def test_postgres_flush_joins_an_open_transaction(postgres_broker):
+    # On its own connection the purge would not see the uncommitted enqueue,
+    # and the message would survive the flush.
+    postgres_broker.declare_queue("default")
+
+    with postgres_broker.tx():
+        postgres_broker.enqueue(Message(queue_name="default", actor_name="do_work", args=(), kwargs={}, options={}))
+        postgres_broker.flush("default")
+
+    assert _count_messages(postgres_broker) == 0
+
+
+@pytest.mark.usefixtures("postgres_broker")
+def test_postgres_flush_rolls_back_with_the_surrounding_transaction(postgres_broker):
+    postgres_broker.declare_queue("default")
+    postgres_broker.enqueue(Message(queue_name="default", actor_name="do_work", args=(), kwargs={}, options={}))
+
+    with pytest.raises(RuntimeError, match="boom"), postgres_broker.tx():
+        postgres_broker.flush("default")
+        raise RuntimeError("boom")
+
+    # The flush must not have committed on its own.
+    assert _count_messages(postgres_broker) == 1
+
+
+@pytest.mark.usefixtures("postgres_broker")
+def test_postgres_flush_rejects_an_unknown_target(postgres_broker):
+    postgres_broker.declare_queue("default")
+
+    with pytest.raises(ValueError, match="invalid flush target"):
+        postgres_broker.flush("default", target="everything")
+
+
+@pytest.mark.usefixtures("postgres_broker")
+def test_postgres_flush_all_forwards_the_target(postgres_broker):
+    postgres_broker.declare_queue("default")
+    _archive_messages(
+        postgres_broker, Message(queue_name="default", actor_name="do_work", args=(), kwargs={}, options={})
+    )
+
+    postgres_broker.flush_all(target="active-only")
+    assert _count_archived_messages(postgres_broker) == 1
+
+    postgres_broker.flush_all()
+    assert _count_archived_messages(postgres_broker) == 0
+
+
+@pytest.mark.usefixtures("postgres_broker")
+def test_postgres_counts_enqueued_and_archived_messages(postgres_broker):
+    postgres_broker.declare_queue("default")
+    _archive_messages(
+        postgres_broker,
+        Message(queue_name="default", actor_name="do_work", args=(), kwargs={}, options={}),
+        Message(queue_name="default", actor_name="do_work", args=(), kwargs={}, options={}),
+    )
+    postgres_broker.enqueue(Message(queue_name="default", actor_name="do_work", args=(), kwargs={}, options={}))
+
+    assert postgres_broker.count_enqueued_messages("default") == 1
+    assert postgres_broker.count_archived_messages("default") == 2
+
+
+@pytest.mark.usefixtures("postgres_broker")
+def test_postgres_count_archived_messages_rejects_an_undeclared_queue(postgres_broker):
+    with pytest.raises(QueueNotFound):
+        postgres_broker.count_archived_messages("not-declared")
+
+
+@pytest.mark.usefixtures("postgres_broker")
+def test_postgres_replay_archived_messages_sends_archived_messages_back_verbatim(postgres_broker):
+    postgres_broker.declare_queue("default")
+    message = Message(queue_name="default", actor_name="do_work", args=(42,), kwargs={}, options={})
+    _archive_messages(postgres_broker, message)
+
+    replayed = postgres_broker.replay_archived_messages("default", message_ids=[message.message_id])
+
+    assert replayed == [message.message_id]
+    # Back on the queue with its original message_id, and gone from the archive.
+    assert _count_messages(postgres_broker) == 1
+    assert _first_payload(postgres_broker) == _expected_payload(message)
+    assert _count_archived_messages(postgres_broker) == 0
+
+
+@pytest.mark.usefixtures("postgres_broker")
+def test_postgres_replay_archived_messages_filters_on_the_remoulade_message_id_not_the_pgmq_msg_id(postgres_broker):
+    postgres_broker.declare_queue("default")
+    wanted = Message(queue_name="default", actor_name="do_work", args=(1,), kwargs={}, options={})
+    spared = Message(queue_name="default", actor_name="do_work", args=(2,), kwargs={}, options={})
+    _archive_messages(postgres_broker, wanted, spared)
+
+    replayed = postgres_broker.replay_archived_messages("default", message_ids=[wanted.message_id])
+
+    assert replayed == [wanted.message_id]
+    assert _archived_message_ids(postgres_broker) == [spared.message_id]
+    assert _first_payload(postgres_broker) == _expected_payload(wanted)
+
+
+@pytest.mark.usefixtures("postgres_broker")
+def test_postgres_replay_archived_messages_filters_on_actor_name(postgres_broker):
+    postgres_broker.declare_queue("default")
+    wanted = Message(queue_name="default", actor_name="do_work", args=(), kwargs={}, options={})
+    spared = Message(queue_name="default", actor_name="do_other_work", args=(), kwargs={}, options={})
+    _archive_messages(postgres_broker, wanted, spared)
+
+    replayed = postgres_broker.replay_archived_messages("default", actor_names=["do_work"])
+
+    assert replayed == [wanted.message_id]
+    assert _archived_message_ids(postgres_broker) == [spared.message_id]
+
+
+@pytest.mark.usefixtures("postgres_broker")
+def test_postgres_replay_archived_messages_filters_on_the_archived_at_range(postgres_broker):
+    postgres_broker.declare_queue("default")
+    message = Message(queue_name="default", actor_name="do_work", args=(), kwargs={}, options={})
+    _archive_messages(postgres_broker, message)
+
+    # A window in the past cannot match anything that was just archived.
+    past = datetime.now(UTC) - timedelta(hours=1)
+    assert postgres_broker.replay_archived_messages("default", to_datetime=past) == []
+    assert _count_archived_messages(postgres_broker) == 1
+
+    replayed = postgres_broker.replay_archived_messages(
+        "default",
+        from_datetime=datetime.now(UTC) - timedelta(hours=1),
+        to_datetime=datetime.now(UTC) + timedelta(hours=1),
+    )
+
+    assert replayed == [message.message_id]
+    assert _count_archived_messages(postgres_broker) == 0
+
+
+@pytest.mark.usefixtures("postgres_broker")
+def test_postgres_replay_archived_messages_dry_run_writes_nothing(postgres_broker):
+    postgres_broker.declare_queue("default")
+    message = Message(queue_name="default", actor_name="do_work", args=(), kwargs={}, options={})
+    _archive_messages(postgres_broker, message)
+
+    replayed = postgres_broker.replay_archived_messages("default", actor_names=["do_work"], dry_run=True)
+
+    assert replayed == [message.message_id]
+    assert _count_messages(postgres_broker) == 0
+    assert _count_archived_messages(postgres_broker) == 1
+
+
+@pytest.mark.usefixtures("postgres_broker")
+def test_postgres_replay_archived_messages_without_filters_replays_everything(postgres_broker):
+    postgres_broker.declare_queue("default")
+    message = Message(queue_name="default", actor_name="do_work", args=(), kwargs={}, options={})
+    _archive_messages(postgres_broker, message)
+
+    replayed = postgres_broker.replay_archived_messages("default")
+
+    assert replayed == [message.message_id]
+    assert _count_messages(postgres_broker) == 1
+    assert _count_archived_messages(postgres_broker) == 0
+
+
+class _ReplayEnqueueRecorder(Middleware):
+    def __init__(self):
+        self.events = []
+
+    def before_enqueue(self, broker, message, delay):
+        self.events.append(("before", message.message_id))
+
+    def after_enqueue(self, broker, message, delay, exception=None):
+        self.events.append(("after", message.message_id, exception is not None))
+
+
+@pytest.mark.usefixtures("postgres_broker")
+def test_postgres_replay_archived_messages_runs_the_enqueue_middleware(postgres_broker):
+    # A replay is a real enqueue: the state backend, tracing and metrics must see
+    # it, instead of the message reappearing on the queue behind their back.
+    postgres_broker.declare_queue("default")
+    message = Message(queue_name="default", actor_name="do_work", args=(), kwargs={}, options={})
+    _archive_messages(postgres_broker, message)
+
+    recorder = _ReplayEnqueueRecorder()
+    postgres_broker.add_middleware(recorder)
+
+    postgres_broker.replay_archived_messages("default", actor_names=["do_work"])
+
+    assert recorder.events == [
+        ("before", message.message_id),
+        ("after", message.message_id, False),
+    ]
+
+
+@pytest.mark.usefixtures("postgres_broker")
+def test_postgres_replay_archived_messages_dry_run_runs_no_enqueue_middleware(postgres_broker):
+    postgres_broker.declare_queue("default")
+    message = Message(queue_name="default", actor_name="do_work", args=(), kwargs={}, options={})
+    _archive_messages(postgres_broker, message)
+
+    recorder = _ReplayEnqueueRecorder()
+    postgres_broker.add_middleware(recorder)
+
+    postgres_broker.replay_archived_messages("default", actor_names=["do_work"], dry_run=True)
+
+    assert recorder.events == []
+
+
+@pytest.mark.usefixtures("postgres_broker")
+def test_postgres_replay_archived_messages_with_an_empty_filter_replays_nothing(postgres_broker):
+    # An empty collection means "no message matches", not "no filter given" --
+    # it must not degrade into replaying the whole archive.
+    postgres_broker.declare_queue("default")
+    message = Message(queue_name="default", actor_name="do_work", args=(), kwargs={}, options={})
+    _archive_messages(postgres_broker, message)
+
+    assert postgres_broker.replay_archived_messages("default", message_ids=[]) == []
+    assert postgres_broker.replay_archived_messages("default", actor_names=[]) == []
+
+    assert _count_messages(postgres_broker) == 0
+    assert _count_archived_messages(postgres_broker) == 1
+
+
+@pytest.mark.usefixtures("postgres_broker")
+def test_postgres_replay_archived_messages_rejects_an_undeclared_queue(postgres_broker):
+    with pytest.raises(QueueNotFound):
+        postgres_broker.replay_archived_messages("not-declared", actor_names=["do_work"])
+
+
+def _attach_pgmq_state_backend(broker):
+    """Attach the state backend whose ``status`` header the filters read."""
+    from remoulade.state import MessageState
+    from remoulade.state.backends import PostgresBackend as PostgresStateBackend
+
+    broker.add_middleware(MessageState(PostgresStateBackend(broker)))
+
+
+def _archive_with_status(broker, *statuses, actor_name="do_work"):
+    """Enqueue one message per status, stamp it the way the state backend does, then ack it.
+
+    A status reaches the archive only by riding on the queue row it was written
+    on, so it has to be patched in before the ack that archives it.
+    """
+    messages = [Message(queue_name="default", actor_name=actor_name, args=(), kwargs={}, options={}) for _ in statuses]
+    for message in messages:
+        broker.enqueue(message)
+
+    consumer = broker.consume("default", prefetch=len(messages), timeout=200)
+    for status in statuses:
+        consumed = next(consumer)
+        assert consumed is not None
+        if status is not None:
+            broker.client.patch_headers("default", consumed.delivery_id, {"status": status.value})
+        consumer.ack(consumed)
+    consumer.close()
+    return messages
+
+
+def _archived_statuses(broker, queue_name="default"):
+    archive_table = Table(
+        f"a_{queue_name}",
+        MetaData(),
+        Column("msg_id", Integer),
+        Column("headers", JSON),
+        schema="pgmq",
+    )
+    with broker.client.session() as session:
+        rows = session.execute(select(archive_table.c.headers).order_by(archive_table.c.msg_id)).all()
+    return [(row[0] or {}).get("status") for row in rows]
+
+
+@pytest.mark.usefixtures("postgres_broker")
+def test_postgres_flush_on_a_status_drops_only_the_matching_archived_messages(postgres_broker):
+    _attach_pgmq_state_backend(postgres_broker)
+    postgres_broker.declare_queue("default")
+    _archive_with_status(
+        postgres_broker, StateStatusesEnum.Success, StateStatusesEnum.Failure, StateStatusesEnum.Success
+    )
+
+    postgres_broker.flush("default", status=StateStatusesEnum.Success)
+
+    assert _archived_statuses(postgres_broker) == ["Failure"]
+
+
+@pytest.mark.usefixtures("postgres_broker")
+def test_postgres_flush_on_a_status_accepts_several_statuses(postgres_broker):
+    _attach_pgmq_state_backend(postgres_broker)
+    postgres_broker.declare_queue("default")
+    _archive_with_status(
+        postgres_broker, StateStatusesEnum.Success, StateStatusesEnum.Failure, StateStatusesEnum.Canceled
+    )
+
+    postgres_broker.flush("default", status=[StateStatusesEnum.Failure, StateStatusesEnum.Canceled])
+
+    assert _archived_statuses(postgres_broker) == ["Success"]
+
+
+@pytest.mark.usefixtures("postgres_broker")
+def test_postgres_flush_on_a_status_spares_the_messages_carrying_no_status(postgres_broker):
+    _attach_pgmq_state_backend(postgres_broker)
+    postgres_broker.declare_queue("default")
+    _archive_with_status(postgres_broker, StateStatusesEnum.Success, None)
+
+    postgres_broker.flush("default", status=StateStatusesEnum.Success)
+
+    assert _archived_statuses(postgres_broker) == [None]
+
+
+@pytest.mark.usefixtures("postgres_broker")
+def test_postgres_flush_on_a_status_leaves_the_queue_alone(postgres_broker):
+    _attach_pgmq_state_backend(postgres_broker)
+    postgres_broker.declare_queue("default")
+    _archive_with_status(postgres_broker, StateStatusesEnum.Success)
+    # A message still queued carries no terminal status, so no status filter matches it.
+    postgres_broker.enqueue(Message(queue_name="default", actor_name="do_work", args=(), kwargs={}, options={}))
+
+    postgres_broker.flush("default", status=StateStatusesEnum.Success)
+
+    assert _count_messages(postgres_broker) == 1
+    assert _archived_statuses(postgres_broker) == []
+
+
+@pytest.mark.usefixtures("postgres_broker")
+def test_postgres_flush_on_a_status_rolls_back_with_the_surrounding_transaction(postgres_broker):
+    _attach_pgmq_state_backend(postgres_broker)
+    postgres_broker.declare_queue("default")
+    _archive_with_status(postgres_broker, StateStatusesEnum.Success)
+
+    with pytest.raises(RuntimeError), postgres_broker.tx():
+        postgres_broker.flush("default", status=StateStatusesEnum.Success)
+        raise RuntimeError("boom")
+
+    assert _archived_statuses(postgres_broker) == ["Success"]
+
+
+@pytest.mark.usefixtures("postgres_broker")
+def test_postgres_replay_on_a_status_replays_only_the_matching_messages(postgres_broker):
+    _attach_pgmq_state_backend(postgres_broker)
+    postgres_broker.declare_queue("default")
+    _, failed = _archive_with_status(postgres_broker, StateStatusesEnum.Success, StateStatusesEnum.Failure)
+
+    replayed = postgres_broker.replay_archived_messages("default", status=StateStatusesEnum.Failure)
+
+    assert replayed == [failed.message_id]
+    assert _archived_statuses(postgres_broker) == ["Success"]
+    assert _count_messages(postgres_broker) == 1
+
+
+@pytest.mark.usefixtures("postgres_broker")
+def test_postgres_replay_on_a_status_combines_with_the_other_filters(postgres_broker):
+    _attach_pgmq_state_backend(postgres_broker)
+    postgres_broker.declare_queue("default")
+    _archive_with_status(postgres_broker, StateStatusesEnum.Failure, actor_name="do_work")
+    other = _archive_with_status(postgres_broker, StateStatusesEnum.Failure, actor_name="do_other_work")[0]
+
+    replayed = postgres_broker.replay_archived_messages(
+        "default", status=StateStatusesEnum.Failure, actor_names=["do_other_work"]
+    )
+
+    assert replayed == [other.message_id]
+    assert _archived_statuses(postgres_broker) == ["Failure"]
+
+
+@pytest.mark.usefixtures("postgres_broker")
+def test_postgres_replay_on_a_status_dry_run_writes_nothing(postgres_broker):
+    _attach_pgmq_state_backend(postgres_broker)
+    postgres_broker.declare_queue("default")
+    _, failed = _archive_with_status(postgres_broker, StateStatusesEnum.Success, StateStatusesEnum.Failure)
+
+    replayed = postgres_broker.replay_archived_messages("default", status=StateStatusesEnum.Failure, dry_run=True)
+
+    assert replayed == [failed.message_id]
+    assert _archived_statuses(postgres_broker) == ["Success", "Failure"]
+    assert _count_messages(postgres_broker) == 0
+
+
+@pytest.mark.usefixtures("postgres_broker")
+def test_postgres_a_status_filter_needs_the_pgmq_state_backend(postgres_broker):
+    postgres_broker.declare_queue("default")
+
+    # No state backend at all: nothing writes a status, so the filter would match nothing.
+    with pytest.raises(NoStateBackend, match="doesn't have a state backend"):
+        postgres_broker.flush("default", status=StateStatusesEnum.Success)
+
+    postgres_broker.add_middleware(MessageState(StateStubBackend()))
+    with pytest.raises(NoStateBackend, match="needs the pgmq state backend"):
+        postgres_broker.replay_archived_messages("default", status=StateStatusesEnum.Failure)
