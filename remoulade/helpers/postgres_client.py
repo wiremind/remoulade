@@ -26,7 +26,8 @@ from contextlib import contextmanager
 from typing import Any
 
 from pgmq import SQLAlchemyPGMQueue
-from sqlalchemy import Connection, text
+from sqlalchemy import BigInteger, Column, Connection, DateTime, Integer, MetaData, Table, text
+from sqlalchemy.dialects.postgresql import JSONB
 
 from ..actor import QUEUE_NAME_PATTERN
 
@@ -56,6 +57,36 @@ def assert_valid_queue_name(queue_name: str) -> None:
             f"must start with a letter or an underscore, hold only letters, digits, dashes, dots and underscores, "
             f"and be at most {QUEUE_NAME_MAX_LENGTH} characters long."
         )
+
+
+def get_pgmq_table(queue_name: str, *, archive: bool = False) -> Table:
+    """Declare a PGMQ queue or archive table for SQLAlchemy Core statements.
+
+    PGMQ can write to the archive (``archive``, ``archive_batch``) but exposes
+    nothing to read, count or delete from it, and its ``purge`` drops a whole
+    queue with no way to narrow it down, so those go through Core rather than
+    the client. Core also quotes the identifier and binds the parameters,
+    leaving no interpolation to get wrong.
+
+    Both tables carry the same columns; only the ``q_``/``a_`` prefix differs,
+    and ``archived_at`` stays null while a message is still queued.
+
+    Raises:
+      ValueError: If ``queue_name`` cannot be used as a SQL identifier.
+    """
+    assert_valid_queue_name(queue_name)
+    return Table(
+        f"{'a' if archive else 'q'}_{queue_name}",
+        MetaData(),
+        Column("msg_id", BigInteger),
+        Column("read_ct", Integer),
+        Column("enqueued_at", DateTime(timezone=True)),
+        Column("archived_at", DateTime(timezone=True)),
+        Column("vt", DateTime(timezone=True)),
+        Column("message", JSONB),
+        Column("headers", JSONB),
+        schema="pgmq",
+    )
 
 
 class RemouladePostgresClient(SQLAlchemyPGMQueue):
