@@ -26,13 +26,13 @@ from typing import TYPE_CHECKING, Any, Final, override
 from urllib.parse import urlparse
 
 import psycopg
-from pgmq import SQLAlchemyPGMQueue
 from pgmq.messages import Message as PostgresQueueMessage
 from psycopg import sql as psycopg_sql
 from sqlalchemy import Connection, text
 
 from ..broker import Broker, Consumer, MessageProxy
 from ..errors import QueueJoinTimeout, QueueNotFound, UnsupportedMessageEncoding
+from ..helpers.postgres_client import RemouladePostgresClient, assert_valid_queue_name
 from ..message import Message
 
 if TYPE_CHECKING:
@@ -129,7 +129,7 @@ class PostgresBroker(Broker):
         self.enable_listen_notify = enable_listen_notify
         self.enqueue_batch_size = enqueue_batch_size
 
-        self.client = SQLAlchemyPGMQueue(
+        self.client = RemouladePostgresClient(
             conn_string=url,
             init_extension=False,
             vt=self.visibility_timeout_seconds,
@@ -189,7 +189,8 @@ class PostgresBroker(Broker):
 
     def _queue_exists(self, queue_name: str) -> bool:
         """Return whether the queue already exists in PostgreSQL."""
-        return queue_name in {queue.queue_name for queue in self.client.list_queues()}
+        queues = self.client.list_queues(conn=self._current_connection)
+        return queue_name in {queue.queue_name for queue in queues}
 
     @override
     def close(self) -> None:
@@ -216,14 +217,12 @@ class PostgresBroker(Broker):
     @override
     def declare_queue(self, queue_name: str) -> None:
         """Create a partitioned PGMQ queue if it does not already exist.
-
-        Also ensures the queue table has a btree index on ``msg_id`` — even
-        for pre-existing queues, so queues created before remoulade added the
-        index pick it up on the next declaration. On a large existing queue
-        the initial index build locks the table for its duration.
+        Raises:
+          ValueError: If ``queue_name`` cannot be used as a SQL identifier.
         """
         if queue_name in self.queues:
             return
+        assert_valid_queue_name(queue_name)
         with self.tx():
             if self._current_connection is None:
                 raise ValueError("cannot be None we are inside a tx")
@@ -244,28 +243,12 @@ class PostgresBroker(Broker):
                 if self.enable_listen_notify:
                     self._try_enable_notify(queue_name)
 
-            self._create_msg_id_index(queue_name, self._current_connection)
+            self.client.create_indexes(queue_name, self._current_connection)
 
         self.queues[queue_name] = None
 
         if not queue_exists:
             self.emit_after("declare_queue", queue_name)
-
-    def _create_msg_id_index(self, queue_name: str, connection: "Connection") -> None:
-        """Ensure the queue table has a btree index on ``msg_id``.
-
-        PGMQ's time-partitioned queue tables ship without one, so every
-        ``archive`` (ack/nack) and ``set_vt`` (heartbeat, requeue) lookup seq
-        scans all partitions. Created on the partitioned parent, the index
-        propagates to existing and future partitions. ``msg_id`` never
-        changes, so the index does not defeat HOT updates of ``vt``/``read_ct``.
-
-        The queue name must already be validated (``validate_queue_name``)
-        since it is interpolated as an identifier.
-        """
-        connection.execute(
-            text(f'CREATE INDEX IF NOT EXISTS "q_{queue_name}_msg_id_idx" ON pgmq."q_{queue_name}" (msg_id)')
-        )
 
     def _encode_message(self, message: "Message") -> PostgresPayload:
         """Encode a Remoulade message into a JSON object payload for PGMQ.
@@ -352,7 +335,7 @@ class PostgresBroker(Broker):
             self.flush(queue_name)
 
     def _count_enqueued_messages(self, queue_name: str) -> int:
-        """Count every message stored in the queue."""
+        """Count every message stored in the queue, on a connection of its own."""
         return self.client.metrics(queue_name).queue_length
 
     @override
@@ -774,15 +757,15 @@ class _PostgresConsumer(Consumer):
         visible again once its visibility timeout expires and is redelivered,
         which is the broker's at-least-once guarantee.
         """
-        if not isinstance(message, _PostgresMessage):
+        if not isinstance(message, PostgresMessage):
             raise ValueError("It must be a PostgresMessage")
-        self._unregister_heartbeat_message_id(message._postgres_message.msg_id)
+        self._unregister_heartbeat_message_id(message.delivery_id)
         try:
-            self.client.archive(self.queue_name, message._postgres_message.msg_id)
+            self.client.archive(self.queue_name, message.delivery_id)
         except Exception:
             self.broker.logger.error(
                 "Failed to archive message %s on queue %s; it will be redelivered after its visibility timeout.",
-                message._postgres_message.msg_id,
+                message.delivery_id,
                 self.queue_name,
                 exc_info=True,
             )
@@ -800,17 +783,15 @@ class _PostgresConsumer(Consumer):
     @override
     def requeue(self, messages: Iterable["MessageProxy"]) -> None:
         """Make messages visible again immediately by resetting their visibility timeout."""
-        message_ids = [
-            message._postgres_message.msg_id for message in messages if isinstance(message, _PostgresMessage)
-        ]
+        message_ids = [message.delivery_id for message in messages if isinstance(message, PostgresMessage)]
         self._requeue_message_ids(message_ids)
 
-    def _build_message(self, postgres_message: PostgresQueueMessage) -> "_PostgresMessage":
+    def _build_message(self, postgres_message: PostgresQueueMessage) -> "PostgresMessage":
         """Wrap a raw PGMQ row as a Remoulade message proxy."""
-        return _PostgresMessage(postgres_message)
+        return PostgresMessage(postgres_message)
 
     @override
-    def __next__(self) -> "_PostgresMessage | None":
+    def __next__(self) -> "PostgresMessage | None":
         """Return the next available message, or ``None`` if the queue stays empty
         or the consumer is at its in-flight capacity."""
         if self.messages:
@@ -850,7 +831,7 @@ class _PostgresConsumer(Consumer):
         self.messages.clear()
 
 
-class _PostgresMessage(MessageProxy):
+class PostgresMessage(MessageProxy):
     def __init__(self, postgres_message: PostgresQueueMessage) -> None:
         """Wrap a PGMQ message row as a Remoulade message proxy."""
         payload = postgres_message.message
@@ -866,3 +847,9 @@ class _PostgresMessage(MessageProxy):
             raise UnsupportedMessageEncoding("eta option isn't supported with postgres broker")
         super().__init__(message)
         self._postgres_message = postgres_message
+
+    @property
+    @override
+    def delivery_id(self) -> int:
+        """This delivery's PGMQ ``msg_id``, which a retry does not keep."""
+        return self._postgres_message.msg_id

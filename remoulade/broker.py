@@ -624,6 +624,14 @@ class MessageProxy:
         """Mark this message for rejection."""
         self.failed = True
 
+    @property
+    def delivery_id(self):
+        """The broker's own id for this delivery, or ``None`` if it has none.
+
+        One per delivery, unlike ``message_id``, which a retry keeps.
+        """
+        return None
+
     def __getattr__(self, name):
         return getattr(self._message, name)
 

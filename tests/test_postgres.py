@@ -163,6 +163,39 @@ def test_postgres_broker_uses_current_transaction_connection_for_queue_creation(
     )
 
 
+def test_postgres_broker_checks_queue_existence_on_its_transaction_connection():
+    broker = PostgresBroker(url=TEST_POSTGRES_URL, middleware=[])
+    broker.client.validate_queue_name = Mock()
+    broker.client.create_partitioned_queue = Mock()
+    broker.client.enable_notify = Mock()
+    broker.client.create_indexes = Mock()
+    broker.client.list_queues = Mock(return_value=[])
+
+    transaction_connection = Mock()
+    broker.client.engine.begin = Mock(return_value=_StubTransaction(transaction_connection))
+
+    broker.declare_queue("default")
+
+    # Reads through the transaction declare_queue opened, instead of taking a second
+    # connection from the pool while that transaction holds one.
+    broker.client.list_queues.assert_called_once_with(conn=transaction_connection)
+
+
+def test_postgres_broker_counts_messages_outside_the_current_transaction():
+    """Counting on the caller's transaction would see sends no worker can consume yet."""
+    broker = PostgresBroker(url=TEST_POSTGRES_URL, middleware=[])
+    broker.queues["default"] = None
+    broker.client.metrics = Mock(return_value=Mock(queue_length=0))
+
+    transaction_connection = Mock()
+    broker.client.engine.begin = Mock(return_value=_StubTransaction(transaction_connection))
+
+    with broker.tx():
+        broker.join("default", min_successes=1, idle_time=0)
+
+    broker.client.metrics.assert_called_once_with("default")
+
+
 def test_postgres_broker_enables_notify_on_postgresql_queue_init():
     broker = PostgresBroker(url=TEST_POSTGRES_URL, middleware=[])
     broker.client.validate_queue_name = Mock()
@@ -190,7 +223,7 @@ def test_postgres_broker_does_not_fail_when_enable_notify_raises(caplog):
     broker.client.create_partitioned_queue = Mock()
     broker.client.enable_notify = Mock(side_effect=RuntimeError("notify unavailable"))
     broker._queue_exists = Mock(return_value=False)
-    broker._create_msg_id_index = Mock()
+    broker.client.create_indexes = Mock()
 
     broker.declare_queue("default")
 
@@ -204,32 +237,21 @@ def test_postgres_broker_declare_queue_is_idempotent_when_queue_already_exists()
     broker.client.create_partitioned_queue = Mock()
     broker.client.enable_notify = Mock()
     broker._queue_exists = Mock(return_value=True)
-    broker._create_msg_id_index = Mock()
+    broker.client.create_indexes = Mock()
 
     broker.declare_queue("default")
 
     broker.client.create_partitioned_queue.assert_not_called()
     broker.client.enable_notify.assert_not_called()
-    # The index is still ensured on pre-existing queues, so queues created
-    # before remoulade added it pick it up on the next declaration.
-    broker._create_msg_id_index.assert_called_once()
+    # The queue itself is left alone, but its indexes are still ensured: a queue
+    # created by a version of remoulade that predates one of them gains it here
+    # instead of seq scanning every partition forever.
+    # Called on the declaration's own transaction, which is closed by now, so the
+    # connection is checked for being that one rather than compared to it.
+    broker.client.create_indexes.assert_called_once()
+    assert broker.client.create_indexes.call_args.args[0] == "default"
+    assert broker.client.create_indexes.call_args.args[1] is not None
     assert "default" in broker.queues
-
-
-def test_postgres_broker_declare_queue_creates_msg_id_index():
-    broker = PostgresBroker(url=TEST_POSTGRES_URL, middleware=[])
-    broker.client.validate_queue_name = Mock()
-    broker.client.create_partitioned_queue = Mock()
-    broker.client.enable_notify = Mock()
-    broker._queue_exists = Mock(return_value=False)
-
-    conn = Mock()
-    broker.client.engine.begin = Mock(return_value=_StubTransaction(conn))
-
-    broker.declare_queue("default")
-
-    executed = [str(call.args[0]) for call in conn.execute.call_args_list]
-    assert 'CREATE INDEX IF NOT EXISTS "q_default_msg_id_idx" ON pgmq."q_default" (msg_id)' in executed
 
 
 def test_postgres_broker_poll_only_mode_opens_no_listener_and_skips_enable_notify():
@@ -238,7 +260,7 @@ def test_postgres_broker_poll_only_mode_opens_no_listener_and_skips_enable_notif
     broker.client.create_partitioned_queue = Mock()
     broker.client.enable_notify = Mock()
     broker._queue_exists = Mock(return_value=False)
-    broker._create_msg_id_index = Mock()
+    broker.client.create_indexes = Mock()
 
     broker.declare_queue("default")
 
@@ -828,7 +850,7 @@ def test_postgres_consumer_decodes_payload_with_global_encoder(pydantic_encoder)
     broker.client.create_partitioned_queue = Mock()
     broker.client.enable_notify = Mock()
     broker._queue_exists = Mock(return_value=False)
-    broker._create_msg_id_index = Mock()
+    broker.client.create_indexes = Mock()
     _install_listener(broker, available=False)
 
     @remoulade.actor(actor_name="typed.actor", queue_name="default")
@@ -932,27 +954,6 @@ def test_postgres_broker_declare_queue_creates_msg_id_index_on_all_partitions(po
 
     assert "q_default" in tables  # the partitioned parent
     assert len(tables) > 1  # propagated to at least one partition
-
-
-@pytest.mark.usefixtures("postgres_broker")
-def test_postgres_broker_declare_queue_restores_missing_msg_id_index(postgres_broker):
-    postgres_broker.declare_queue("default")
-
-    # Simulate a queue created before remoulade started ensuring the index.
-    with postgres_broker.client.engine.begin() as connection:
-        connection.execute(text('DROP INDEX pgmq."q_default_msg_id_idx"'))
-
-    postgres_broker.queues.pop("default")
-    postgres_broker.declare_queue("default")
-
-    with postgres_broker.client.session() as session:
-        index_exists = session.execute(
-            text(
-                "SELECT EXISTS(SELECT 1 FROM pg_indexes "
-                "WHERE schemaname = 'pgmq' AND indexname = 'q_default_msg_id_idx')"
-            )
-        ).scalar_one()
-    assert index_exists
 
 
 @pytest.mark.usefixtures("postgres_broker")

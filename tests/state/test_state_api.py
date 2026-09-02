@@ -44,6 +44,17 @@ class TestMessageStateAPI:
         res = api_client.post("/messages/states", data=json.dumps(args), content_type="application/json")
         assert res.json == {"count": 1, "data": [state.as_dict()]}
 
+    def test_a_delivery_id_is_not_served(self, stub_broker, state_middleware, api_client):
+        """It is a broker-side handle, so it must stay out of the serialized state."""
+        state = State("1", StateStatusesEnum.Success, queue_name="default", delivery_id=7)
+        state_middleware.backend.set_state(state, ttl=1000)
+
+        res = api_client.post("/messages/states")
+
+        assert res.status_code == 200
+        assert res.json == {"count": 1, "data": [state.as_dict()]}
+        assert "delivery_id" not in res.json["data"][0]
+
     def test_get_by_message_id(self, stub_broker, state_middleware, api_client):
         message_id = "1"
         state = State(message_id, StateStatusesEnum.Pending)

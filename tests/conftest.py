@@ -222,6 +222,17 @@ def stub_state_backend():
 
 
 @pytest.fixture
+def postgres_state_backend(postgres_broker):
+    """A state backend that keeps state inside the pgmq messages themselves.
+
+    Deliberately not part of the ``state_backend`` parametrization: it stores
+    nothing of its own, so it cannot hold a state for a message that was never
+    enqueued, which is what the generic backend contract tests do.
+    """
+    return st_backends.PostgresBackend(postgres_broker)
+
+
+@pytest.fixture
 def state_backends(redis_state_backend, stub_state_backend):
     return {"redis": redis_state_backend, "stub": stub_state_backend}
 

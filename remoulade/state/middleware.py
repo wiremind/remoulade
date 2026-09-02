@@ -35,6 +35,7 @@ class MessageState(Middleware):
                 kwargs=kwargs_state,
                 options=options,
                 queue_name=queue_name,
+                delivery_id=getattr(message, "delivery_id", None),
                 **kwargs,
             ),
             self.state_ttl,

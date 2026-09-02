@@ -1,10 +1,11 @@
 import time
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 
 import pytest
 
 import remoulade
 from remoulade import group
+from remoulade.broker import MessageProxy
 from remoulade.cancel import Cancel
 from remoulade.middleware import Middleware, SkipMessage
 from remoulade.state.backend import State, StateStatusesEnum
@@ -147,3 +148,23 @@ class TestMessageState:
         stub_broker.add_middleware(MessageState(backend=backend, state_ttl=state_ttl))
         do_work.send()
         assert backend.set_state.call_count == 0
+
+    def test_delivery_id_is_carried_from_the_message(self, stub_broker, do_work):
+        """A backend storing state on the message itself needs the broker's row id."""
+        backend = Mock()
+        middleware = MessageState(backend=backend)
+        proxy = MessageProxy(do_work.message())
+
+        with patch.object(MessageProxy, "delivery_id", 42):
+            middleware.after_process_message(stub_broker, proxy)
+
+        assert backend.set_state.call_args.args[0].delivery_id == 42
+
+    def test_a_message_without_a_delivery_carries_no_delivery_id(self, stub_broker, do_work):
+        """The enqueue hooks only have a plain Message, which has no delivery."""
+        backend = Mock()
+        middleware = MessageState(backend=backend)
+
+        middleware.before_enqueue(stub_broker, do_work.message(), 0)
+
+        assert backend.set_state.call_args.args[0].delivery_id is None

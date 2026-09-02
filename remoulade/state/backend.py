@@ -45,7 +45,11 @@ class State(
     Parameters:
         status: The current status of the message state
         args: List of arguments in the state
+        delivery_id: The broker's own id for the delivery this state was observed on,
+            when it has one. A retry gets a new one, unlike message_id.
     """
+
+    delivery_id: int | None = None
 
     def __new__(
         cls,
@@ -63,10 +67,11 @@ class State(
         end_datetime=None,
         queue_name=None,
         composition_id=None,
+        delivery_id=None,
     ):
         if status and status not in list(StateStatusesEnum):
             raise InvalidStateError(f"The {status} State is not defined")
-        return super().__new__(
+        state = super().__new__(
             cls,
             message_id,
             status,
@@ -82,6 +87,8 @@ class State(
             queue_name,
             composition_id,
         )
+        state.delivery_id = delivery_id
+        return state
 
     def as_dict(self, exclude_keys=(), encode_args=False):
         """Transform a State into a dict, can exclude some keys"""
@@ -182,7 +189,7 @@ class StateBackend:
         sort_direction: str | None = None,
     ) -> list[State]:
         """Return all the states in the backend"""
-        raise NotImplementedError(f"{type(self).__name__} does not implement get_all_messages")
+        raise NotImplementedError(f"{type(self).__name__} does not implement get_states")
 
     def get_states_count(
         self,
@@ -197,12 +204,16 @@ class StateBackend:
     ) -> int:
         raise NotImplementedError(f"{type(self).__name__} does not implement get_states_count")
 
+    def _fits(self, encoded_value: bytes) -> bool:
+        """Whether an encoded value is small enough to store, per ``max_size``."""
+        return sys.getsizeof(encoded_value) <= self.max_size
+
     def _encode_dict(self, data):
         """Return the (keys, values) of a dictionary encoded"""
         encoded_data = {}
         for key, value in data.items():
             encoded_value = self.encoder.encode_in_bytes(value)
-            if sys.getsizeof(encoded_value) <= self.max_size:
+            if self._fits(encoded_value):
                 encoded_data[self.encoder.encode_in_bytes(key)] = self.encoder.encode_in_bytes(value)
         return encoded_data
 

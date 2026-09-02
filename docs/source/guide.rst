@@ -449,6 +449,51 @@ table, which is partitioned the same way. Two broker parameters control this:
    a self-managed or hosted PostgreSQL you must enable it yourself.
 
 
+Postgres State Backend
+^^^^^^^^^^^^^^^^^^^^^^
+
+With the Postgres broker, message states can be tracked without a table of their
+own: ``PostgresBackend`` writes the status in the ``headers`` column of the PGMQ
+row that already carries the message::
+
+  import remoulade
+
+  from remoulade.brokers.postgres import PostgresBroker
+  from remoulade.state import MessageState
+  from remoulade.state.backends import PostgresBackend
+
+  broker = PostgresBroker(url="postgresql://remoulade@localhost:5432/remoulade")
+  broker.add_middleware(MessageState(PostgresBackend(broker)))
+  remoulade.set_broker(broker)
+
+Only the terminal statuses (``Success``, ``Failure``, ``Skipped``, ``Canceled``)
+are stored. ``Pending`` and ``Started`` write nothing, because PGMQ already
+records them: ``enqueued_at``, ``read_ct`` and ``last_read_at`` on the row.
+This backend is **write-only**: ``get_state``, ``get_states``,
+``get_states_count`` and ``clean`` raise ``NotImplementedError``
+
+  SELECT message->>'message_id', message->>'actor_name', headers->>'status', read_ct, archived_at
+  FROM pgmq.a_default
+  WHERE archived_at > now() - interval '1 day';
+
+``Message.set_progress`` is silently dropped..
+
+Two differences with the Redis state backend are worth planning for:
+
+* ``state_ttl`` is ignored. Retention is the archive's, driven by
+  ``archive_retention_interval_in_days`` and ``pg_partman``: a status is gone once
+  the partition holding its message is dropped. Purging or dropping a queue
+  destroys the statuses too.
+* A status cannot outlive its message, since the backend keeps no store of its own.
+
+.. note::
+
+   A status is written on the row named by ``State.delivery_id``, not by
+   ``message_id``: a retry re-enqueues the same message, so one ``message_id`` can
+   name several rows of a queue at once and nothing would say which of them the
+   status belongs to.
+
+
 Local Broker
 ^^^^^^^^^^^^^^^
 
