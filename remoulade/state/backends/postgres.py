@@ -17,7 +17,7 @@
 """A state backend that records a message's status inside the pgmq message itself."""
 
 import json
-from typing import Final, override
+from typing import ClassVar, Final, override
 
 from ...broker import Broker
 from ...encoder import Encoder
@@ -64,6 +64,8 @@ class PostgresBackend(StateBackend):
         column back would cost a statement the backend is built not to spend. A
         status alone never comes close to the default.
     """
+
+    requires_ttl: ClassVar[bool] = False
 
     def __init__(
         self,

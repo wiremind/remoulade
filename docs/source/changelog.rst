@@ -5,6 +5,16 @@ Changelog
 
 All notable changes to this project will be documented in this file.
 
+`7.1.1`_ -- 2026-09-02
+----------------------
+Fix
+^^^
+* ``MessageState`` no longer skips every write when it has no ``state_ttl``: the ttl is now the state backend's
+  business, through the new ``StateBackend.requires_ttl`` class attribute. It stays true for ``RedisBackend`` and
+  ``StubBackend``, whose retention the ttl really does bound, and is false for ``PostgresBackend``, whose retention
+  is the pgmq archive's. Recording states with ``PostgresBackend`` no longer requires passing a ttl it ignores.
+* ``MessageState.__init__`` is annotated, and its ``state_ttl`` typed ``int | None`` as it already accepted.
+
 `7.1.0`_ -- 2026-08-21
 ----------------------
 Feat
