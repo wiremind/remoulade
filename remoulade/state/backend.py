@@ -2,6 +2,7 @@ import datetime
 import sys
 from collections import namedtuple
 from enum import Enum
+from typing import ClassVar
 
 from dateutil.parser import parse
 
@@ -132,9 +133,15 @@ class StateBackend:
         result data.  Defaults to :class:`.JSONEncoder`.
       max_size(int): Maximum size of arguments allow to storage
         in the database, default 2MB
+
+    Attributes:
+      requires_ttl(bool): Whether ``set_state``'s ``ttl`` is what bounds how long a
+        state is kept. False for a backend with a retention of its own, which
+        :class:`.MessageState` must then not gate on a ttl the backend has no say over.
     """
 
     namespace = "remoulade-state*"
+    requires_ttl: ClassVar[bool] = True
 
     def __init__(self, *, namespace: str = "remoulade-state", encoder: Encoder = None, max_size=2e6):
         from ..message import get_encoder

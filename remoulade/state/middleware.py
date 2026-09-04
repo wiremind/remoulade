@@ -1,23 +1,24 @@
 from datetime import UTC, datetime
 
 from ..middleware import Middleware
-from .backend import State, StateStatusesEnum
+from .backend import State, StateBackend, StateStatusesEnum
 
 
 class MessageState(Middleware):
     """Middleware use to storage and update the state
     of the messages.
     Parameters
-    state_ttl(int):Time(seconds) that the state will be storage
-                    in the database
+    state_ttl(int | None):Time(seconds) that the state will be storage
+                    in the database. None, or anything not positive, turns state
+                    tracking off, unless the backend owns its retention.
     """
 
-    def __init__(self, backend, state_ttl=3600):
+    def __init__(self, backend: StateBackend, state_ttl: int | None = 3600) -> None:
         self.backend = backend
         self.state_ttl = state_ttl
 
     def save(self, message, status, priority=None, **kwargs):
-        if self.state_ttl is None or self.state_ttl <= 0:
+        if self.backend.requires_ttl and (self.state_ttl is None or self.state_ttl <= 0):
             return
         args = message.args
         options = message.options

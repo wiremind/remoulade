@@ -168,3 +168,14 @@ class TestMessageState:
         middleware.before_enqueue(stub_broker, do_work.message(), 0)
 
         assert backend.set_state.call_args.args[0].delivery_id is None
+
+    @pytest.mark.parametrize("state_ttl", [None, 0, -1])
+    def test_a_backend_owning_its_retention_stores_without_a_state_ttl(self, stub_broker, do_work, state_ttl):
+        """A backend ignoring the ttl must not need a meaningless one to record anything."""
+        backend = Mock(requires_ttl=False)
+        stub_broker.add_middleware(MessageState(backend=backend, state_ttl=state_ttl))
+
+        do_work.send()
+
+        assert backend.set_state.call_count == 1
+        assert backend.set_state.call_args.args[1] == state_ttl

@@ -480,9 +480,10 @@ This backend is **write-only**: ``get_state``, ``get_states``,
 
 Two differences with the Redis state backend are worth planning for:
 
-* ``state_ttl`` is ignored. Retention is the archive's, driven by
-  ``archive_retention_interval_in_days`` and ``pg_partman``: a status is gone once
-  the partition holding its message is dropped. Purging or dropping a queue
+* ``state_ttl`` is ignored, and leaving it unset does not turn state tracking off the
+  way it does for a backend whose retention it bounds. Retention is the archive's,
+  driven by ``archive_retention_interval_in_days`` and ``pg_partman``: a status is gone
+  once the partition holding its message is dropped. Purging or dropping a queue
   destroys the statuses too.
 * A status cannot outlive its message, since the backend keeps no store of its own.
 
