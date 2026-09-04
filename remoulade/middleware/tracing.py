@@ -17,9 +17,10 @@
 
 """OpenTelemetry tracing middleware for Remoulade.
 
-This middleware creates **new trace roots** on the consumer side with a
-``Link`` back to the producer span, instead of propagating trace context
-as parent-child (same ``trace_id``).
+By default this middleware creates **new trace roots** on the consumer side
+with a ``Link`` back to the producer span, instead of propagating trace
+context as parent-child (same ``trace_id``). ``propagate_context=True``
+switches to parent-child propagation.
 
 Why?
 ----
@@ -34,15 +35,21 @@ This middleware breaks the parent-child chain:
 
 * **Producer side** (``before_enqueue``): starts a ``PRODUCER`` span and
   ``inject()``s the current context into ``message.options["trace_ctx"]``.
-* **Consumer side** (``before_process_message``): always starts a **new root**
-  ``CONSUMER`` span with its own ``trace_id``, independently subject to the
-  configured sampler.  When the message carries a ``trace_ctx`` dict
+* **Consumer side** (``before_process_message``): by default starts a **new
+  root** ``CONSUMER`` span with its own ``trace_id``, independently subject
+  to the configured sampler.  When the message carries a ``trace_ctx`` dict
   (injected by the producer), the consumer ``extract()``s it and attaches a
   ``Link`` back to the producer span.  Messages without ``trace_ctx`` still
   get a span but with no link.
 
 The causal relationship remains navigable in Tempo / Grafana via span
 links.
+
+``propagate_context=True`` restores parent-child propagation: the consumer
+span becomes a child of the producer span and shares its ``trace_id``, and
+no ``Link`` is added. Use it for workloads with a bounded fan-out, where one
+trace per business operation is worth more than the protection above. The
+``ParentBased`` sampler then keeps or drops the whole chain at once.
 
 Usage
 -----
@@ -77,7 +84,8 @@ class OpenTelemetryMiddleware(Middleware):
     with OpenTelemetry spans using **link-based** propagation.
 
     Each consumed message starts a new, independent trace with a
-    ``Link`` back to the producer span rather than being a child of it.
+    ``Link`` back to the producer span rather than being a child of it,
+    unless ``propagate_context`` is true.
     """
 
     def __init__(
@@ -86,6 +94,7 @@ class OpenTelemetryMiddleware(Middleware):
         *,
         tracer_name: str = "remoulade",
         schema_url: str = "https://opentelemetry.io/schemas/1.11.0",
+        propagate_context: bool = False,
     ):
         """
         Parameters
@@ -97,11 +106,16 @@ class OpenTelemetryMiddleware(Middleware):
             Name passed to ``trace.get_tracer()`` when *tracer* is *None*.
         schema_url:
             Schema URL passed to ``trace.get_tracer()`` when *tracer* is *None*.
+        propagate_context:
+            When true, the consumer span is a child of the producer span
+            and shares its ``trace_id``. When false (default), the consumer
+            span is a new root with a ``Link`` back to the producer span.
         """
         self._tracer = tracer or trace_api.get_tracer(
             tracer_name,
             schema_url=schema_url,
         )
+        self._propagate_context = propagate_context
         self._local = threading.local()
 
     @property
@@ -156,26 +170,33 @@ class OpenTelemetryMiddleware(Middleware):
     # ------------------------------------------------------------------
 
     def before_process_message(self, broker, message):
-        # Build an optional link back to the producer span.
-        links: list[trace_api.Link] = []
+        # Resolve the producer span context carried by the message, if any.
+        parent_span_ctx: trace_api.SpanContext | None = None
         trace_ctx = message.options.get("trace_ctx")
         if isinstance(trace_ctx, dict):
             parent_ctx = extract(trace_ctx)
             parent_span = trace_api.get_current_span(parent_ctx)
-            parent_span_ctx = parent_span.get_span_context() if parent_span else None
-            if parent_span_ctx and parent_span_ctx.is_valid:
+            candidate = parent_span.get_span_context() if parent_span else None
+            if candidate and candidate.is_valid:
+                parent_span_ctx = candidate
+
+        # Start the span in an explicit context so that any active span
+        # on this thread is NOT used as parent. The parent is either the
+        # producer span (propagate_context) or nothing (new root).
+        context = context_api.Context()
+        links: list[trace_api.Link] = []
+        if parent_span_ctx is not None:
+            if self._propagate_context:
+                context = trace_api.set_span_in_context(trace_api.NonRecordingSpan(parent_span_ctx), context)
+            else:
                 links.append(trace_api.Link(parent_span_ctx))
 
-        # Start a NEW root span in an **empty** context so that any
-        # active span on this thread is NOT used as parent.  This
-        # guarantees the consumer span is always a root span with its
-        # own trace_id.
         self._start_span(
             message,
             action="process",
             kind=trace_api.SpanKind.CONSUMER,
             is_publish=False,
-            context=context_api.Context(),
+            context=context,
             links=links,
         )
 

@@ -24,6 +24,7 @@ from opentelemetry import trace as trace_api
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
+from opentelemetry.sdk.trace.sampling import ALWAYS_ON, ParentBased
 
 from remoulade import Message
 from remoulade.middleware.tracing import OpenTelemetryMiddleware
@@ -43,6 +44,18 @@ def otel_setup():
     provider.add_span_processor(SimpleSpanProcessor(exporter))
     tracer = provider.get_tracer("test-remoulade")
     middleware = OpenTelemetryMiddleware(tracer=tracer)
+    yield middleware, exporter
+    provider.shutdown()
+
+
+@pytest.fixture()
+def otel_setup_propagate():
+    """Same as ``otel_setup`` with ``propagate_context=True``."""
+    exporter = InMemorySpanExporter()
+    provider = TracerProvider()
+    provider.add_span_processor(SimpleSpanProcessor(exporter))
+    tracer = provider.get_tracer("test-remoulade")
+    middleware = OpenTelemetryMiddleware(tracer=tracer, propagate_context=True)
     yield middleware, exporter
     provider.shutdown()
 
@@ -216,3 +229,84 @@ class TestContextIsolation:
         # Consumer span must NOT be a child of the ambient span
         assert consumer_span.context.trace_id != ambient_trace_id
         assert consumer_span.context.trace_id != producer_span.context.trace_id
+
+
+# ---------------------------------------------------------------------------
+# propagate_context=True tests
+# ---------------------------------------------------------------------------
+
+
+class TestPropagateContext:
+    def test_consumer_is_child_of_producer(self, otel_setup_propagate):
+        middleware, exporter = otel_setup_propagate
+        trace_ctx, producer_span = TestConsumer()._enqueue_and_get_trace_ctx(middleware, exporter)
+
+        consumer_message = _make_message(trace_ctx=trace_ctx)
+        middleware.before_process_message(None, consumer_message)
+        middleware.after_process_message(None, consumer_message, result=42)
+
+        assert len(exporter.get_finished_spans()) == 2
+        consumer_span = exporter.get_finished_spans()[1]
+        assert consumer_span.kind == trace_api.SpanKind.CONSUMER
+
+        # Same trace, direct child, no link
+        assert consumer_span.context.trace_id == producer_span.context.trace_id
+        assert consumer_span.parent is not None
+        assert consumer_span.parent.span_id == producer_span.context.span_id
+        assert len(consumer_span.links) == 0
+
+    def test_consumer_without_trace_ctx_is_root(self, otel_setup_propagate):
+        middleware, exporter = otel_setup_propagate
+        message = _make_message()  # no trace_ctx
+
+        middleware.before_process_message(None, message)
+        middleware.after_process_message(None, message, result=1)
+
+        assert len(exporter.get_finished_spans()) == 1
+        consumer_span = exporter.get_finished_spans()[0]
+        assert consumer_span.parent is None
+        assert len(consumer_span.links) == 0
+
+    def test_ambient_span_is_not_used_as_parent(self, otel_setup_propagate):
+        """The producer span wins over any active span on the thread."""
+        middleware, exporter = otel_setup_propagate
+        trace_ctx, producer_span = TestConsumer()._enqueue_and_get_trace_ctx(middleware, exporter)
+
+        ambient_tracer = TracerProvider().get_tracer("ambient")
+        with ambient_tracer.start_as_current_span("ambient_operation") as ambient_span:
+            consumer_message = _make_message(trace_ctx=trace_ctx)
+            middleware.before_process_message(None, consumer_message)
+            middleware.after_process_message(None, consumer_message, result=1)
+
+        consumer_span = exporter.get_finished_spans()[1]
+        assert consumer_span.context.trace_id == producer_span.context.trace_id
+        assert consumer_span.context.trace_id != ambient_span.get_span_context().trace_id
+
+    def test_invalid_trace_ctx_falls_back_to_root(self, otel_setup_propagate):
+        middleware, exporter = otel_setup_propagate
+        message = _make_message(trace_ctx={"traceparent": "garbage"})
+
+        middleware.before_process_message(None, message)
+        middleware.after_process_message(None, message, result=1)
+
+        consumer_span = exporter.get_finished_spans()[0]
+        assert consumer_span.parent is None
+        assert len(consumer_span.links) == 0
+
+    def test_parent_sampling_decision_is_inherited(self):
+        """With a ParentBased sampler, an unsampled producer yields an
+        unsampled (not exported) consumer span."""
+        exporter = InMemorySpanExporter()
+        provider = TracerProvider(sampler=ParentBased(ALWAYS_ON))
+        provider.add_span_processor(SimpleSpanProcessor(exporter))
+        tracer = provider.get_tracer("test-remoulade")
+        middleware = OpenTelemetryMiddleware(tracer=tracer, propagate_context=True)
+
+        # traceparent with trace-flags 00 => parent not sampled
+        trace_ctx = {"traceparent": "00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-00"}
+        message = _make_message(trace_ctx=trace_ctx)
+        middleware.before_process_message(None, message)
+        middleware.after_process_message(None, message, result=1)
+
+        assert exporter.get_finished_spans() == ()
+        provider.shutdown()

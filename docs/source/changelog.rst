@@ -5,6 +5,15 @@ Changelog
 
 All notable changes to this project will be documented in this file.
 
+`7.2.0`_ -- Unreleased
+----------------------
+Feat
+^^^^
+* ``OpenTelemetryMiddleware`` accepts ``propagate_context`` (default false). When true, the consumer span is a
+  child of the producer span and shares its ``trace_id`` instead of being a new root with a ``Link``. Meant for
+  workloads with a bounded fan-out, where one trace per business operation matters more than the protection
+  against giant traces. The ``ParentBased`` sampler then keeps or drops the whole chain at once.
+
 `7.1.1`_ -- 2026-09-02
 ----------------------
 Fix
