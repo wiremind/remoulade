@@ -26,7 +26,10 @@ from contextlib import contextmanager
 from typing import Any
 
 from pgmq import SQLAlchemyPGMQueue
-from sqlalchemy import Connection, text
+from sqlalchemy import Connection, Executable, text
+
+if SQLAlchemyPGMQueue is None:
+    raise ImportError("SQLAlchemyPGMQueue is not available. Please check your 'pgmq' installation.")
 
 from ..actor import QUEUE_NAME_PATTERN
 
@@ -91,7 +94,7 @@ class RemouladePostgresClient(SQLAlchemyPGMQueue):
             UPDATE pgmq."q_{queue}"
             SET headers = coalesce(headers, '{{}}'::jsonb) || CAST(:patch AS jsonb)
             WHERE msg_id = :msg_id
-        """)  # noqa: S608
+        """)  # ruff: ignore[S608]
         return self._run(statement, {"msg_id": msg_id, "patch": json.dumps(patch)}, conn) > 0
 
     @contextmanager
@@ -100,10 +103,12 @@ class RemouladePostgresClient(SQLAlchemyPGMQueue):
         if conn is not None:
             yield conn
             return
+        if self.engine is None:
+            raise RuntimeError("PostgresClient engine is not initialized")
         with self.engine.begin() as connection:
             yield connection
 
-    def _run(self, statement: Any, params: dict[str, Any], conn: Connection | None) -> int:
+    def _run(self, statement: Executable, params: dict[str, Any], conn: Connection | None) -> int:
         """Execute a write statement, returning the number of affected rows."""
         with self._connection(conn) as connection:
             return connection.execute(statement, params).rowcount
