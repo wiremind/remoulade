@@ -14,7 +14,7 @@
 #
 # You should have received a copy of the GNU Lesser General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
-from typing import Any, Literal, TypeVar, overload
+from typing import Literal, TypeVar, overload
 
 import attr
 
@@ -83,7 +83,27 @@ class Result[R]:
             self.message_id, block=block, timeout=timeout, forget=forget, raise_on_error=raise_on_error
         )
 
-    async def async_get(self, *, timeout: int | None = None, raise_on_error: bool = True, forget: bool = False) -> Any:
+    @overload
+    async def async_get(
+        self,
+        *,
+        timeout: int | None = None,
+        raise_on_error: Literal[True] = True,
+        forget: bool = False,
+    ) -> R: ...
+
+    @overload
+    async def async_get(
+        self,
+        *,
+        timeout: int | None = None,
+        raise_on_error: bool = False,
+        forget: bool = False,
+    ) -> R | ErrorStored: ...
+
+    async def async_get(
+        self, *, timeout: int | None = None, raise_on_error: bool = True, forget: bool = False
+    ) -> R | ErrorStored:
         return await self.backend.async_get_result(
             self.message_id, timeout=timeout, forget=forget, raise_on_error=raise_on_error
         )

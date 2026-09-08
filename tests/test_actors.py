@@ -205,8 +205,7 @@ def test_actors_retry_on_failure(stub_broker, stub_worker, caplog):
         if sum(failures) == 0:
             failures.append(1)
             raise RuntimeError("First failure.")
-        else:
-            successes.append(1)
+        successes.append(1)
 
     # test log
 
@@ -293,7 +292,7 @@ def test_actors_age_limit_exception(stub_broker, stub_worker, result_backend):
     stub_broker.declare_actor(do_sleep)
     stub_broker.declare_actor(do_raise)
 
-    p = remoulade.pipeline([do_sleep.message(), do_raise.message()])
+    p = remoulade.pipeline([do_sleep.message(), do_raise.message()])  # ty: ignore[no-matching-overload]
     p.run()
 
     # And join on the queue
@@ -301,7 +300,7 @@ def test_actors_age_limit_exception(stub_broker, stub_worker, result_backend):
     stub_broker.join(do_raise.queue_name)
     stub_worker.join()
 
-    err = p.result.get(block=True, raise_on_error=False)
+    err = p.result.get(block=True, raise_on_error=False)  # ty: ignore[no-matching-overload]
 
     assert "AgeLimitException" in err.message
 
@@ -476,7 +475,7 @@ def test_middleware_can_decide_to_skip_messages(stub_broker, stub_worker):
 
     class SkipMiddleware(Middleware):
         def before_process_message(self, broker, message):
-            raise SkipMessage()
+            raise SkipMessage
 
         def after_skip_message(self, broker, message):
             skipped_messages.append(1)

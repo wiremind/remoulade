@@ -80,8 +80,7 @@ def compute_backoff_exponential(attempts: int, *, min_backoff: int, max_backoff:
       int: The backoff in milliseconds.
     """
     exponent = min(attempts, max_retries - 1)
-    backoff = min(min_backoff * 2**exponent, max_backoff)
-    return backoff
+    return min(min_backoff * 2**exponent, max_backoff)
 
 
 def compute_backoff_spread_exponential(attempts: int, *, min_backoff: int, max_backoff: int, max_retries: int):
@@ -100,5 +99,4 @@ def compute_backoff_spread_exponential(attempts: int, *, min_backoff: int, max_b
     if max_retries == 1:
         return min_backoff
     exponent = min(attempts / (max_retries - 1), 1)
-    backoff = min_backoff * ((max_backoff / min_backoff) ** exponent)
-    return backoff
+    return min_backoff * ((max_backoff / min_backoff) ** exponent)

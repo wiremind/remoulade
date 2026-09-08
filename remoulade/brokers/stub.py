@@ -99,7 +99,9 @@ class StubBroker(Broker):
         if queue_name not in self.queues:
             raise QueueNotFound(queue_name)
 
-        self.queues[queue_name].put(message.encode_in_bytes())
+        queue = self.queues[queue_name]
+        if queue is not None:
+            queue.put(message.encode_in_bytes())
         return message
 
     def _enqueue_many(self, messages, *, delay=None):
@@ -111,8 +113,10 @@ class StubBroker(Broker):
         Parameters:
           queue_name(str): The queue to flush.
         """
-        for _ in iter_queue(self.queues[queue_name]):
-            self.queues[queue_name].task_done()
+        queue = self.queues[queue_name]
+        if queue is not None:
+            for _ in iter_queue(queue):
+                queue.task_done()
 
     def flush_all(self):
         """Drop all messages from all declared queues."""
@@ -144,7 +148,8 @@ class StubBroker(Broker):
                 # again in case the messages that were on the DQ got
                 # moved back on $queue.
                 for name in [queue_name, dq_name(queue_name)]:
-                    if self.queues[name].unfinished_tasks:
+                    queue = self.queues[name]
+                    if queue is not None and queue.unfinished_tasks:
                         break
                 else:
                     return

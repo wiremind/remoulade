@@ -35,7 +35,7 @@ def test_shutdown_notifications_worker_shutdown_messages(raise_thread_exception,
 
     # Given a middleware with two "threads"
     middleware = shutdown.ShutdownNotifications()
-    middleware.notifications = [1, 2]
+    middleware.notifications = {1, 2}
 
     # Given a broker configured with the shutdown notifier
     broker = StubBroker(middleware=[middleware])

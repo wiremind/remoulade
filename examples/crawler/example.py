@@ -44,7 +44,7 @@ def crawl(url):
 
         for match in anchor_re.finditer(response.content):
             anchor = match.group(1).decode("utf-8")
-            if anchor.startswith("http://") or anchor.startswith("https://"):
+            if anchor.startswith(("http://", "https://")):
                 crawl.send(anchor)
                 matches += 1
 

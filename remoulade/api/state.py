@@ -1,6 +1,14 @@
+from dataclasses import fields
+
 from flask import Blueprint
 from flask_apispec import doc, marshal_with
-from marshmallow import Schema, ValidationError, fields, validate, validates_schema
+from marshmallow import (
+    Schema,
+    ValidationError,
+    fields as mm_fields,
+    validate,
+    validates_schema,
+)
 from werkzeug.exceptions import NotFound
 
 from remoulade import get_broker
@@ -16,22 +24,22 @@ class StatesParamsSchema(Schema):
     Class to validate the state search parameters
     """
 
-    sort_column = fields.Str(
+    sort_column = mm_fields.Str(
         allow_none=True,
-        validate=validate.OneOf([field for field in State._fields if field not in ["args", "kwargs", "options"]]),
+        validate=validate.OneOf([f.name for f in fields(State) if f.name not in {"args", "kwargs", "options"}]),
     )
-    sort_direction = fields.Str(allow_none=True, validate=validate.OneOf(["asc", "desc"]))
-    size = fields.Int(allow_none=True, validate=validate.Range(min=1, max=1000))
-    offset = fields.Int(load_default=0)
-    selected_actors = fields.List(fields.String, allow_none=True)
-    selected_statuses = fields.List(
-        fields.String(validate=validate.OneOf([status.name for status in StateStatusesEnum])),
+    sort_direction = mm_fields.Str(allow_none=True, validate=validate.OneOf(["asc", "desc"]))
+    size = mm_fields.Int(allow_none=True, validate=validate.Range(min=1, max=1000))
+    offset = mm_fields.Int(load_default=0)
+    selected_actors = mm_fields.List(mm_fields.String, allow_none=True)
+    selected_statuses = mm_fields.List(
+        mm_fields.String(validate=validate.OneOf([status.name for status in StateStatusesEnum])),
         allow_none=True,
     )
-    selected_message_ids = fields.List(fields.String, allow_none=True)
-    selected_composition_ids = fields.List(fields.String, allow_none=True)
-    start_datetime = fields.DateTime(allow_none=True)
-    end_datetime = fields.DateTime(allow_none=True)
+    selected_message_ids = mm_fields.List(mm_fields.String, allow_none=True)
+    selected_composition_ids = mm_fields.List(mm_fields.String, allow_none=True)
+    start_datetime = mm_fields.DateTime(allow_none=True)
+    end_datetime = mm_fields.DateTime(allow_none=True)
 
     @validates_schema
     def validate_sort(self, data, **kwargs):
@@ -40,24 +48,24 @@ class StatesParamsSchema(Schema):
 
 
 class StateSchema(Schema):
-    message_id = fields.Str()
-    status = fields.Str(allow_none=True)
-    actor_name = fields.Str(allow_none=True)
-    args = fields.List(fields.Raw(), allow_none=True)
-    kwargs = fields.Dict(keys=fields.Str(), values=fields.Raw(), allow_none=True)
-    options = fields.Dict(keys=fields.Str(), values=fields.Raw(), allow_none=True)
-    progress = fields.Float(allow_none=True)
-    priority = fields.Int(allow_none=True)
-    enqueued_datetime = fields.Str(allow_none=True)
-    started_datetime = fields.Str(allow_none=True)
-    end_datetime = fields.Str(allow_none=True)
-    queue_name = fields.Str(allow_none=True)
-    composition_id = fields.Str(allow_none=True)
+    message_id = mm_fields.Str()
+    status = mm_fields.Str(allow_none=True)
+    actor_name = mm_fields.Str(allow_none=True)
+    args = mm_fields.List(mm_fields.Raw(), allow_none=True)
+    kwargs = mm_fields.Dict(keys=mm_fields.Str(), values=mm_fields.Raw(), allow_none=True)
+    options = mm_fields.Dict(keys=mm_fields.Str(), values=mm_fields.Raw(), allow_none=True)
+    progress = mm_fields.Float(allow_none=True)
+    priority = mm_fields.Int(allow_none=True)
+    enqueued_datetime = mm_fields.Str(allow_none=True)
+    started_datetime = mm_fields.Str(allow_none=True)
+    end_datetime = mm_fields.Str(allow_none=True)
+    queue_name = mm_fields.Str(allow_none=True)
+    composition_id = mm_fields.Str(allow_none=True)
 
 
 class StatesResponseSchema(Schema):
-    data = fields.List(fields.Nested(StateSchema))
-    count = fields.Int()
+    data = mm_fields.List(mm_fields.Nested(StateSchema))
+    count = mm_fields.Int()
 
 
 @messages_bp.route("/states", methods=["POST"])

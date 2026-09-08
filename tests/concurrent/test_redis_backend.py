@@ -1,5 +1,5 @@
-# ruff: noqa: S106
-# ruff: noqa: S105
+# ruff: file-ignore[S105]
+# ruff: file-ignore[S106]
 import time
 
 

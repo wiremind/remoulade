@@ -189,7 +189,7 @@ class RabbitmqBroker(Broker):
         try:
             del self.connection
         except Exception:  # pragma: no cover
-            self.logger.error("Encountered an error while connection.", exc_info=True)
+            self.logger.exception("Encountered an error while connection.")
         self._connection = None
         self.clear_channel_pools()
         self.logger.debug("Channels and connections closed.")
@@ -214,7 +214,7 @@ class RabbitmqBroker(Broker):
 
             self.clear_channel_pools()
 
-            raise ConnectionClosed(e) from None
+            raise ConnectionClosed(str(e)) from None
         return _RabbitmqConsumer(self.connection, queue_name, prefetch, timeout)
 
     def _declare_rabbitmq_queues(self):
@@ -373,7 +373,7 @@ class RabbitmqBroker(Broker):
 
                 attempts += 1
                 if self._has_transaction or attempts > MAX_ENQUEUE_ATTEMPTS:
-                    raise ConnectionClosed(e) from None
+                    raise ConnectionClosed(str(e)) from None
 
                 self.logger.info("Retrying enqueue due to closed connection. [%d/%d]", attempts, MAX_ENQUEUE_ATTEMPTS)
 
@@ -469,25 +469,25 @@ class _RabbitmqConsumer(Consumer):
             self.channel.basic.consume(queue=queue_name, no_ack=False)
             self.timeout = timeout
         except (AMQPConnectionError, AMQPChannelError) as e:
-            raise ConnectionClosed(e) from None
+            raise ConnectionClosed(str(e)) from None
 
     @override
     def ack(self, message):
         try:
             message.ack()
         except (AMQPConnectionError, AMQPChannelError) as e:
-            raise ConnectionClosed(e) from None
+            raise ConnectionClosed(str(e)) from None
         except Exception:  # pragma: no cover
-            self.logger.error("Failed to ack message.", exc_info=True)
+            self.logger.exception("Failed to ack message.")
 
     @override
     def nack(self, message):
         try:
             message.nack(requeue=False)
         except (AMQPConnectionError, AMQPChannelError) as e:
-            raise ConnectionClosed(e) from None
+            raise ConnectionClosed(str(e)) from None
         except Exception:  # pragma: no cover
-            self.logger.error("Failed to nack message.", exc_info=True)
+            self.logger.exception("Failed to nack message.")
 
     @override
     def requeue(self, messages):
@@ -509,7 +509,7 @@ class _RabbitmqConsumer(Consumer):
 
             return _RabbitmqMessage(message) if message else None
         except (AMQPConnectionError, AMQPChannelError) as e:
-            raise ConnectionClosed(e) from None
+            raise ConnectionClosed(str(e)) from None
 
     @override
     def close(self):
