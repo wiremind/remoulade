@@ -1,5 +1,3 @@
-# ty: ignore[invalid-assignment]
-
 import json
 import logging
 import os
@@ -122,6 +120,7 @@ def test_postgres_broker_creates_partitioned_queue_with_default_intervals():
     broker._queue_exists = Mock(return_value=False)
 
     conn = Mock()
+    assert broker.client.engine is not None
     broker.client.engine.begin = Mock(return_value=_StubTransaction(conn))
 
     broker.declare_queue("default")
@@ -146,6 +145,7 @@ def test_postgres_broker_uses_current_transaction_connection_for_queue_creation(
 
     transaction_connection = Mock()
 
+    assert broker.client.engine is not None
     broker.client.engine.begin = Mock(return_value=_StubTransaction(transaction_connection))
 
     with broker.tx():
@@ -174,6 +174,7 @@ def test_postgres_broker_checks_queue_existence_on_its_transaction_connection():
     broker.client.list_queues = Mock(return_value=[])
 
     transaction_connection = Mock()
+    assert broker.client.engine is not None
     broker.client.engine.begin = Mock(return_value=_StubTransaction(transaction_connection))
 
     broker.declare_queue("default")
@@ -190,6 +191,7 @@ def test_postgres_broker_counts_messages_outside_the_current_transaction():
     broker.client.metrics = Mock(return_value=Mock(queue_length=0))
 
     transaction_connection = Mock()
+    assert broker.client.engine is not None
     broker.client.engine.begin = Mock(return_value=_StubTransaction(transaction_connection))
 
     with broker.tx():
@@ -206,6 +208,7 @@ def test_postgres_broker_enables_notify_on_postgresql_queue_init():
     broker._queue_exists = Mock(return_value=False)
 
     conn = Mock()
+    assert broker.client.engine is not None
     broker.client.engine.begin = Mock(return_value=_StubTransaction(conn))
 
     broker.declare_queue("default")
@@ -364,6 +367,7 @@ def test_postgres_broker_uses_custom_partition_settings_when_provided():
     broker._queue_exists = Mock(return_value=False)
 
     conn = Mock()
+    assert broker.client.engine is not None
     broker.client.engine.begin = Mock(return_value=_StubTransaction(conn))
 
     broker.declare_queue("default")

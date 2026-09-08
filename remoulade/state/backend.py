@@ -53,9 +53,8 @@ class State:
 
     def as_dict(self, exclude_keys=(), encode_args=False):
         """Transform a State into a dict, can exclude some keys"""
-        as_dict_repr = {
-            key: value for (key, value) in asdict(self).items() if value is not None and key not in exclude_keys
-        }
+        exclude = {"delivery_id", *exclude_keys}
+        as_dict_repr = {key: value for (key, value) in asdict(self).items() if value is not None and key not in exclude}
         datetime_keys = ["enqueued_datetime", "started_datetime", "end_datetime"]
         for key in datetime_keys:
             if key in as_dict_repr:
@@ -130,7 +129,7 @@ class StateBackend:
         """
         raise NotImplementedError(f"{type(self).__name__} does not implement get_state")
 
-    def set_state(self, state: State, ttl: int = 3600) -> None:
+    def set_state(self, state: State, ttl: int | None = 3600) -> None:
         """Save a message in the backend if it does not exist,
             otherwise update it.
 

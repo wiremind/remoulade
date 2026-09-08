@@ -98,7 +98,7 @@ class PostgresBackend(StateBackend):
         self.broker = broker
 
     @override
-    def set_state(self, state: State, ttl: int = 3600) -> None:
+    def set_state(self, state: State, ttl: int | None = 3600) -> None:
         """Record ``state``'s status on the pgmq row it was observed on.
 
         One ``UPDATE`` on the broker's queue table, on top of the archive that
@@ -108,14 +108,14 @@ class PostgresBackend(StateBackend):
         if state.status not in TERMINAL_STATUSES:
             return
 
-        if state.delivery_id is None:
+        if state.delivery_id is None or state.queue_name is None:
             # Every in-flight hook reports a MessageProxy, so a terminal status with no
             # delivery id comes from the enqueue hooks, where MessageState only records
             # a Failure. Any other status here means the state was built by hand.
             if state.status is not StateStatusesEnum.Failure:
                 self.broker.logger.warning(
-                    "Could not record status %s for message %s: it carries no delivery_id, so there is no pgmq "
-                    "row to record it on.",
+                    "Could not record status %s for message %s: it carries no delivery_id or queue_name, "
+                    "so there is no pgmq row to record it on.",
                     state.status.value,
                     state.message_id,
                 )
