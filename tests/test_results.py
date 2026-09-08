@@ -413,12 +413,12 @@ def test_messages_can_get_completed(stub_broker, stub_worker, result_backend, er
 
     result = message.result
     # we can get the completion
-    assert result.completed
+    assert result.completed()
 
     result.get(forget=True, raise_on_error=False)
 
     # even after a forget
-    assert result.completed
+    assert result.completed()
 
 
 def test_result_get_forget_not_store_if_no_result(stub_broker, stub_worker, result_backend):
