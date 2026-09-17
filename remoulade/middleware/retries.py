@@ -15,7 +15,6 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-import traceback
 from collections.abc import Callable
 from typing import Any
 
@@ -126,7 +125,6 @@ class Retries(Middleware):
             new_message.options["increase_priority_on_retry"] = False  # we only want to do it once
 
         new_message.options["retries"] += 1
-        new_message.options["traceback"] = traceback.format_exc(limit=30)
         min_backoff = self.get_option("min_backoff", broker=broker, message=message)
         max_backoff = self.get_option("max_backoff", broker=broker, message=message)
         backoff_strategy = self.get_option("backoff_strategy", broker=broker, message=message)
