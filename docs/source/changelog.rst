@@ -5,6 +5,14 @@ Changelog
 
 All notable changes to this project will be documented in this file.
 
+`7.1.2`_ -- 2026-09-18
+----------------------
+Fix
+^^^
+* ``Retries`` keeps the formatted traceback out of the retried message's options. A traceback in the
+  message body travels through the broker, and ``escalation_queue_mapping`` carries it to the next queue,
+  so a burst of failures multiplies the message size. The traceback stays in the worker logs.
+
 `7.1.1`_ -- 2026-09-02
 ----------------------
 Fix
