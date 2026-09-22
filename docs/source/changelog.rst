@@ -13,6 +13,7 @@ Changed
 * Enable additional Ruff lints and clean up legacy ignores.
 * Upgrade GitHub Actions and CI workflow dependencies.
 * Refactor internal data structures (``State`` to ``@dataclass``, helpers to ``NamedTuple``).
+* Add support for Python 3.15
 
 `7.1.2`_ -- 2026-09-18
 ----------------------
