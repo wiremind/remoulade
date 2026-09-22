@@ -1,3 +1,5 @@
+# ty: ignore[no-matching-overload, invalid-argument-type, unresolved-attribute]
+
 import threading
 import time
 from threading import Condition
@@ -187,7 +189,7 @@ def test_pipelines_expose_completion_stats(stub_broker, stub_worker, result_back
     pipe.run()
 
     # Then every time a job in the pipeline completes, the completed_count should increase
-    for count in range(0, len(pipe)):
+    for count in range(len(pipe)):
         event_count[count].set()
         event_result.wait(2)
         event_result.clear()
@@ -227,7 +229,7 @@ def test_pipelines_store_results_error(stub_broker, result_backend, stub_worker,
     # Given an actor that fail
     @remoulade.actor(store_results=store_results)
     def do_work_fail():
-        raise ValueError()
+        raise ValueError
 
     # Given an actor that stores results
     @remoulade.actor(store_results=True)

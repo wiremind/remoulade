@@ -96,14 +96,17 @@ def requeue_message(message_id):
     state = backend.get_state(message_id)
     if state is None:
         raise ValidationError(f"No message with id {message_id} exists")
+    if not state.actor_name:
+        raise ValidationError(f"Message {message_id} has no actor_name associated with it")
     actor = broker.get_actor(state.actor_name)
-    payload = {"args": state.args, "kwargs": state.kwargs}
-    pipe_target = state.options.get("pipe_target")
+    options = state.options or {}
+    pipe_target = options.get("pipe_target")
     if pipe_target is None:
-        actor.send_with_options(**payload, **state.options)
+        args = tuple(state.args) if state.args is not None else None
+        kwargs = state.kwargs or {}
+        actor.send_with_options(args=args, kwargs=kwargs, **options)
         return {"result": "ok"}
-    else:
-        return {"error": "requeue message in a pipeline not supported"}, 400
+    return {"error": "requeue message in a pipeline not supported"}, 400
 
 
 @app.route("/messages/result/<message_id>")

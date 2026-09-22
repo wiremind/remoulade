@@ -12,7 +12,8 @@ class TestCurrentMessage:
         @remoulade.actor
         def do_work():
             msg = CurrentMessage.get_current_message()
-            message_ids.add(msg.message_id)
+            if msg is not None:
+                message_ids.add(msg.message_id)
 
         stub_broker.declare_actor(do_work)
         messages = [do_work.send() for _ in range(20)]

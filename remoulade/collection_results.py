@@ -18,14 +18,17 @@ from __future__ import annotations
 
 import time
 from collections import deque
-from collections.abc import Generator, Iterable
-from typing import Any, Literal, TypeVar, Union, cast, overload
-
-from remoulade.results.errors import ErrorStored
+from typing import TYPE_CHECKING, Any, Literal, TypeVar, Union, cast, overload
 
 from .broker import get_broker
 from .result import Result
-from .results import ResultBackend
+
+if TYPE_CHECKING:
+    from collections.abc import Generator, Iterable
+
+    from remoulade.results.errors import ErrorStored
+
+    from .results import ResultBackend
 
 ResultT = TypeVar("ResultT", bound=Union[Result, "CollectionResults"])
 R = TypeVar("R")
@@ -78,7 +81,7 @@ class CollectionResults[ResultT: Result | "CollectionResults"]:
             if isinstance(child, CollectionResults):
                 message_ids += child.message_ids
             else:
-                message_ids += [cast(Result[Any], child).message_id]
+                message_ids += [cast("Result[Any]", child).message_id]
         return message_ids
 
     @property
@@ -170,7 +173,7 @@ class CollectionResults[ResultT: Result | "CollectionResults"]:
 
                 yield list(child.get(block=block, timeout=timeout, raise_on_error=raise_on_error, forget=forget))
             else:
-                message_ids.append(cast(Result[Any], child).message_id)
+                message_ids.append(cast("Result[Any]", child).message_id)
 
         if message_ids:
             yield from self._backend.get_results(

@@ -15,7 +15,7 @@
 import os
 import sys
 
-import alabaster  # noqa
+import alabaster  # ruff: ignore[F401]
 
 import remoulade
 
@@ -66,7 +66,7 @@ master_doc = "index"
 
 # General information about the project.
 project = "Remoulade"
-copyright = "2017, CLEARTYPE SRL, WIREMIND SAS"  # noqa: A001
+copyright = "2017, CLEARTYPE SRL, WIREMIND SAS"  # ruff: ignore[A001]
 author = "CLEARTYPE SRL, WIREMIND SAS"
 
 # The version info for the project you're documenting, acts as replacement for

@@ -76,7 +76,7 @@ class Results(Middleware):
             pipe_on_error: bool = broker.get_middleware(Pipelines).get_option(
                 "pipe_on_error", broker=broker, message=message
             )
-        except:  # noqa
+        except:  # ruff: ignore[E722]
             pipe_on_error = False
 
         results = []
@@ -112,7 +112,7 @@ class Results(Middleware):
                 )
             )
 
-        if results:
+        if results and self.backend is not None:
             message_ids, results_ = zip(*results, strict=False)
             with self.backend.retry(broker, message, self.logger):
                 self.backend.store_results(message_ids, results_, result_ttl)
@@ -121,7 +121,7 @@ class Results(Middleware):
     def _serialize_exception(exception):
         try:
             return repr(exception)
-        except Exception as e:  # noqa
+        except Exception as e:  # ruff: ignore[F841]
             return "Exception could not be serialized"
 
     def _get_children_message_ids(self, broker, pipe_target):
@@ -144,13 +144,14 @@ class Results(Middleware):
 
         return message_ids
 
-    def after_enqueue_pipe_target(self, _, group_info):
+    def after_enqueue_pipe_target(self, broker, group_info):
         """After a pipe target has been enqueued, we need to forget the result of the group (if it's a group)"""
-        if group_info:
+        if group_info and self.backend is not None:
             message_ids = self.backend.get_group_message_ids(group_info.group_id)
             self.backend.forget_results(message_ids, self.result_ttl)
             self.backend.delete_group_message_ids(group_info.group_id)
             self.backend.delete_group_completion(group_info.group_id)
 
-    def before_build_group_pipeline(self, _, group_id, message_ids):
-        self.backend.set_group_message_ids(group_id, message_ids, self.result_ttl)
+    def before_build_group_pipeline(self, broker, group_id, message_ids):
+        if self.backend is not None:
+            self.backend.set_group_message_ids(group_id, message_ids, self.result_ttl)

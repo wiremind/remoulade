@@ -1,8 +1,8 @@
 import datetime
 import sys
-from collections import namedtuple
+from dataclasses import asdict, dataclass
 from enum import Enum
-from typing import ClassVar
+from typing import Any, ClassVar
 
 from dateutil.parser import parse
 
@@ -22,26 +22,8 @@ class StateStatusesEnum(Enum):
 
 
 #: A type alias representing states in the database
-class State(
-    namedtuple(
-        "State",
-        (
-            "message_id",
-            "status",
-            "actor_name",
-            "args",
-            "kwargs",
-            "options",
-            "priority",
-            "progress",
-            "enqueued_datetime",
-            "started_datetime",
-            "end_datetime",
-            "queue_name",
-            "composition_id",
-        ),
-    )
-):
+@dataclass(frozen=True)
+class State:
     """Catalog Class, it storages the state
     Parameters:
         status: The current status of the message state
@@ -50,67 +32,44 @@ class State(
             when it has one. A retry gets a new one, unlike message_id.
     """
 
+    message_id: str
+    status: StateStatusesEnum | None = None
+    actor_name: str | None = None
+    args: list[Any] | None = None
+    kwargs: dict[str, Any] | None = None
+    options: dict[str, Any] | None = None
+    priority: int | None = None
+    progress: float | None = None
+    enqueued_datetime: datetime.datetime | None = None
+    started_datetime: datetime.datetime | None = None
+    end_datetime: datetime.datetime | None = None
+    queue_name: str | None = None
+    composition_id: str | None = None
     delivery_id: int | None = None
 
-    def __new__(
-        cls,
-        message_id,
-        status=None,
-        *,
-        actor_name=None,
-        args=None,
-        kwargs=None,
-        options=None,
-        priority=None,
-        progress=None,
-        enqueued_datetime=None,
-        started_datetime=None,
-        end_datetime=None,
-        queue_name=None,
-        composition_id=None,
-        delivery_id=None,
-    ):
-        if status and status not in list(StateStatusesEnum):
-            raise InvalidStateError(f"The {status} State is not defined")
-        state = super().__new__(
-            cls,
-            message_id,
-            status,
-            actor_name,
-            args,
-            kwargs,
-            options,
-            priority,
-            progress,
-            enqueued_datetime,
-            started_datetime,
-            end_datetime,
-            queue_name,
-            composition_id,
-        )
-        state.delivery_id = delivery_id
-        return state
+    def __post_init__(self):
+        if self.status and self.status not in list(StateStatusesEnum):
+            raise InvalidStateError(f"The {self.status} State is not defined")
 
     def as_dict(self, exclude_keys=(), encode_args=False):
         """Transform a State into a dict, can exclude some keys"""
-        as_dict = {
-            key: value for (key, value) in self._asdict().items() if value is not None and key not in exclude_keys
-        }
+        exclude = {"delivery_id", *exclude_keys}
+        as_dict_repr = {key: value for (key, value) in asdict(self).items() if value is not None and key not in exclude}
         datetime_keys = ["enqueued_datetime", "started_datetime", "end_datetime"]
         for key in datetime_keys:
-            if key in as_dict:
-                as_dict[key] = as_dict[key].isoformat()
+            if key in as_dict_repr:
+                as_dict_repr[key] = as_dict_repr[key].isoformat()
         if self.status:
-            as_dict["status"] = self.status.value
+            as_dict_repr["status"] = self.status.value
         if encode_args:
             from ..message import get_encoder
 
-            for key in (item for item in ["args", "kwargs", "options"] if item in as_dict):
+            for key in (item for item in ["args", "kwargs", "options"] if item in as_dict_repr):
                 try:
-                    as_dict[key] = get_encoder().encode_in_bytes(as_dict[key]).decode("utf-8")
+                    as_dict_repr[key] = get_encoder().encode_in_bytes(as_dict_repr[key]).decode("utf-8")
                 except (UnicodeDecodeError, TypeError):
-                    as_dict[key] = "encoded_data"
-        return as_dict
+                    as_dict_repr[key] = "encoded_data"
+        return as_dict_repr
 
     @classmethod
     def from_dict(cls, input_dict: dict) -> "State":
@@ -143,7 +102,7 @@ class StateBackend:
     namespace = "remoulade-state*"
     requires_ttl: ClassVar[bool] = True
 
-    def __init__(self, *, namespace: str = "remoulade-state", encoder: Encoder = None, max_size=2e6):
+    def __init__(self, *, namespace: str = "remoulade-state", encoder: Encoder | None = None, max_size=2e6):
         from ..message import get_encoder
 
         self.namespace = namespace
@@ -170,7 +129,7 @@ class StateBackend:
         """
         raise NotImplementedError(f"{type(self).__name__} does not implement get_state")
 
-    def set_state(self, state: State, ttl: int = 3600) -> None:
+    def set_state(self, state: State, ttl: int | None = 3600) -> None:
         """Save a message in the backend if it does not exist,
             otherwise update it.
 

@@ -30,7 +30,7 @@ from .errors import InvalidProgress
 from .result import Result
 
 #: The global encoder instance.
-global_encoder = JSONEncoder()  # type: Encoder
+global_encoder: Encoder = JSONEncoder()
 
 
 def get_encoder() -> Encoder:
@@ -139,7 +139,7 @@ class Message[ResultT: Result[Any]]:
 
     @property
     def result(self) -> ResultT:
-        return cast(ResultT, Result(message_id=self.message_id))
+        return cast("ResultT", Result(message_id=self.message_id))
 
     def __str__(self) -> str:
         return f"{self.actor_name} / {self.message_id}"

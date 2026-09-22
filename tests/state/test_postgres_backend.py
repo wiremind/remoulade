@@ -38,7 +38,7 @@ def _archived_rows(broker, queue_name="default"):
     with broker.client.engine.begin() as connection:
         return connection.execute(
             text(
-                f"SELECT msg_id, read_ct, headers, archived_at, message->>'message_id' AS message_id "  # noqa: S608
+                f"SELECT msg_id, read_ct, headers, archived_at, message->>'message_id' AS message_id "  # ruff: ignore[S608]
                 f'FROM pgmq."a_{queue_name}" ORDER BY msg_id'
             )
         ).all()
@@ -166,7 +166,7 @@ class TestTerminalStates:
 
         @remoulade.actor
         def skipper():
-            raise SkipMessage()
+            raise SkipMessage
 
         postgres_broker.declare_actor(skipper)
         message = skipper.send()
@@ -303,7 +303,9 @@ class TestProgress:
         @remoulade.actor(max_retries=0)
         def reporting():
             for step in (0.25, 0.5, 1):
-                CurrentMessage.get_current_message().set_progress(step)
+                msg = CurrentMessage.get_current_message()
+                assert msg is not None
+                msg.set_progress(step)
                 reported.append(step)
 
         postgres_broker.declare_actor(reporting)
@@ -323,7 +325,7 @@ class TestConfiguration:
         # Without it the backend could only resolve one later, and a
         # misconfiguration would surface as silently missing states.
         with pytest.raises(TypeError):
-            PostgresBackend()  # type: ignore[call-arg]
+            PostgresBackend()  # ty: ignore[missing-argument]
 
     def test_keeps_the_broker_it_was_given(self, postgres_broker):
         assert PostgresBackend(postgres_broker).broker is postgres_broker

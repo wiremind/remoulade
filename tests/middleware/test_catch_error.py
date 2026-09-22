@@ -13,7 +13,7 @@ def test_on_failure(stub_broker, stub_worker):
 
     @remoulade.actor
     def fail_actor():
-        raise Exception()
+        raise Exception
 
     remoulade.declare_actors([on_failure, fail_actor])
 
@@ -37,7 +37,7 @@ def test_on_failure_message(stub_broker, stub_worker):
 
     @remoulade.actor
     def fail_actor():
-        raise Exception()
+        raise Exception
 
     remoulade.declare_actors([on_failure, fail_actor])
 
@@ -63,7 +63,7 @@ def test_on_failure_message_in_actor_options(stub_broker, stub_worker):
 
     @remoulade.actor(on_failure=on_failure.message())
     def fail_actor():
-        raise Exception()
+        raise Exception
 
     stub_broker.declare_actor(fail_actor)
 
@@ -86,7 +86,7 @@ def test_on_failure_runs_only_once(stub_broker, stub_worker):
 
     @remoulade.actor
     def fail_actor():
-        raise Exception()
+        raise Exception
 
     remoulade.declare_actors([on_failure, fail_actor])
 
