@@ -32,6 +32,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 from ..logging import get_logger
 from ..middleware import Middleware
+from .backend import CancelBackend
 from .errors import MessageCanceled
 
 
@@ -61,7 +62,7 @@ class Cancel(Middleware):
         Defaults to False and can be set on a per-actor basis.
     """
 
-    def __init__(self, *, backend=None):
+    def __init__(self, *, backend: CancelBackend | None = None) -> None:
         self.logger = get_logger(__name__, type(self))
         self.backend = backend
 

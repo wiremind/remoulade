@@ -5,6 +5,16 @@ Changelog
 
 All notable changes to this project will be documented in this file.
 
+`7.1.3`_ -- 2026-09-25
+----------------------
+Fix
+^^^
+* Type the public members that strict type checkers reported as partially unknown: ``Message.args`` is
+  ``tuple[Any, ...]`` and ``Message.kwargs`` ``dict[str, Any]``, ``Broker.queues`` holds ``Queue[bytes] | None``,
+  ``Broker.emit_before``/``emit_after`` take a ``str`` signal, ``Broker.declare_actor``, ``Broker.get_actor``,
+  ``Broker.actors`` and ``declare_actors`` use ``Actor[..., Any]``, and ``Cancel.backend`` is a
+  ``CancelBackend | None``. No runtime change.
+
 `7.1.2`_ -- 2026-09-18
 ----------------------
 Fix

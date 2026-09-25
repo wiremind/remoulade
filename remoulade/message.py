@@ -74,8 +74,8 @@ class Message[ResultT: Result[Any]]:
 
     queue_name: str
     actor_name: str
-    args: tuple = attr.field(converter=tuple)
-    kwargs: dict
+    args: tuple[Any, ...] = attr.field(converter=tuple)
+    kwargs: dict[str, Any]
     options: dict[str, Any]
     message_id: str = attr.field(factory=generate_unique_id)
     message_timestamp: int = attr.field(factory=lambda: int(time.time() * 1000))
