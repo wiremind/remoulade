@@ -169,7 +169,7 @@ def remove_extra_default_middleware(middleware_class: "type[Middleware]") -> Non
         get_broker().remove_middleware(middleware_class)
 
 
-def declare_actors(actors: "Iterable[Actor]") -> None:
+def declare_actors(actors: "Iterable[Actor[..., Any]]") -> None:
     """Declare the given actors to the current broker
 
     Parameters:
@@ -198,8 +198,8 @@ class Broker:
 
     def __init__(self, middleware: "Iterable[Middleware] | None" = None):
         self.logger = get_logger(__name__, type(self))
-        self.actors: dict[str, Actor] = {}
-        self.queues: dict[str, Queue | None] = {}
+        self.actors: dict[str, Actor[..., Any]] = {}
+        self.queues: dict[str, Queue[bytes] | None] = {}
         self.delay_queues: set[str] = set()
 
         self.actor_options: set[str] = set()
@@ -223,7 +223,7 @@ class Broker:
     def tx(self):
         yield
 
-    def emit_before(self, signal, *args, **kwargs):
+    def emit_before(self, signal: str, *args: Any, **kwargs: Any) -> None:
         for middleware in self.middleware:
             try:
                 getattr(middleware, "before_" + signal)(self, *args, **kwargs)
@@ -232,7 +232,7 @@ class Broker:
             except Exception:
                 self.logger.critical("Unexpected failure in before_%s.", signal, exc_info=True)
 
-    def emit_after(self, signal, *args, **kwargs):
+    def emit_after(self, signal: str, *args: Any, **kwargs: Any) -> None:
         for middleware in reversed(self.middleware):
             try:
                 getattr(middleware, "after_" + signal)(self, *args, **kwargs)
@@ -398,7 +398,7 @@ class Broker:
         """
         raise NotImplementedError
 
-    def declare_actor(self, actor: "Actor") -> None:  # pragma: no cover
+    def declare_actor(self, actor: "Actor[..., Any]") -> None:  # pragma: no cover
         """Declare a new actor on this broker.  Declaring an Actor
         twice replaces the first actor with the second by name.
 
@@ -500,7 +500,7 @@ class Broker:
                 self.emit_after("enqueue", message, delay, exception=e)
             raise e from e
 
-    def get_actor(self, actor_name: str) -> "Actor":  # pragma: no cover
+    def get_actor(self, actor_name: str) -> "Actor[..., Any]":  # pragma: no cover
         """Look up an actor by its name.
 
         Parameters:
