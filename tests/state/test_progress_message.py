@@ -18,8 +18,9 @@ class TestProgressMessage:
         def do_work():
             msg = CurrentMessage.get_current_message()
             progress = random.uniform(0, 1)
-            msg.set_progress(progress)
-            progress_messages[msg.message_id] = progress
+            if msg is not None:
+                msg.set_progress(progress)
+                progress_messages[msg.message_id] = progress
 
         stub_broker.declare_actor(do_work)
 
@@ -38,7 +39,8 @@ class TestProgressMessage:
         def do_work():
             try:
                 msg = CurrentMessage.get_current_message()
-                msg.set_progress(progress)
+                if msg is not None:
+                    msg.set_progress(progress)
             except InvalidProgress:
                 error.append(True)
 

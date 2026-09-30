@@ -106,11 +106,6 @@ venv.bak/
 /site
 .run
 
-# mypy
-.mypy_cache/
-.dmypy.json
-dmypy.json
-
 #Others
 /.benchmarks
 /benchmark*.svg

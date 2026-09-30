@@ -21,6 +21,7 @@ import contextlib
 import importlib
 import logging
 import os
+import pathlib
 import signal
 import sys
 import time
@@ -100,7 +101,7 @@ def parse_arguments():
     )
     parser.add_argument(
         "--log-file",
-        type=argparse.FileType(mode="a", encoding="utf-8"),
+        type=str,
         help="write all logs to a file (default: sys.stderr)",
     )
     parser.add_argument(
@@ -117,11 +118,10 @@ def parse_arguments():
 def setup_pidfile(filename):
     try:
         pid = os.getpid()
-        with open(filename) as pid_file:
-            old_pid = int(pid_file.read().strip())
-            # This can happen when reloading the process via SIGHUP.
-            if old_pid == pid:
-                return pid
+        old_pid = int(pathlib.Path(filename).read_text().strip())
+        # This can happen when reloading the process via SIGHUP.
+        if old_pid == pid:
+            return pid
 
         try:
             os.kill(old_pid, 0)
@@ -139,8 +139,7 @@ def setup_pidfile(filename):
         raise RuntimeError("PID file contains garbage. Aborting.") from e
 
     try:
-        with open(filename, "w") as pid_file:
-            pid_file.write(str(pid))
+        pathlib.Path(filename).write_text(str(pid))
 
         # Change permissions to -rw-r--r--.
         os.chmod(filename, 0o644)
@@ -157,9 +156,14 @@ def remove_pidfile(filename, logger):
         logger.debug("Failed to remove PID file. It's gone.")
 
 
-def setup_logging(args, *, stream=sys.stderr):
+def setup_logging(args, *, stream=None):
     level = verbosity.get(args.verbose, logging.DEBUG)
-    logging.basicConfig(level=level, format=logformat, stream=stream)
+    if stream is not None:
+        logging.basicConfig(level=level, format=logformat, stream=stream)
+    elif args.log_file:
+        logging.basicConfig(level=level, format=logformat, filename=args.log_file, filemode="a", encoding="utf-8")
+    else:
+        logging.basicConfig(level=level, format=logformat, stream=sys.stderr)
     return get_logger("remoulade")
 
 
@@ -180,13 +184,13 @@ def start_worker(args, logger):
         return os._exit(RET_IMPORT)
 
     def termhandler(signum, frame):
-        nonlocal running  # type: ignore
+        nonlocal running
         if running:
             logger.info("Stopping worker...")
             running = False
         else:
             logger.warning("Killing worker...")
-            return os._exit(RET_KILLED)
+            os._exit(RET_KILLED)
 
     logger.info("Worker is ready for action.")
     signal.signal(signal.SIGINT, termhandler)
@@ -221,12 +225,12 @@ def main():
         if args.pid_file:
             setup_pidfile(args.pid_file)
     except RuntimeError as e:
-        logger = setup_logging(args, stream=args.log_file or sys.stderr)
+        logger = setup_logging(args)
         logger.critical(e)
         return RET_PIDFILE
 
-    logger = setup_logging(args, stream=args.log_file or sys.stderr)
-    logger.info(f"Remoulade {__version__!r} is booting up.")
+    logger = setup_logging(args)
+    logger.info("Remoulade %r is booting up.", __version__)
     if args.pid_file:
         atexit.register(remove_pidfile, args.pid_file, logger)
 

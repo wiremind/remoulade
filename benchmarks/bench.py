@@ -6,12 +6,12 @@ import subprocess
 import sys
 import time
 
-import celery
-import pylibmc
+import celery  # ty: ignore[unresolved-import]
+import pylibmc  # ty: ignore[unresolved-import]
 
 import remoulade
 from remoulade.brokers.rabbitmq import RabbitmqBroker
-from remoulade.brokers.redis import RedisBroker
+from remoulade.brokers.redis import RedisBroker  # ty: ignore[unresolved-import]
 
 logger = logging.getLogger("example")
 counter_key = "latench-bench-counter"
@@ -137,7 +137,7 @@ def main(args):
             else:
                 subprocess_args = ["remoulade", "bench", "-p", "8"]
 
-        proc = subprocess.Popen(subprocess_args)  # noqa: S603
+        proc = subprocess.Popen(subprocess_args)  # ruff: ignore[S603]
         processed = 0
         while processed < args.count:
             processed = client.get(counter_key)

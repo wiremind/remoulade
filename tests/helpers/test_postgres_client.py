@@ -151,6 +151,7 @@ def test_postgres_broker_declares_no_queue_it_cannot_name():
     broker.client.create_partitioned_queue = Mock()
     broker.client.enable_notify = Mock()
     broker.client.list_queues = Mock(return_value=[])
+    assert broker.client.engine is not None
     broker.client.engine.begin = MagicMock()
 
     with pytest.raises(ValueError, match="not a usable queue name"):

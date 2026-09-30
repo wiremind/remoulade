@@ -17,7 +17,7 @@
 
 import re
 from collections.abc import Callable
-from typing import TYPE_CHECKING, Any, Literal, ParamSpec, TypedDict, TypeVar, overload
+from typing import TYPE_CHECKING, Any, ParamSpec, TypedDict, TypeVar, overload
 
 from .helpers.actor_arguments import get_actor_arguments
 from .logging import get_logger
@@ -45,13 +45,13 @@ class ActorDict(TypedDict):
 
 @overload
 def actor(
-    fn: Literal[None] = None,
+    fn: None = None,
     *,
     actor_name: str | None = None,
     queue_name: str = "default",
     alternative_queues: list[str] | None = None,
     priority: int = 0,
-    **options: Any,
+    **options: object,
 ) -> "Callable[[Callable[P, R]], Actor[P, R]]": ...
 
 
@@ -63,7 +63,7 @@ def actor[**P, R](
     queue_name: str = "default",
     alternative_queues: list[str] | None = None,
     priority: int = 0,
-    **options: Any,
+    **options: object,
 ) -> "Actor[P, R]": ...
 
 
@@ -122,7 +122,7 @@ def actor(
 
     def decorator(fn: Callable[P, R]) -> Actor[P, R]:
         nonlocal actor_name
-        actor_name = actor_name or fn.__name__
+        actor_name = actor_name or getattr(fn, "__name__", str(fn))
         queues_names = [queue_name]
         if alternative_queues is not None:
             queues_names += alternative_queues
@@ -170,7 +170,7 @@ class Actor[**P, R]:
         queue_name: str,
         alternative_queues: list[str] | None,
         priority: int,
-        options: Any,
+        options: dict[str, Any],
     ) -> None:
         self.logger = get_logger(fn.__module__, actor_name)
         self.fn = fn
@@ -194,7 +194,7 @@ class Actor[**P, R]:
     def queue_names(self):
         return [self.queue_name] + (self.alternative_queues or [])
 
-    def message(self, *args: Any, **kwargs: Any) -> Message[Result[R]]:
+    def message(self, *args: Any, **kwargs: Any) -> Message[Result[R]]:  # ruff: ignore[ANN401]
         """Build a message.  This method is useful if you want to
         compose actors.  See the actor composition documentation for
         details.
@@ -218,7 +218,7 @@ class Actor[**P, R]:
         args: tuple[Any, ...] | None = None,
         kwargs: dict[str, Any] | None = None,
         queue_name: str | None = None,
-        **options: Any,
+        **options: object,
     ) -> Message[Result[R]]:
         """Build a message with an arbitrary set of processing options.
         This method is useful if you want to compose actors.  See the
@@ -234,8 +234,9 @@ class Actor[**P, R]:
         Returns:
           Message: A message that can be enqueued on a broker.
         """
-        for middleware in self.broker.middleware:
-            options = middleware.update_options_before_create_message(options, self.broker, self.actor_name)
+        if self.broker is not None:
+            for middleware in self.broker.middleware:
+                options = middleware.update_options_before_create_message(options, self.broker, self.actor_name)
 
         if queue_name is not None:
             if queue_name not in self.queue_names:
@@ -270,7 +271,7 @@ class Actor[**P, R]:
         kwargs: dict[str, Any] | None = None,
         queue_name: str | None = None,
         delay: int | None = None,
-        **options: Any,
+        **options: object,
     ) -> Message[Result[R]]:
         """Asynchronously send a message to this actor, along with an
         arbitrary set of processing options for the broker and

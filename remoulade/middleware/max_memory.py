@@ -40,7 +40,9 @@ class MaxMemory(Middleware):
             self.logger.error("Worker unable to determine memory usage")
         if used_memory > self.max_memory:
             self.logger.warning(
-                f"Stopping worker thread as used_memory ({used_memory:.2E}Kb) > max_memory ({self.max_memory:.2E}Kb)"
+                "Stopping worker thread as used_memory (%.2EKb) > max_memory (%.2EKb)",
+                used_memory,
+                self.max_memory,
             )
             # stopping the worker thread will in time stop the worker process which check if all workers are still
             # running (via Worker.worker_stopped)

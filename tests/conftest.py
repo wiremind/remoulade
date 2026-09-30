@@ -190,8 +190,7 @@ def start_cli():
 @pytest.fixture
 def scheduler_thread():
     scheduler = remoulade.get_scheduler()
-    thread = threading.Thread(target=scheduler.start)
-    yield thread
+    yield threading.Thread(target=scheduler.start)
     scheduler.stop()
 
 

@@ -37,7 +37,7 @@ def _build_url(heartbeat: Heartbeat, query: str = "") -> str:
 
 def _get_status(url: str) -> int:
     try:
-        with request.urlopen(url, timeout=1) as response:  # noqa: S310
+        with request.urlopen(url, timeout=1) as response:  # ruff: ignore[S310]
             return response.getcode()
     except error.HTTPError as exc:
         return exc.code
@@ -152,7 +152,7 @@ def test_heartbeat_server_shuts_down_cleanly(stub_broker: StubBroker):
             url = _build_url(heartbeat)
 
         with pytest.raises(error.URLError):
-            request.urlopen(url, timeout=1)  # noqa: S310
+            request.urlopen(url, timeout=1)  # ruff: ignore[S310]
 
 
 def test_healthy_returns_false_when_any_worker_thread_is_stale():

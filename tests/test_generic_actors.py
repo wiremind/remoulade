@@ -13,7 +13,7 @@ def test_generic_actors_can_be_defined(stub_broker):
     assert isinstance(Add.__actor__, remoulade.Actor)
 
     # And it should be callable
-    assert Add(1, 2) == 3
+    assert Add(1, 2) == 3  # ty: ignore[too-many-positional-arguments]
 
 
 def test_generic_actors_can_be_assigned_options(stub_broker):
@@ -118,7 +118,7 @@ def test_generic_actors_can_inherite_meta(stub_broker, stub_worker):
             queue_name = "tasks"
 
         def perform(self):
-            calls.add(self.get_task_name())
+            calls.add(self.get_task_name())  # ty: ignore[unresolved-attribute]
 
     # When I subclass BaseTask
     class FooTask(BaseTask):

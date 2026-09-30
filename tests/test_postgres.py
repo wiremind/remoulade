@@ -120,6 +120,7 @@ def test_postgres_broker_creates_partitioned_queue_with_default_intervals():
     broker._queue_exists = Mock(return_value=False)
 
     conn = Mock()
+    assert broker.client.engine is not None
     broker.client.engine.begin = Mock(return_value=_StubTransaction(conn))
 
     broker.declare_queue("default")
@@ -144,6 +145,7 @@ def test_postgres_broker_uses_current_transaction_connection_for_queue_creation(
 
     transaction_connection = Mock()
 
+    assert broker.client.engine is not None
     broker.client.engine.begin = Mock(return_value=_StubTransaction(transaction_connection))
 
     with broker.tx():
@@ -172,6 +174,7 @@ def test_postgres_broker_checks_queue_existence_on_its_transaction_connection():
     broker.client.list_queues = Mock(return_value=[])
 
     transaction_connection = Mock()
+    assert broker.client.engine is not None
     broker.client.engine.begin = Mock(return_value=_StubTransaction(transaction_connection))
 
     broker.declare_queue("default")
@@ -188,6 +191,7 @@ def test_postgres_broker_counts_messages_outside_the_current_transaction():
     broker.client.metrics = Mock(return_value=Mock(queue_length=0))
 
     transaction_connection = Mock()
+    assert broker.client.engine is not None
     broker.client.engine.begin = Mock(return_value=_StubTransaction(transaction_connection))
 
     with broker.tx():
@@ -204,6 +208,7 @@ def test_postgres_broker_enables_notify_on_postgresql_queue_init():
     broker._queue_exists = Mock(return_value=False)
 
     conn = Mock()
+    assert broker.client.engine is not None
     broker.client.engine.begin = Mock(return_value=_StubTransaction(conn))
 
     broker.declare_queue("default")
@@ -346,7 +351,7 @@ def test_postgres_broker_shares_a_single_listener_across_consumers():
 def test_postgres_broker_forwards_pool_size_to_client():
     broker = PostgresBroker(url=TEST_POSTGRES_URL, middleware=[], pool_size=3)
 
-    assert broker.client.engine.pool.size() == 3
+    assert broker.client.engine.pool.size() == 3  # ty: ignore[unresolved-attribute]
 
 
 def test_postgres_broker_uses_custom_partition_settings_when_provided():
@@ -362,6 +367,7 @@ def test_postgres_broker_uses_custom_partition_settings_when_provided():
     broker._queue_exists = Mock(return_value=False)
 
     conn = Mock()
+    assert broker.client.engine is not None
     broker.client.engine.begin = Mock(return_value=_StubTransaction(conn))
 
     broker.declare_queue("default")
@@ -391,7 +397,7 @@ def test_postgres_broker_rejects_non_json_message_encoders():
             return {}
 
     with pytest.raises(UnsupportedMessageEncoding):
-        broker._encode_message(_MessageWithInvalidJson())
+        broker._encode_message(_MessageWithInvalidJson())  # ty: ignore[invalid-argument-type]
 
 
 def test_postgres_broker_rejects_nested_non_json_safe_payloads():
@@ -1024,7 +1030,7 @@ def test_postgres_worker_processes_a_two_actor_pipeline(postgres_broker):
     worker = Worker(postgres_broker, worker_timeout=100, worker_threads=1)
     worker.start()
     try:
-        remoulade.pipeline([first_actor.message(1), second_actor.message()]).run()
+        remoulade.pipeline([first_actor.message(1), second_actor.message()]).run()  # ty: ignore[no-matching-overload]
 
         postgres_broker.join(second_actor.queue_name, timeout=10_000)
         worker.join()

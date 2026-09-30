@@ -57,12 +57,23 @@ class RedisBackend(StateBackend):
         sort_direction: str | None = None,
     ):
         states: list[State] = []
-        for keys in chunk(self.client.scan_iter(match=f"{StateBackend.namespace}*", count=size), size):
-            with self.client.pipeline() as pipe:
-                for key in keys:
-                    pipe.hgetall(key)
-                data = pipe.execute()
-                states.extend(self._parse_state(state_dict) for state_dict in data if state_dict)
+        pattern = f"{StateBackend.namespace}*"
+
+        if size is not None:
+            for keys in chunk(self.client.scan_iter(match=pattern, count=size), size):
+                with self.client.pipeline() as pipe:
+                    for key in keys:
+                        pipe.hgetall(key)
+                    data = pipe.execute()
+                    states.extend(self._parse_state(state_dict) for state_dict in data if state_dict)
+        else:
+            keys = list(self.client.scan_iter(match=pattern))
+            if keys:
+                with self.client.pipeline() as pipe:
+                    for key in keys:
+                        pipe.hgetall(key)
+                    data = pipe.execute()
+                    states.extend(self._parse_state(state_dict) for state_dict in data if state_dict)
 
         if size is None:
             return states[offset:]

@@ -211,7 +211,7 @@ class RedisBackend(ResultBackend):
         while data is None:
             try:
                 if block and timeout > 0:
-                    data = self._brpoplpush_with_timeout(message_key, message_key, timeout=timeout)
+                    data = self._brpoplpush_with_timeout(message_key, message_key, timeout=int(timeout))
                     if forget and data is not None:
                         with self.client.pipeline() as pipe:
                             pipe.lpushx(message_key, self.encoder.encode_in_bytes(ForgottenResult.asdict()))
@@ -230,8 +230,7 @@ class RedisBackend(ResultBackend):
                 if data is None:
                     if block:
                         raise ResultTimeout(message_id)
-                    else:
-                        raise ResultMissing(message_id)
+                    raise ResultMissing(message_id)
 
             except (redis.ConnectionError, redis.TimeoutError):
                 # if data is not None, it means the second step of block+forget has failed, we can live without a forget
@@ -262,8 +261,8 @@ class RedisBackend(ResultBackend):
                 pipe.pexpire(message_key, ttl)
             pipe.execute()
 
-    def _get(self, key, forget=False):
-        data = self.client.rpop(key) if forget else self.client.rpoplpush(key, key)
+    def _get(self, message_key, forget=False):
+        data = self.client.rpop(message_key) if forget else self.client.rpoplpush(message_key, message_key)
         if data:
             return self.encoder.decode_bytes(data)
         return Missing
@@ -277,11 +276,10 @@ class RedisBackend(ResultBackend):
             pipe.sadd(group_completion_key, message_id)
             pipe.pexpire(group_completion_key, ttl)
             pipe.scard(group_completion_key)
-            group_completion = pipe.execute()[2]
+            return pipe.execute()[2]
 
-        return group_completion
-
-    def get_status(self, message_ids: list[str]) -> int:  # type: ignore
-        if not message_ids:
+    def get_status(self, message_ids: Iterable[str]) -> int:
+        keys = [self.build_message_key(message_id) for message_id in message_ids]
+        if not keys:
             return 0
-        return self.client.exists(*[self.build_message_key(message_id) for message_id in message_ids])
+        return self.client.exists(*keys)
