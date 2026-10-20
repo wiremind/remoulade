@@ -29,10 +29,9 @@ def test_postgres_client_create_indexes_emits_every_index():
     broker.client.create_indexes("default", conn)
 
     executed = [str(call.args[0]) for call in conn.execute.call_args_list]
-    # Only the queue table: nothing remoulade runs reads the archive back, so an
-    # index there would be paid for on every archive and never used.
     assert executed == [
         'CREATE INDEX IF NOT EXISTS "q_default_msg_id_idx" ON pgmq."q_default" (msg_id)',
+        'CREATE INDEX IF NOT EXISTS "a_default_msg_id_idx" ON pgmq."a_default" (msg_id)',
     ]
 
 
@@ -98,7 +97,9 @@ def test_postgres_client_declaring_an_existing_queue_backfills_its_indexes(postg
 
     with postgres_broker.client.engine.begin() as connection:
         connection.execute(text('DROP INDEX pgmq."q_default_msg_id_idx"'))
+        connection.execute(text('DROP INDEX pgmq."a_default_msg_id_idx"'))
     assert not _index_exists(postgres_broker, "q_default_msg_id_idx")
+    assert not _index_exists(postgres_broker, "a_default_msg_id_idx")
 
     # Re-declaring the queue is enough: the broker caches what it declared, so this
     # is what a restart against an existing database does.
@@ -106,6 +107,7 @@ def test_postgres_client_declaring_an_existing_queue_backfills_its_indexes(postg
     postgres_broker.declare_queue("default")
 
     assert _index_exists(postgres_broker, "q_default_msg_id_idx")
+    assert _index_exists(postgres_broker, "a_default_msg_id_idx")
 
 
 @pytest.mark.parametrize("queue_name", ["default", "sales", "sales_eu", "sales.DQ", "sales-eu", "_x", "q" * 47])
