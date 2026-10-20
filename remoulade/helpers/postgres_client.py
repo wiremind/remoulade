@@ -23,6 +23,7 @@ pgmq state backend never build SQL of their own.
 import json
 from collections.abc import Iterator
 from contextlib import contextmanager
+from datetime import datetime
 from typing import Any
 
 from pgmq import SQLAlchemyPGMQueue
@@ -93,6 +94,49 @@ class RemouladePostgresClient(SQLAlchemyPGMQueue):
             WHERE msg_id = :msg_id
         """)  # noqa: S608
         return self._run(statement, {"msg_id": msg_id, "patch": json.dumps(patch)}, conn) > 0
+
+    def delete_messages(
+        self,
+        queue: str,
+        *,
+        include_active: bool = False,
+        statuses: list[str] | None = None,
+        enqueued_after: datetime | None = None,
+        enqueued_before: datetime | None = None,
+        conn: Connection | None = None,
+    ) -> dict[str, int]:
+        """Delete the archived messages of a queue, and its enqueued ones too when ``include_active``.
+
+        Filters combine with AND and are skipped when None: ``enqueued_at`` in
+        ``[enqueued_after, enqueued_before)``, ``headers->>'status'`` in ``statuses``.
+        Every table is purged in a single transaction.
+
+        Returns:
+          dict[str, int]: The number of deleted rows, by table name.
+
+        Raises:
+          ValueError: If ``queue`` cannot be used as a SQL identifier.
+        """
+        assert_valid_queue_name(queue)
+        conditions = ["TRUE"]
+        if enqueued_after is not None:
+            conditions.append("enqueued_at >= :enqueued_after")
+        if enqueued_before is not None:
+            conditions.append("enqueued_at < :enqueued_before")
+        if statuses is not None:
+            conditions.append("headers->>'status' = ANY(:statuses)")
+        params = {"enqueued_after": enqueued_after, "enqueued_before": enqueued_before, "statuses": statuses}
+
+        tables = [f"a_{queue}", f"q_{queue}"] if include_active else [f"a_{queue}"]
+        with self._connection(conn) as connection:
+            return {
+                table: self._run(
+                    text(f'DELETE FROM pgmq."{table}" WHERE {" AND ".join(conditions)}'),  # noqa: S608
+                    params,
+                    connection,
+                )
+                for table in tables
+            }
 
     @contextmanager
     def _connection(self, conn: Connection | None) -> Iterator[Connection]:

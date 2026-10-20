@@ -17,6 +17,8 @@
 """A state backend that records a message's status inside the pgmq message itself."""
 
 import json
+from collections.abc import Collection
+from datetime import datetime
 from typing import ClassVar, Final, override
 
 from ...broker import Broker
@@ -146,3 +148,41 @@ class PostgresBackend(StateBackend):
                 state.delivery_id,
                 state.queue_name,
             )
+
+    def purge(
+        self,
+        queue_name: str,
+        *,
+        include_active: bool = False,
+        statuses: Collection[StateStatusesEnum] | None = None,
+        enqueued_after: datetime | None = None,
+        enqueued_before: datetime | None = None,
+    ) -> dict[str, int]:
+        """Delete the archived messages of a queue, and its enqueued ones too when ``include_active``.
+
+        Filters combine with AND: ``enqueued_at`` in ``[enqueued_after, enqueued_before)``,
+        and a recorded status in ``statuses`` -- a row with no recorded status never
+        matches a status filter. Deleting enqueued messages drops in-flight ones too:
+        their ack then archives nothing, so they leave no trace.
+
+        Returns:
+          dict[str, int]: The number of deleted rows, by pgmq table name.
+
+        Raises:
+          ValueError: If ``queue_name`` cannot be used as a SQL identifier, if
+            ``enqueued_after`` is later than ``enqueued_before``, or if ``statuses``
+            holds a status this backend never writes, which would match nothing.
+        """
+        if enqueued_after is not None and enqueued_before is not None and enqueued_after > enqueued_before:
+            raise ValueError(f"enqueued_after ({enqueued_after}) is later than enqueued_before ({enqueued_before}).")
+        if statuses is not None and not TERMINAL_STATUSES.issuperset(statuses):
+            unwritten = sorted(status.value for status in set(statuses) - TERMINAL_STATUSES)
+            raise ValueError(f"PostgresBackend never records {', '.join(unwritten)}, so no message can match them.")
+
+        return self.broker.client.delete_messages(
+            queue_name,
+            include_active=include_active,
+            statuses=None if statuses is None else [status.value for status in statuses],
+            enqueued_after=enqueued_after,
+            enqueued_before=enqueued_before,
+        )

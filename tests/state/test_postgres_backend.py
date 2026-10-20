@@ -7,6 +7,7 @@ directly.
 """
 
 import re
+from datetime import UTC, datetime
 
 import pytest
 from sqlalchemy import event, text
@@ -343,3 +344,88 @@ class TestConfiguration:
         # tables, so the base class's NotImplementedError is the answer.
         with pytest.raises(NotImplementedError, match=f"PostgresBackend does not implement {method}"):
             getattr(postgres_state_backend, method)(*args)
+
+
+def _send(broker, *, status=None, enqueued_at=None, archive=True, queue_name="default"):
+    """Write one pgmq row by hand: enqueued, or archived with ``status`` recorded on it."""
+    msg_id = broker.client.send(queue_name, {}, headers={"status": status} if status else None)
+    if enqueued_at is not None:
+        with broker.client.engine.begin() as connection:
+            connection.execute(
+                text(f'UPDATE pgmq."q_{queue_name}" SET enqueued_at = :enqueued_at WHERE msg_id = :msg_id'),  # noqa: S608
+                {"enqueued_at": enqueued_at, "msg_id": msg_id},
+            )
+    if archive:
+        broker.client.archive(queue_name, msg_id)
+    return msg_id
+
+
+def _msg_ids(broker, table):
+    with broker.client.engine.begin() as connection:
+        return [row.msg_id for row in connection.execute(text(f'SELECT msg_id FROM pgmq."{table}" ORDER BY msg_id'))]  # noqa: S608
+
+
+@pytest.mark.usefixtures("postgres_broker")
+class TestPurge:
+    @pytest.fixture(autouse=True)
+    def _declare_queue(self, postgres_broker):
+        postgres_broker.declare_queue("default")
+
+    def test_only_archives_by_default(self, postgres_broker, postgres_state_backend):
+        _send(postgres_broker, status="Success")
+        _send(postgres_broker, status="Failure")
+        active = _send(postgres_broker, archive=False)
+
+        assert postgres_state_backend.purge("default") == {"a_default": 2}
+        assert _msg_ids(postgres_broker, "a_default") == []
+        assert _msg_ids(postgres_broker, "q_default") == [active]
+
+    def test_include_active_also_empties_the_queue(self, postgres_broker, postgres_state_backend):
+        _send(postgres_broker, status="Success")
+        _send(postgres_broker, archive=False)
+        _send(postgres_broker, archive=False)
+
+        assert postgres_state_backend.purge("default", include_active=True) == {"a_default": 1, "q_default": 2}
+        assert _msg_ids(postgres_broker, "a_default") == []
+        assert _msg_ids(postgres_broker, "q_default") == []
+
+    def test_status_filter_keeps_other_statuses_and_unrecorded_ones(self, postgres_broker, postgres_state_backend):
+        _send(postgres_broker, status="Success")
+        failure = _send(postgres_broker, status="Failure")
+        unrecorded = _send(postgres_broker)
+
+        assert postgres_state_backend.purge("default", statuses=[StateStatusesEnum.Success]) == {"a_default": 1}
+        assert _msg_ids(postgres_broker, "a_default") == [failure, unrecorded]
+
+    def test_enqueued_at_range_is_half_open(self, postgres_broker, postgres_state_backend):
+        before = _send(postgres_broker, enqueued_at=datetime(2026, 1, 1, tzinfo=UTC))
+        _send(postgres_broker, enqueued_at=datetime(2026, 2, 1, tzinfo=UTC))
+        at_upper_bound = _send(postgres_broker, enqueued_at=datetime(2026, 3, 1, tzinfo=UTC))
+
+        deleted = postgres_state_backend.purge(
+            "default",
+            enqueued_after=datetime(2026, 2, 1, tzinfo=UTC),
+            enqueued_before=datetime(2026, 3, 1, tzinfo=UTC),
+        )
+
+        assert deleted == {"a_default": 1}
+        assert _msg_ids(postgres_broker, "a_default") == [before, at_upper_bound]
+
+    @pytest.mark.parametrize(
+        ("kwargs", "match"),
+        [
+            ({"queue_name": "bad name"}, "not a usable queue name"),
+            (
+                {
+                    "queue_name": "default",
+                    "enqueued_after": datetime(2026, 2, 1, tzinfo=UTC),
+                    "enqueued_before": datetime(2026, 1, 1, tzinfo=UTC),
+                },
+                "is later than",
+            ),
+            ({"queue_name": "default", "statuses": [StateStatusesEnum.Pending]}, "never records Pending"),
+        ],
+    )
+    def test_rejects_invalid_arguments(self, postgres_state_backend, kwargs, match):
+        with pytest.raises(ValueError, match=match):
+            postgres_state_backend.purge(**kwargs)

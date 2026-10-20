@@ -5,6 +5,13 @@ Changelog
 
 All notable changes to this project will be documented in this file.
 
+`7.2.0`_ -- 2026-10-20
+----------------------
+Feat
+^^^^
+* ``PostgresBackend.purge`` deletes a queue's archived messages, and optionally its enqueued ones, filtered by
+  ``enqueued_at`` range and by recorded status (e.g. only the ``Success`` archives).
+
 `7.1.3`_ -- 2026-09-25
 ----------------------
 Fix
