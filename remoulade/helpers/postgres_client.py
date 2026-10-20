@@ -157,6 +157,66 @@ class RemouladePostgresClient(SQLAlchemyPGMQueue):
                     break
         return deleted_count_by_table
 
+    def find_last_attempts(
+        self,
+        queue: str,
+        *,
+        status: str,
+        start: datetime | None = None,
+        end: datetime | None = None,
+        actor_name: str | None = None,
+        message_ids: list[str] | None = None,
+    ) -> list[tuple[int, dict[str, Any]]]:
+        """Find the messages whose last archived attempt ended with ``status`` and that nothing will run again.
+
+        A retry re-enqueues the same ``message_id`` as a new row, so only the archived row
+        with the highest ``msg_id`` per ``message_id`` counts, and a message with an attempt
+        still in the queue is left out. So is any message of a pipeline or a group (it has a
+        ``composition_id``): running it again would run, or count, part of a composition
+        that already ended. Filters apply to that last attempt
+        and are skipped when None: ``archived_at`` in ``[start, end)``, ``actor_name``,
+        ``message_id`` in ``message_ids``.
+
+        Reads the whole archive, which has no ``message_id`` index; a plain read never
+        blocks the workers.
+
+        Returns:
+          list[tuple[int, dict[str, Any]]]: ``(archived msg_id, message payload)``, by ``msg_id``.
+
+        Raises:
+          ValueError: If ``queue`` cannot be used as a SQL identifier.
+        """
+        assert_valid_queue_name(queue)
+        conditions = [
+            "headers->>'status' = :status",
+            "message->'options'->'composition_id' IS NULL",
+            f"""NOT EXISTS (
+                SELECT 1 FROM pgmq."q_{queue}" AS active
+                WHERE active.message->>'message_id' = last_attempt.message->>'message_id'
+            )""",  # noqa: S608
+        ]
+        if start is not None:
+            conditions.append("archived_at >= :start")
+        if end is not None:
+            conditions.append("archived_at < :end")
+        if actor_name is not None:
+            conditions.append("message->>'actor_name' = :actor_name")
+        if message_ids is not None:
+            conditions.append("message->>'message_id' = ANY(:message_ids)")
+        statement = text(f"""
+            WITH last_attempt AS (
+                SELECT DISTINCT ON (message->>'message_id') msg_id, archived_at, message, headers
+                FROM pgmq."a_{queue}"
+                ORDER BY message->>'message_id', msg_id DESC
+            )
+            SELECT msg_id, message FROM last_attempt
+            WHERE {" AND ".join(conditions)}
+            ORDER BY msg_id
+        """)  # noqa: S608
+        params = {"status": status, "start": start, "end": end, "actor_name": actor_name, "message_ids": message_ids}
+        with self.engine.connect() as connection:
+            return [(row.msg_id, row.message) for row in connection.execute(statement, params)]
+
     @contextmanager
     def _connection(self, conn: Connection | None) -> Iterator[Connection]:
         """Yield the caller's connection, or open a transaction of our own."""
