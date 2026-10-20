@@ -101,42 +101,61 @@ class RemouladePostgresClient(SQLAlchemyPGMQueue):
         *,
         include_active: bool = False,
         statuses: list[str] | None = None,
-        enqueued_after: datetime | None = None,
-        enqueued_before: datetime | None = None,
-        conn: Connection | None = None,
+        start: datetime | None = None,
+        end: datetime | None = None,
+        batch_size: int = 10_000,
+        lock_timeout: str = "3s",
     ) -> dict[str, int]:
         """Delete the archived messages of a queue, and its enqueued ones too when ``include_active``.
 
-        Filters combine with AND and are skipped when None: ``enqueued_at`` in
-        ``[enqueued_after, enqueued_before)``, ``headers->>'status'`` in ``statuses``.
-        Every table is purged in a single transaction.
+        Filters combine with AND and are skipped when None: a timestamp in ``[start, end)``
+        -- ``archived_at`` on the archive, ``enqueued_at`` on the queue, each table's
+        indexed partition key -- and ``headers->>'status'`` in ``statuses``.
+
+        Deletes ``batch_size`` rows per transaction
 
         Returns:
           dict[str, int]: The number of deleted rows, by table name.
 
         Raises:
           ValueError: If ``queue`` cannot be used as a SQL identifier.
+          sqlalchemy.exc.OperationalError: If a batch waits on a lock past ``lock_timeout``,
+            e.g. while pg_partman maintenance drops a partition.
         """
         assert_valid_queue_name(queue)
-        conditions = ["TRUE"]
-        if enqueued_after is not None:
-            conditions.append("enqueued_at >= :enqueued_after")
-        if enqueued_before is not None:
-            conditions.append("enqueued_at < :enqueued_before")
-        if statuses is not None:
-            conditions.append("headers->>'status' = ANY(:statuses)")
-        params = {"enqueued_after": enqueued_after, "enqueued_before": enqueued_before, "statuses": statuses}
+        params = {"start": start, "end": end, "statuses": statuses, "batch_size": batch_size}
+        time_column_by_table = {f"a_{queue}": "archived_at"}
+        if include_active:
+            time_column_by_table[f"q_{queue}"] = "enqueued_at"
 
-        tables = [f"a_{queue}", f"q_{queue}"] if include_active else [f"a_{queue}"]
-        with self._connection(conn) as connection:
-            return {
-                table: self._run(
-                    text(f'DELETE FROM pgmq."{table}" WHERE {" AND ".join(conditions)}'),  # noqa: S608
-                    params,
-                    connection,
+        deleted_count_by_table = {}
+        for table, time_column in time_column_by_table.items():
+            conditions = ["TRUE"]
+            if start is not None:
+                conditions.append(f"{time_column} >= :start")
+            if end is not None:
+                conditions.append(f"{time_column} < :end")
+            if statuses is not None:
+                conditions.append("headers->>'status' = ANY(:statuses)")
+            statement = text(f"""
+                DELETE FROM pgmq."{table}" WHERE msg_id IN (
+                    SELECT msg_id FROM pgmq."{table}"
+                    WHERE {" AND ".join(conditions)}
+                    LIMIT :batch_size
+                    FOR UPDATE SKIP LOCKED
                 )
-                for table in tables
-            }
+            """)  # noqa: S608
+            deleted_count_by_table[table] = 0
+            while True:
+                with self.engine.begin() as connection:
+                    connection.execute(
+                        text("SELECT set_config('lock_timeout', :lock_timeout, true)"), {"lock_timeout": lock_timeout}
+                    )
+                    deleted_count = connection.execute(statement, params).rowcount
+                deleted_count_by_table[table] += deleted_count
+                if deleted_count < batch_size:
+                    break
+        return deleted_count_by_table
 
     @contextmanager
     def _connection(self, conn: Connection | None) -> Iterator[Connection]:

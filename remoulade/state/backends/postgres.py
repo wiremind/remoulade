@@ -155,26 +155,34 @@ class PostgresBackend(StateBackend):
         *,
         include_active: bool = False,
         statuses: Collection[StateStatusesEnum] | None = None,
-        enqueued_after: datetime | None = None,
-        enqueued_before: datetime | None = None,
+        start: datetime | None = None,
+        end: datetime | None = None,
+        batch_size: int = 10_000,
     ) -> dict[str, int]:
         """Delete the archived messages of a queue, and its enqueued ones too when ``include_active``.
 
-        Filters combine with AND: ``enqueued_at`` in ``[enqueued_after, enqueued_before)``,
-        and a recorded status in ``statuses`` -- a row with no recorded status never
-        matches a status filter. Deleting enqueued messages drops in-flight ones too:
-        their ack then archives nothing, so they leave no trace.
+        Filters combine with AND: a timestamp in ``[start, end)`` -- when the message was
+        archived for the archive, enqueued for the queue -- and a recorded status in
+        ``statuses``; a row with no recorded status never matches a status filter.
+        Deleting enqueued messages drops in-flight ones too: their ack then archives
+        nothing, so they leave no trace.
+
+        Runs in batches of ``batch_size`` rows, one transaction each; see
+        :meth:`~remoulade.helpers.postgres_client.RemouladePostgresClient.delete_messages`
+        for what that means under live workers.
 
         Returns:
           dict[str, int]: The number of deleted rows, by pgmq table name.
 
         Raises:
-          ValueError: If ``queue_name`` cannot be used as a SQL identifier, if
-            ``enqueued_after`` is later than ``enqueued_before``, or if ``statuses``
-            holds a status this backend never writes, which would match nothing.
+          ValueError: If ``queue_name`` cannot be used as a SQL identifier, if ``start``
+            is not earlier than ``end`` (an empty range), or if ``statuses`` holds a
+            status this backend never writes. Both would match nothing.
         """
-        if enqueued_after is not None and enqueued_before is not None and enqueued_after > enqueued_before:
-            raise ValueError(f"enqueued_after ({enqueued_after}) is later than enqueued_before ({enqueued_before}).")
+        if start is not None and end is not None and start >= end:
+            raise ValueError(
+                f"start ({start}) must be earlier than end ({end}): the range is half-open, so it would match nothing."
+            )
         if statuses is not None and not TERMINAL_STATUSES.issuperset(statuses):
             unwritten = sorted(status.value for status in set(statuses) - TERMINAL_STATUSES)
             raise ValueError(f"PostgresBackend never records {', '.join(unwritten)}, so no message can match them.")
@@ -183,6 +191,7 @@ class PostgresBackend(StateBackend):
             queue_name,
             include_active=include_active,
             statuses=None if statuses is None else [status.value for status in statuses],
-            enqueued_after=enqueued_after,
-            enqueued_before=enqueued_before,
+            start=start,
+            end=end,
+            batch_size=batch_size,
         )

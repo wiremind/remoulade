@@ -346,17 +346,22 @@ class TestConfiguration:
             getattr(postgres_state_backend, method)(*args)
 
 
-def _send(broker, *, status=None, enqueued_at=None, archive=True, queue_name="default"):
-    """Write one pgmq row by hand: enqueued, or archived with ``status`` recorded on it."""
+def _send(broker, *, status=None, at=None, archive=True, queue_name="default"):
+    """Write one pgmq row by hand: enqueued, or archived with ``status`` recorded on it.
+
+    ``at`` overrides the timestamp the purge filters on: ``archived_at`` for an
+    archived row, ``enqueued_at`` for an enqueued one.
+    """
     msg_id = broker.client.send(queue_name, {}, headers={"status": status} if status else None)
-    if enqueued_at is not None:
-        with broker.client.engine.begin() as connection:
-            connection.execute(
-                text(f'UPDATE pgmq."q_{queue_name}" SET enqueued_at = :enqueued_at WHERE msg_id = :msg_id'),  # noqa: S608
-                {"enqueued_at": enqueued_at, "msg_id": msg_id},
-            )
     if archive:
         broker.client.archive(queue_name, msg_id)
+    if at is not None:
+        table, column = (f"a_{queue_name}", "archived_at") if archive else (f"q_{queue_name}", "enqueued_at")
+        with broker.client.engine.begin() as connection:
+            connection.execute(
+                text(f'UPDATE pgmq."{table}" SET {column} = :at WHERE msg_id = :msg_id'),  # noqa: S608
+                {"at": at, "msg_id": msg_id},
+            )
     return msg_id
 
 
@@ -389,6 +394,16 @@ class TestPurge:
         assert _msg_ids(postgres_broker, "a_default") == []
         assert _msg_ids(postgres_broker, "q_default") == []
 
+    def test_leaves_other_queues_alone(self, postgres_broker, postgres_state_backend):
+        postgres_broker.declare_queue("other")
+        archived = _send(postgres_broker, queue_name="other")
+        active = _send(postgres_broker, archive=False, queue_name="other")
+
+        postgres_state_backend.purge("default", include_active=True)
+
+        assert _msg_ids(postgres_broker, "a_other") == [archived]
+        assert _msg_ids(postgres_broker, "q_other") == [active]
+
     def test_status_filter_keeps_other_statuses_and_unrecorded_ones(self, postgres_broker, postgres_state_backend):
         _send(postgres_broker, status="Success")
         failure = _send(postgres_broker, status="Failure")
@@ -397,19 +412,55 @@ class TestPurge:
         assert postgres_state_backend.purge("default", statuses=[StateStatusesEnum.Success]) == {"a_default": 1}
         assert _msg_ids(postgres_broker, "a_default") == [failure, unrecorded]
 
-    def test_enqueued_at_range_is_half_open(self, postgres_broker, postgres_state_backend):
-        before = _send(postgres_broker, enqueued_at=datetime(2026, 1, 1, tzinfo=UTC))
-        _send(postgres_broker, enqueued_at=datetime(2026, 2, 1, tzinfo=UTC))
-        at_upper_bound = _send(postgres_broker, enqueued_at=datetime(2026, 3, 1, tzinfo=UTC))
+    def test_archive_range_is_on_archived_at_and_half_open(self, postgres_broker, postgres_state_backend):
+        before = _send(postgres_broker, at=datetime(2026, 1, 1, tzinfo=UTC))
+        _send(postgres_broker, at=datetime(2026, 2, 1, tzinfo=UTC))
+        at_end = _send(postgres_broker, at=datetime(2026, 3, 1, tzinfo=UTC))
 
         deleted = postgres_state_backend.purge(
-            "default",
-            enqueued_after=datetime(2026, 2, 1, tzinfo=UTC),
-            enqueued_before=datetime(2026, 3, 1, tzinfo=UTC),
+            "default", start=datetime(2026, 2, 1, tzinfo=UTC), end=datetime(2026, 3, 1, tzinfo=UTC)
         )
 
         assert deleted == {"a_default": 1}
-        assert _msg_ids(postgres_broker, "a_default") == [before, at_upper_bound]
+        assert _msg_ids(postgres_broker, "a_default") == [before, at_end]
+
+    def test_queue_range_is_on_enqueued_at(self, postgres_broker, postgres_state_backend):
+        _send(postgres_broker, archive=False, at=datetime(2026, 2, 1, tzinfo=UTC))
+        outside = _send(postgres_broker, archive=False, at=datetime(2026, 3, 1, tzinfo=UTC))
+
+        deleted = postgres_state_backend.purge(
+            "default",
+            include_active=True,
+            start=datetime(2026, 2, 1, tzinfo=UTC),
+            end=datetime(2026, 3, 1, tzinfo=UTC),
+        )
+
+        assert deleted == {"a_default": 0, "q_default": 1}
+        assert _msg_ids(postgres_broker, "q_default") == [outside]
+
+    def test_deletes_across_several_batches(self, postgres_broker, postgres_state_backend):
+        for _ in range(5):
+            _send(postgres_broker, status="Success")
+        kept = _send(postgres_broker, status="Failure")
+
+        deleted = postgres_state_backend.purge("default", statuses=[StateStatusesEnum.Success], batch_size=2)
+
+        assert deleted == {"a_default": 5}
+        assert _msg_ids(postgres_broker, "a_default") == [kept]
+
+    def test_skips_rows_locked_by_a_worker(self, postgres_broker, postgres_state_backend):
+        """A row a worker holds is left for it rather than waited on."""
+        locked = _send(postgres_broker, archive=False)
+        _send(postgres_broker, archive=False)
+
+        with postgres_broker.client.engine.begin() as connection:
+            connection.execute(
+                text('SELECT 1 FROM pgmq."q_default" WHERE msg_id = :msg_id FOR UPDATE'), {"msg_id": locked}
+            )
+            deleted = postgres_state_backend.purge("default", include_active=True)
+
+        assert deleted == {"a_default": 0, "q_default": 1}
+        assert _msg_ids(postgres_broker, "q_default") == [locked]
 
     @pytest.mark.parametrize(
         ("kwargs", "match"),
@@ -418,10 +469,18 @@ class TestPurge:
             (
                 {
                     "queue_name": "default",
-                    "enqueued_after": datetime(2026, 2, 1, tzinfo=UTC),
-                    "enqueued_before": datetime(2026, 1, 1, tzinfo=UTC),
+                    "start": datetime(2026, 2, 1, tzinfo=UTC),
+                    "end": datetime(2026, 1, 1, tzinfo=UTC),
                 },
-                "is later than",
+                "must be earlier than",
+            ),
+            (
+                {
+                    "queue_name": "default",
+                    "start": datetime(2026, 1, 1, tzinfo=UTC),
+                    "end": datetime(2026, 1, 1, tzinfo=UTC),
+                },
+                "must be earlier than",
             ),
             ({"queue_name": "default", "statuses": [StateStatusesEnum.Pending]}, "never records Pending"),
         ],
