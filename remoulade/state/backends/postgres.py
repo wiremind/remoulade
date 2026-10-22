@@ -17,10 +17,13 @@
 """A state backend that records a message's status inside the pgmq message itself."""
 
 import json
-from typing import ClassVar, Final, override
+from collections.abc import Collection
+from datetime import datetime
+from typing import Any, ClassVar, Final, override
 
 from ...broker import Broker
 from ...encoder import Encoder
+from ...message import Message
 from ..backend import State, StateBackend, StateStatusesEnum
 
 #: The only statuses this backend writes. ``Pending`` and ``Started`` are already
@@ -34,6 +37,13 @@ TERMINAL_STATUSES: Final[frozenset[StateStatusesEnum]] = frozenset(
         StateStatusesEnum.Canceled,
     }
 )
+
+
+def _check_range(start: datetime | None, end: datetime | None) -> None:
+    if start is not None and end is not None and start >= end:
+        raise ValueError(
+            f"start ({start}) must be earlier than end ({end}): the range is half-open, so it would match nothing."
+        )
 
 
 class PostgresBackend(StateBackend):
@@ -146,3 +156,91 @@ class PostgresBackend(StateBackend):
                 state.delivery_id,
                 state.queue_name,
             )
+
+    def purge(
+        self,
+        queue_name: str,
+        *,
+        include_active: bool = False,
+        statuses: Collection[StateStatusesEnum] | None = None,
+        start: datetime | None = None,
+        end: datetime | None = None,
+        batch_size: int = 10_000,
+    ) -> dict[str, int]:
+        """Delete the archived messages of a queue, and its enqueued ones too when ``include_active``.
+
+        Filters combine with AND: a timestamp in ``[start, end)`` -- when the message was
+        archived for the archive, enqueued for the queue -- and a recorded status in
+        ``statuses``; a row with no recorded status never matches a status filter.
+        Deleting enqueued messages drops in-flight ones too: their ack then archives
+        nothing, so they leave no trace.
+
+        Runs in batches of ``batch_size`` rows, one transaction each; see
+        :meth:`~remoulade.helpers.postgres_client.RemouladePostgresClient.delete_messages`
+        for what that means under live workers.
+
+        Returns:
+          dict[str, int]: The number of deleted rows, by pgmq table name.
+
+        Raises:
+          ValueError: If ``queue_name`` cannot be used as a SQL identifier, if ``start``
+            is not earlier than ``end`` (an empty range), or if ``statuses`` holds a
+            status this backend never writes. Both would match nothing.
+        """
+        _check_range(start, end)
+        if statuses is not None and not TERMINAL_STATUSES.issuperset(statuses):
+            unwritten = sorted(status.value for status in set(statuses) - TERMINAL_STATUSES)
+            raise ValueError(f"PostgresBackend never records {', '.join(unwritten)}, so no message can match them.")
+
+        return self.broker.client.delete_messages(
+            queue_name,
+            include_active=include_active,
+            statuses=None if statuses is None else [status.value for status in statuses],
+            start=start,
+            end=end,
+            batch_size=batch_size,
+        )
+
+    def replay_failures(
+        self,
+        queue_name: str,
+        *,
+        start: datetime | None = None,
+        end: datetime | None = None,
+        actor_name: str | None = None,
+        message_ids: Collection[str] | None = None,
+        dry_run: bool = False,
+    ) -> dict[int, Message[Any]]:
+        """Enqueue again the messages of a queue whose last attempt failed.
+
+        A replay keeps its ``message_id`` and starts over with no retry used. Never replays
+        a message that already succeeded on a retry, one with an attempt still enqueued --
+        so replaying twice in a row enqueues once -- nor any message of a pipeline or a
+        group, whose composition already ended. Each message is replayed once, from its last
+        attempt; ``start``/``end`` bound when that attempt was archived.
+
+        Returns:
+          dict[int, Message]: The messages enqueued, or that would be with ``dry_run``, by the
+            archived ``msg_id`` of their last attempt.
+
+        Raises:
+          ValueError: If ``queue_name`` cannot be used as a SQL identifier, or if ``start``
+            is not earlier than ``end``.
+        """
+        _check_range(start, end)
+        last_attempts = self.broker.client.find_last_attempts(
+            queue_name,
+            status=StateStatusesEnum.Failure.value,
+            start=start,
+            end=end,
+            actor_name=actor_name,
+            message_ids=None if message_ids is None else list(message_ids),
+        )
+        messages_by_msg_id = {
+            msg_id: Message[Any].decode_json(payload).copy(queue_name=queue_name, options={"retries": 0})
+            for msg_id, payload in last_attempts
+        }
+        if not dry_run:
+            for message in messages_by_msg_id.values():
+                self.broker.enqueue(message)
+        return messages_by_msg_id

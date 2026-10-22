@@ -7,6 +7,7 @@ directly.
 """
 
 import re
+from datetime import UTC, datetime
 
 import pytest
 from sqlalchemy import event, text
@@ -343,3 +344,321 @@ class TestConfiguration:
         # tables, so the base class's NotImplementedError is the answer.
         with pytest.raises(NotImplementedError, match=f"PostgresBackend does not implement {method}"):
             getattr(postgres_state_backend, method)(*args)
+
+
+def _send(broker, *, status=None, at=None, archive=True, queue_name="default"):
+    """Write one pgmq row by hand: enqueued, or archived with ``status`` recorded on it.
+
+    ``at`` overrides the timestamp the purge filters on: ``archived_at`` for an
+    archived row, ``enqueued_at`` for an enqueued one.
+    """
+    msg_id = broker.client.send(queue_name, {}, headers={"status": status} if status else None)
+    if archive:
+        broker.client.archive(queue_name, msg_id)
+    if at is not None:
+        table, column = (f"a_{queue_name}", "archived_at") if archive else (f"q_{queue_name}", "enqueued_at")
+        with broker.client.engine.begin() as connection:
+            connection.execute(
+                text(f'UPDATE pgmq."{table}" SET {column} = :at WHERE msg_id = :msg_id'),  # noqa: S608
+                {"at": at, "msg_id": msg_id},
+            )
+    return msg_id
+
+
+def _msg_ids(broker, table):
+    with broker.client.engine.begin() as connection:
+        return [row.msg_id for row in connection.execute(text(f'SELECT msg_id FROM pgmq."{table}" ORDER BY msg_id'))]  # noqa: S608
+
+
+@pytest.mark.usefixtures("postgres_broker")
+class TestPurge:
+    @pytest.fixture(autouse=True)
+    def _declare_queue(self, postgres_broker):
+        postgres_broker.declare_queue("default")
+
+    def test_only_archives_by_default(self, postgres_broker, postgres_state_backend):
+        _send(postgres_broker, status="Success")
+        _send(postgres_broker, status="Failure")
+        active = _send(postgres_broker, archive=False)
+
+        assert postgres_state_backend.purge("default") == {"a_default": 2}
+        assert _msg_ids(postgres_broker, "a_default") == []
+        assert _msg_ids(postgres_broker, "q_default") == [active]
+
+    def test_include_active_also_empties_the_queue(self, postgres_broker, postgres_state_backend):
+        _send(postgres_broker, status="Success")
+        _send(postgres_broker, archive=False)
+        _send(postgres_broker, archive=False)
+
+        assert postgres_state_backend.purge("default", include_active=True) == {"a_default": 1, "q_default": 2}
+        assert _msg_ids(postgres_broker, "a_default") == []
+        assert _msg_ids(postgres_broker, "q_default") == []
+
+    def test_leaves_other_queues_alone(self, postgres_broker, postgres_state_backend):
+        postgres_broker.declare_queue("other")
+        archived = _send(postgres_broker, queue_name="other")
+        active = _send(postgres_broker, archive=False, queue_name="other")
+
+        postgres_state_backend.purge("default", include_active=True)
+
+        assert _msg_ids(postgres_broker, "a_other") == [archived]
+        assert _msg_ids(postgres_broker, "q_other") == [active]
+
+    def test_status_filter_keeps_other_statuses_and_unrecorded_ones(self, postgres_broker, postgres_state_backend):
+        _send(postgres_broker, status="Success")
+        failure = _send(postgres_broker, status="Failure")
+        unrecorded = _send(postgres_broker)
+
+        assert postgres_state_backend.purge("default", statuses=[StateStatusesEnum.Success]) == {"a_default": 1}
+        assert _msg_ids(postgres_broker, "a_default") == [failure, unrecorded]
+
+    def test_archive_range_is_on_archived_at_and_half_open(self, postgres_broker, postgres_state_backend):
+        before = _send(postgres_broker, at=datetime(2026, 1, 1, tzinfo=UTC))
+        _send(postgres_broker, at=datetime(2026, 2, 1, tzinfo=UTC))
+        at_end = _send(postgres_broker, at=datetime(2026, 3, 1, tzinfo=UTC))
+
+        deleted = postgres_state_backend.purge(
+            "default", start=datetime(2026, 2, 1, tzinfo=UTC), end=datetime(2026, 3, 1, tzinfo=UTC)
+        )
+
+        assert deleted == {"a_default": 1}
+        assert _msg_ids(postgres_broker, "a_default") == [before, at_end]
+
+    def test_queue_range_is_on_enqueued_at(self, postgres_broker, postgres_state_backend):
+        _send(postgres_broker, archive=False, at=datetime(2026, 2, 1, tzinfo=UTC))
+        outside = _send(postgres_broker, archive=False, at=datetime(2026, 3, 1, tzinfo=UTC))
+
+        deleted = postgres_state_backend.purge(
+            "default",
+            include_active=True,
+            start=datetime(2026, 2, 1, tzinfo=UTC),
+            end=datetime(2026, 3, 1, tzinfo=UTC),
+        )
+
+        assert deleted == {"a_default": 0, "q_default": 1}
+        assert _msg_ids(postgres_broker, "q_default") == [outside]
+
+    def test_deletes_across_several_batches(self, postgres_broker, postgres_state_backend):
+        for _ in range(5):
+            _send(postgres_broker, status="Success")
+        kept = _send(postgres_broker, status="Failure")
+
+        deleted = postgres_state_backend.purge("default", statuses=[StateStatusesEnum.Success], batch_size=2)
+
+        assert deleted == {"a_default": 5}
+        assert _msg_ids(postgres_broker, "a_default") == [kept]
+
+    def test_skips_rows_locked_by_a_worker(self, postgres_broker, postgres_state_backend):
+        """A row a worker holds is left for it rather than waited on."""
+        locked = _send(postgres_broker, archive=False)
+        _send(postgres_broker, archive=False)
+
+        with postgres_broker.client.engine.begin() as connection:
+            connection.execute(
+                text('SELECT 1 FROM pgmq."q_default" WHERE msg_id = :msg_id FOR UPDATE'), {"msg_id": locked}
+            )
+            deleted = postgres_state_backend.purge("default", include_active=True)
+
+        assert deleted == {"a_default": 0, "q_default": 1}
+        assert _msg_ids(postgres_broker, "q_default") == [locked]
+
+    @pytest.mark.parametrize(
+        ("kwargs", "match"),
+        [
+            ({"queue_name": "bad name"}, "not a usable queue name"),
+            (
+                {
+                    "queue_name": "default",
+                    "start": datetime(2026, 2, 1, tzinfo=UTC),
+                    "end": datetime(2026, 1, 1, tzinfo=UTC),
+                },
+                "must be earlier than",
+            ),
+            (
+                {
+                    "queue_name": "default",
+                    "start": datetime(2026, 1, 1, tzinfo=UTC),
+                    "end": datetime(2026, 1, 1, tzinfo=UTC),
+                },
+                "must be earlier than",
+            ),
+            ({"queue_name": "default", "statuses": [StateStatusesEnum.Pending]}, "never records Pending"),
+        ],
+    )
+    def test_rejects_invalid_arguments(self, postgres_state_backend, kwargs, match):
+        with pytest.raises(ValueError, match=match):
+            postgres_state_backend.purge(**kwargs)
+
+
+def _archived_attempts(broker, queue_name="default"):
+    """``(msg_id, message_id, status)`` of every archived attempt, by ``msg_id``."""
+    return [
+        (row.msg_id, row.message_id, (row.headers or {}).get("status")) for row in _archived_rows(broker, queue_name)
+    ]
+
+
+def _enqueued_payloads(broker, queue_name="default"):
+    with broker.client.engine.begin() as connection:
+        return list(
+            connection.execute(
+                text(f'SELECT message FROM pgmq."q_{queue_name}" ORDER BY msg_id')  # noqa: S608
+            ).scalars()
+        )
+
+
+@pytest.mark.usefixtures("postgres_broker")
+class TestReplayFailures:
+    @pytest.fixture(autouse=True)
+    def _track_states(self, postgres_broker, postgres_state_backend):
+        _attach_state_middleware(postgres_broker, postgres_state_backend)
+
+    @pytest.fixture
+    def actors(self, postgres_broker):
+        """``boom`` fails until ``fixed`` is set, ``ok`` always succeeds."""
+        fixed = []
+
+        @remoulade.actor(max_retries=0)
+        def boom(*args):
+            if not fixed:
+                raise RuntimeError("kaboom")
+
+        @remoulade.actor(max_retries=0)
+        def ok(*args):
+            return None
+
+        postgres_broker.declare_actor(boom)
+        postgres_broker.declare_actor(ok)
+        return boom, ok, fixed
+
+    def test_replays_a_final_failure_with_its_message_id_and_no_retry_used(
+        self, postgres_broker, postgres_state_backend, actors
+    ):
+        boom, _, _ = actors
+        message = boom.send("an-argument")
+        _drain(postgres_broker)
+        ((archived_msg_id, _, _),) = _archived_attempts(postgres_broker)
+
+        replayed = postgres_state_backend.replay_failures("default")
+
+        assert list(replayed) == [archived_msg_id]
+        (payload,) = _enqueued_payloads(postgres_broker)
+        assert payload["message_id"] == message.message_id
+        assert payload["args"] == ["an-argument"]
+        assert payload["options"]["retries"] == 0
+
+    def test_a_replay_runs_and_is_not_replayed_again(self, postgres_broker, postgres_state_backend, actors):
+        boom, _, fixed = actors
+        boom.send()
+        _drain(postgres_broker)
+
+        postgres_state_backend.replay_failures("default")
+        # Still enqueued: a second run must not enqueue it twice.
+        assert postgres_state_backend.replay_failures("default") == {}
+
+        fixed.append(True)
+        _drain(postgres_broker)
+        assert [status for _, _, status in _archived_attempts(postgres_broker)] == ["Failure", "Success"]
+        assert postgres_state_backend.replay_failures("default") == {}
+
+    def test_a_message_that_succeeded_on_a_retry_is_not_replayed(self, postgres_broker, postgres_state_backend):
+        attempts = []
+
+        @remoulade.actor(max_retries=3, min_backoff=50, max_backoff=50, jitter=False)
+        def flaky():
+            attempts.append(1)
+            if len(attempts) < 2:
+                raise RuntimeError("boom")
+
+        postgres_broker.declare_actor(flaky)
+        flaky.send()
+        _drain(postgres_broker)
+
+        assert [status for _, _, status in _archived_attempts(postgres_broker)] == ["Failure", "Success"]
+        assert postgres_state_backend.replay_failures("default") == {}
+
+    def test_filters_on_actor_message_ids_and_archived_at(self, postgres_broker, postgres_state_backend, actors):
+        boom, _, _ = actors
+
+        @remoulade.actor(max_retries=0)
+        def other_boom():
+            raise RuntimeError("kaboom")
+
+        postgres_broker.declare_actor(other_boom)
+        boom.send()
+        boom.send()
+        other_boom.send()
+        _drain(postgres_broker)
+        (first, _, _), (second, second_message_id, _), (other, _, _) = _archived_attempts(postgres_broker)
+        with postgres_broker.client.engine.begin() as connection:
+            connection.execute(
+                text('UPDATE pgmq."a_default" SET archived_at = :archived_at WHERE msg_id = :msg_id'),
+                {"archived_at": datetime(2026, 1, 1, tzinfo=UTC), "msg_id": first},
+            )
+
+        assert list(postgres_state_backend.replay_failures("default", actor_name="other_boom", dry_run=True)) == [other]
+        assert list(
+            postgres_state_backend.replay_failures("default", message_ids=[second_message_id], dry_run=True)
+        ) == [second]
+        assert list(
+            postgres_state_backend.replay_failures(
+                "default", start=datetime(2026, 1, 1, tzinfo=UTC), end=datetime(2026, 1, 2, tzinfo=UTC), dry_run=True
+            )
+        ) == [first]
+
+    def test_a_message_failed_on_every_retry_is_replayed_once(self, postgres_broker, postgres_state_backend):
+        @remoulade.actor(max_retries=1, min_backoff=50, max_backoff=50, jitter=False)
+        def always_fails():
+            raise RuntimeError("kaboom")
+
+        postgres_broker.declare_actor(always_fails)
+        message = always_fails.send()
+        _drain(postgres_broker)
+        attempts = _archived_attempts(postgres_broker)
+        assert [status for _, _, status in attempts] == ["Failure", "Failure"]
+
+        replayed = postgres_state_backend.replay_failures("default", message_ids=[message.message_id], dry_run=True)
+
+        assert list(replayed) == [attempts[-1][0]]
+
+    def test_dry_run_enqueues_nothing(self, postgres_broker, postgres_state_backend, actors):
+        boom, _, _ = actors
+        boom.send()
+        _drain(postgres_broker)
+
+        assert len(postgres_state_backend.replay_failures("default", dry_run=True)) == 1
+        assert _enqueued_payloads(postgres_broker) == []
+
+    def test_messages_of_a_composition_are_never_replayed(
+        self, postgres_broker, postgres_state_backend, actors, stub_result_backend
+    ):
+        from remoulade.results import Results
+
+        postgres_broker.add_middleware(Results(backend=stub_result_backend))
+        boom, ok, _ = actors
+        standalone = boom.send()
+        middle_of_pipeline = boom.message()
+        last_of_pipeline = boom.message()
+        member_of_simple_group = boom.message()
+        member_of_group_then_step = boom.message()
+        remoulade.pipeline((ok.message(), middle_of_pipeline, ok.message())).run()
+        remoulade.pipeline((ok.message(), last_of_pipeline)).run()
+        remoulade.group([member_of_simple_group]).run()
+        (remoulade.group([member_of_group_then_step, ok.message()]) | ok.message()).run()
+        _drain(postgres_broker)
+
+        replayed = postgres_state_backend.replay_failures("default", dry_run=True)
+
+        failed_message_ids = {
+            message_id for _, message_id, status in _archived_attempts(postgres_broker) if status == "Failure"
+        }
+        composition_message_ids = {
+            message.message_id
+            for message in (middle_of_pipeline, last_of_pipeline, member_of_simple_group, member_of_group_then_step)
+        }
+        assert composition_message_ids <= failed_message_ids
+        assert [message.message_id for message in replayed.values()] == [standalone.message_id]
+
+    def test_rejects_an_empty_range(self, postgres_state_backend):
+        moment = datetime(2026, 1, 1, tzinfo=UTC)
+        with pytest.raises(ValueError, match="must be earlier than"):
+            postgres_state_backend.replay_failures("default", start=moment, end=moment)

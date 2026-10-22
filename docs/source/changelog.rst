@@ -5,6 +5,16 @@ Changelog
 
 All notable changes to this project will be documented in this file.
 
+`7.2.0`_ -- 2026-10-20
+----------------------
+Feat
+^^^^
+* ``PostgresBackend.purge`` deletes a queue's archived messages, and optionally its enqueued ones, filtered by
+  archive (or enqueue) time range and by recorded status (e.g. only the ``Success`` archives). It deletes in
+  short batches that skip the rows workers hold, so it can run against live workers.
+* ``PostgresBackend.replay_failures`` enqueues again the messages whose last attempt failed, filtered by queue,
+  actor, archive time range and ``message_id``; messages of a pipeline or a group are never replayed.
+
 `7.1.3`_ -- 2026-09-25
 ----------------------
 Fix
