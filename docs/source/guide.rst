@@ -328,6 +328,21 @@ milliseconds)::
     message_id='7387dc76-8ebe-426e-aec1-db34c236563c',
     message_timestamp=1498560443548)
 
+A message can also carry its own ``delay`` option, set when it is built.
+This lets each message of a group start at its own time::
+
+  >>> group([
+  ...   count_words.message_with_options(args=("https://example.com",), delay=10000),
+  ...   count_words.message_with_options(args=("https://example.org",), delay=20000),
+  ... ]).run(delay=5000)
+
+The option adds up with the delay of the enqueue call, so these two
+messages run 15 and 25 seconds later.  The first enqueue consumes the
+option: a retry or the delay queue does not apply it a second time.
+Messages sharing the same total delay are still written in one batch, so
+rounding delays (to the second, for instance) keeps a large group fast.
+A zero delay enqueues the message directly.
+
 Keep in mind that *your message broker is not a database*.  Scheduled
 messages should represent a small subset of all your messages.
 
@@ -419,8 +434,9 @@ user allowed to create and delete tables::
   remoulade.set_broker(postgres_broker)
 
 PGMQ handles delayed messages natively, so ``send_with_options(delay=...)``
-does not create a worker-side delay queue or add an ``eta`` option to
-the message.
+and the ``delay`` option of a message do not create a worker-side delay
+queue or add an ``eta`` option to the message.  A group is written with
+one ``send_batch`` per queue and per distinct delay.
 
 Each queue is created as a **partitioned** PGMQ queue (through
 ``pgmq.create_partitioned``), which relies on the PostgreSQL ``pg_partman``
