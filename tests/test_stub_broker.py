@@ -1,10 +1,9 @@
 import time
-from unittest.mock import Mock
 
 import pytest
 
 import remoulade
-from remoulade import QueueJoinTimeout, QueueNotFound
+from remoulade import Message, QueueJoinTimeout, QueueNotFound
 
 
 def test_stub_broker_raises_queue_error_when_consuming_undeclared_queues(stub_broker):
@@ -20,7 +19,7 @@ def test_stub_broker_raises_queue_error_when_enqueueing_messages_on_undeclared_q
     # If I attempt to enqueue a message on a queue that wasn't declared
     # I expect a QueueNotFound error to be raised
     with pytest.raises(QueueNotFound):
-        stub_broker.enqueue(Mock(queue_name="idontexist"))
+        stub_broker.enqueue(Message(queue_name="idontexist", actor_name="do_work", args=(), kwargs={}, options={}))
 
 
 def test_stub_broker_raises_queue_error_when_joining_on_undeclared_queues(stub_broker):
