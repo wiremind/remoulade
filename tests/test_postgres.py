@@ -443,6 +443,29 @@ def test_postgres_broker_enqueue_many_sends_one_send_batch_per_queue():
     assert [payload["args"] for payload in calls_by_queue["other"]] == [(3,)]
 
 
+def test_postgres_broker_enqueue_many_sends_one_send_batch_per_message_delay():
+    broker = PostgresBroker(url=TEST_POSTGRES_URL, middleware=[])
+    broker.client = Mock()
+    broker.queues = {"default": None}
+
+    messages = [
+        Message(queue_name="default", actor_name="do_work", args=(1,), kwargs={}, options={"delay": 1000}),
+        Message(queue_name="default", actor_name="do_work", args=(2,), kwargs={}, options={}),
+        Message(queue_name="default", actor_name="do_work", args=(3,), kwargs={}, options={"delay": 1000}),
+    ]
+
+    broker.enqueue_many(messages)
+
+    # one send_batch per distinct delay, the delayed one with a visibility date, the other without
+    batches = [
+        ([payload["args"] for payload in call.args[1]], call.kwargs["delay"] is not None)
+        for call in broker.client.send_batch.call_args_list
+    ]
+    assert batches == [([(1,), (3,)], True), ([(2,)], False)]
+    payloads = [payload for call in broker.client.send_batch.call_args_list for payload in call.args[1]]
+    assert all("delay" not in payload["options"] for payload in payloads)
+
+
 def test_postgres_broker_enqueue_many_raises_for_unknown_queue():
     broker = PostgresBroker(url=TEST_POSTGRES_URL, middleware=[])
     broker.client = Mock()

@@ -133,7 +133,7 @@ class PydanticEncoder(Encoder):
 
     def __init__(self, fallback_encoder: Encoder | None = None):
         self.fallback_encoder = fallback_encoder
-        self.json_adapter = TypeAdapter(object)
+        self.json_adapter: TypeAdapter[object] = TypeAdapter(object)
 
     @override
     def encode_in_bytes(self, data: MessageData) -> bytes:

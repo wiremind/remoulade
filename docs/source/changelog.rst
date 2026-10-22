@@ -5,6 +5,23 @@ Changelog
 
 All notable changes to this project will be documented in this file.
 
+`7.2.0`_ -- 2026-10-22
+----------------------
+Feat
+^^^^
+* The ``delay`` option of a message, set with ``message_with_options(delay=...)``, is applied when the message is
+  enqueued by ``enqueue``, ``enqueue_many`` and so ``group.run()``. It used to be stored in the message options and
+  ignored. It adds up with the delay of the enqueue call (``group.run(delay=...)``, ``send_with_options(delay=...)``),
+  and the first enqueue consumes it, so a retry or the delay queue does not apply it a second time.
+* ``enqueue_many`` writes one ``_enqueue_many`` batch per total delay: a group without per-message delays still makes a
+  single backend write, and ``PostgresBroker`` sends one ``send_batch`` per distinct delay.
+
+Fix
+^^^
+* A zero delay no longer goes through the delay queue: ``send_with_options(delay=0)`` and a ``delay=0`` option enqueue
+  the message directly, without an ``eta``.
+* ``PydanticEncoder`` annotates its JSON type adapter, whose type mypy no longer infers with pydantic 2.14.
+
 `7.1.3`_ -- 2026-09-25
 ----------------------
 Fix
