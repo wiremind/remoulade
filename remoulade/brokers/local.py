@@ -86,17 +86,19 @@ class LocalBroker(Broker):
 
         Parameters:
           message(Message): The message to enqueue.
-          delay(int): The number of milliseconds to delay the message for.
+          delay(int): The number of milliseconds to delay the message for, added to its ``delay``
+            option.
 
         Returns:
           Message: Either the original message or a copy of it.
         """
 
-        message = self._apply_delay(message, delay)
-        self.emit_before("enqueue", message, delay)
-        self.emit_after("enqueue", message, delay)
+        message, total_delay = self._consume_delay_option(message, delay)
+        message = self._apply_delay(message, total_delay)
+        self.emit_before("enqueue", message, total_delay)
+        self.emit_after("enqueue", message, total_delay)
 
-        message = self._enqueue(message, delay=delay)
+        message = self._enqueue(message, delay=total_delay)
         return message
 
     @override

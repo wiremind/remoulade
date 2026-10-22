@@ -6,7 +6,7 @@ from unittest.mock import Mock, call
 import pytest
 
 import remoulade
-from remoulade import ActorNotFound, Message, QueueJoinTimeout, Worker
+from remoulade import ActorNotFound, Message, QueueJoinTimeout, Worker, group
 from remoulade.common import current_millis
 from remoulade.errors import MessageNotDelivered
 from remoulade.middleware import CurrentMessage
@@ -260,6 +260,33 @@ def test_rabbitmq_actors_can_delay_messages_independent_of_each_other(rabbitmq_b
 
     # I expect the latter message to have been run first
     assert results == [2, 1]
+
+
+def test_rabbitmq_group_delays_each_message_by_the_group_delay_plus_its_delay_option(rabbitmq_broker, rabbitmq_worker):
+    # Given that I have a database
+    start_time, records = current_millis(), []
+
+    # And an actor that records the value it ran with and when
+    @remoulade.actor
+    def record(value):
+        records.append((value, current_millis()))
+
+    # And this actor is declared
+    rabbitmq_broker.declare_actor(record)
+
+    # If I run a delayed group whose first message carries its own delay option
+    group([record.message_with_options(args=(1,), delay=1000), record.message(2)]).run(delay=500)
+
+    # Then join on the queue
+    rabbitmq_broker.join(record.queue_name, min_successes=20)
+    rabbitmq_worker.join()
+
+    # I expect each message to have run once, the one without option first
+    assert [value for value, _ in records] == [2, 1]
+    # And each message to have been delayed by the group delay plus its own delay option
+    run_time_by_value = dict(records)
+    assert run_time_by_value[2] - start_time >= 500
+    assert run_time_by_value[1] - start_time >= 1500
 
 
 def test_rabbitmq_actors_can_have_retry_limits(rabbitmq_broker, rabbitmq_worker):
