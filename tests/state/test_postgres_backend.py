@@ -15,6 +15,7 @@ import remoulade
 from remoulade import Worker
 from remoulade.brokers.stub import StubBroker
 from remoulade.errors import QueueNotFound
+from remoulade.helpers.pgmq_names import pgmq_table_name
 from remoulade.middleware import CurrentMessage, SkipMessage
 from remoulade.state import MessageState, State, StateStatusesEnum
 from remoulade.state.backends import PostgresBackend
@@ -39,7 +40,7 @@ def _archived_rows(broker, queue_name="default"):
         return connection.execute(
             text(
                 f"SELECT msg_id, read_ct, headers, archived_at, message->>'message_id' AS message_id "  # noqa: S608
-                f'FROM pgmq."a_{queue_name}" ORDER BY msg_id'
+                f'FROM pgmq."{pgmq_table_name(queue_name, "a")}" ORDER BY msg_id'
             )
         ).all()
 
@@ -145,6 +146,24 @@ class TestTerminalStates:
         assert row.headers["status"] == "Failure"
         # archived_at is the archive table's own DEFAULT now().
         assert row.archived_at is not None
+
+    def test_status_is_recorded_on_a_dotted_queue(self, postgres_broker, postgres_state_backend):
+        _attach_state_middleware(postgres_broker, postgres_state_backend)
+
+        @remoulade.actor(queue_name="etl.low")
+        def do_work():
+            return None
+
+        postgres_broker.declare_actor(do_work)
+        message = do_work.send()
+        recorder = _StatementRecorder(postgres_broker)
+        try:
+            _drain(postgres_broker, queue_name="etl.low")
+        finally:
+            recorder.stop()
+
+        assert _archived_status(postgres_broker, message.message_id, queue_name="etl.low") == "Success"
+        assert any('UPDATE pgmq."q_etl__low"' in statement for statement in recorder.writes)
 
     def test_success_is_recorded(self, postgres_broker, postgres_state_backend):
         _attach_state_middleware(postgres_broker, postgres_state_backend)
