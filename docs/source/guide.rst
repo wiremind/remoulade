@@ -448,6 +448,48 @@ table, which is partitioned the same way. Two broker parameters control this:
    PGMQ Docker image (``ghcr.io/pgmq/pg18-pgmq``) ships ``pg_partman`` and schedules this for you; on
    a self-managed or hosted PostgreSQL you must enable it yourself.
 
+Queue names
+~~~~~~~~~~~
+
+PGMQ stores a queue in tables named after it (``pgmq.q_<name>`` for its messages,
+``pgmq.a_<name>`` for its archive), and ``pg_partman`` refuses a table name holding a
+dot. ``PostgresBroker`` therefore maps every queue name to a *pgmq name* in which each
+dot becomes a double underscore: queue ``etl.low`` lives in ``pgmq.q_etl__low`` and
+``pgmq.a_etl__low``, is listed as ``etl__low`` by ``pgmq.list_queues()`` and
+``pgmq.metrics_all()``, and its consumers LISTEN on the ``pgmq.q_etl__low.INSERT``
+channel. A name without a dot is its own pgmq name, so existing queues keep their
+tables. Everything remoulade exposes (``Broker.queues``, ``Message.queue_name``, the
+middleware hooks and the Prometheus labels) keeps the queue name itself.
+
+.. warning::
+
+   Earlier remoulade versions cannot declare a dotted queue (``pg_partman`` rejects
+   its name), and they do not find one created under its pgmq name. Once a dotted
+   queue exists, downgrading remoulade stops the processes that declare it.
+
+To keep that mapping reversible, a queue name declared on a ``PostgresBroker`` must:
+
+* start with a letter or an underscore and hold only letters, digits, dashes, dots
+  and underscores, like any remoulade queue name;
+* hold no uppercase letter, since PGMQ lowercases the tables it creates (this also
+  rules out the ``.DQ``/``.XQ`` suffixes of the RabbitMQ delay and dead-letter queues);
+* contain neither ``__``, ``_.`` nor ``._``;
+* be at most 47 characters long once mapped, each dot counting as two characters.
+  47 is PGMQ's own limit, and it keeps the longest index name remoulade derives
+  (``q_<pgmq name>_msg_id_idx``) under PostgreSQL's 63-byte identifier limit.
+
+``remoulade.helpers.pgmq_names`` converts between the two names
+(``physical_queue_name`` and ``logical_queue_name``, e.g. to label PGMQ metrics with
+queue names), and ``pgmq_table_name`` names the table to query::
+
+  >>> from remoulade.helpers.pgmq_names import logical_queue_name, physical_queue_name, pgmq_table_name
+  >>> physical_queue_name("etl.low")
+  'etl__low'
+  >>> logical_queue_name("etl__low")
+  'etl.low'
+  >>> pgmq_table_name("etl.low"), pgmq_table_name("etl.low", "a")
+  ('q_etl__low', 'a_etl__low')
+
 
 Postgres State Backend
 ^^^^^^^^^^^^^^^^^^^^^^

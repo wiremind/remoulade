@@ -29,34 +29,12 @@ from typing import Any
 from pgmq import SQLAlchemyPGMQueue
 from sqlalchemy import Connection, text
 
-from ..actor import QUEUE_NAME_PATTERN
-
-#: pgmq's own limit on a queue name. It also keeps the longest identifier remoulade
-#: derives from one (``q_<queue>_msg_id_idx``) under PostgreSQL's 63-byte cap, past
-#: which PostgreSQL truncates -- and two long queue names would collide on one index.
-QUEUE_NAME_MAX_LENGTH = 47
-
-
-def assert_valid_queue_name(queue_name: str) -> None:
-    """Check that ``queue_name`` is safe to interpolate as a SQL identifier.
-
-    The character set is remoulade's own (:data:`~remoulade.actor.QUEUE_NAME_PATTERN`,
-    already enforced on every actor declaration), which holds nothing needing quotes
-    or escaping; only the length bound is specific to PostgreSQL.
-
-    Parameters:
-      queue_name(str): The name to check.
-
-    Raises:
-      ValueError: If the name does not match :data:`~remoulade.actor.QUEUE_NAME_PATTERN`
-        or is longer than :data:`QUEUE_NAME_MAX_LENGTH`.
-    """
-    if not QUEUE_NAME_PATTERN.fullmatch(queue_name) or len(queue_name) > QUEUE_NAME_MAX_LENGTH:
-        raise ValueError(
-            f"{queue_name!r} is not a usable queue name for a PostgresBroker: it becomes a SQL identifier, so it "
-            f"must start with a letter or an underscore, hold only letters, digits, dashes, dots and underscores, "
-            f"and be at most {QUEUE_NAME_MAX_LENGTH} characters long."
-        )
+from .pgmq_names import (
+    QUEUE_NAME_MAX_LENGTH as QUEUE_NAME_MAX_LENGTH,
+    assert_valid_pgmq_queue_name,
+    assert_valid_queue_name as assert_valid_queue_name,
+    pgmq_table_name,
+)
 
 
 class RemouladePostgresClient(SQLAlchemyPGMQueue):
@@ -72,27 +50,34 @@ class RemouladePostgresClient(SQLAlchemyPGMQueue):
 
         Partitioned by time, neither table has one from pgmq; the archive's serves
         :meth:`delete_messages`, whose batches look rows up by ``msg_id``.
+        ``queue_name`` is the pgmq name of the queue, see
+        :func:`~remoulade.helpers.pgmq_names.physical_queue_name`.
 
         Raises:
-          ValueError: If ``queue_name`` cannot be used as a SQL identifier.
+          ValueError: If ``queue_name`` is not the pgmq name of a usable queue name.
         """
-        assert_valid_queue_name(queue_name)
+        assert_valid_pgmq_queue_name(queue_name)
         with self._connection(conn) as connection:
-            for table in (f"q_{queue_name}", f"a_{queue_name}"):
+            for table in (pgmq_table_name(queue_name, "q"), pgmq_table_name(queue_name, "a")):
                 connection.execute(text(f'CREATE INDEX IF NOT EXISTS "{table}_msg_id_idx" ON pgmq."{table}" (msg_id)'))
 
     def patch_headers(self, queue: str, msg_id: int, patch: dict[str, Any], conn: Connection | None = None) -> bool:
         """Merge ``patch`` into an enqueued message's headers, key by key.
 
-        Only reaches a message still in ``pgmq.q_<queue>``; once archived, its
-        headers are out of reach. ``pgmq.archive`` carries them over.
+        ``queue`` is the pgmq name of the queue, see
+        :func:`~remoulade.helpers.pgmq_names.physical_queue_name`. Only reaches a
+        message still in ``pgmq.q_<queue>``; once archived, its headers are out of
+        reach. ``pgmq.archive`` carries them over.
 
         Returns:
           bool: Whether a row was patched.
+
+        Raises:
+          ValueError: If ``queue`` is not the pgmq name of a usable queue name.
         """
-        assert_valid_queue_name(queue)
+        assert_valid_pgmq_queue_name(queue)
         statement = text(f"""
-            UPDATE pgmq."q_{queue}"
+            UPDATE pgmq."{pgmq_table_name(queue)}"
             SET headers = coalesce(headers, '{{}}'::jsonb) || CAST(:patch AS jsonb)
             WHERE msg_id = :msg_id
         """)  # noqa: S608

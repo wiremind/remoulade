@@ -23,6 +23,7 @@ from typing import Any, ClassVar, Final, override
 
 from ...broker import Broker
 from ...encoder import Encoder
+from ...helpers.pgmq_names import physical_queue_name
 from ...message import Message
 from ..backend import State, StateBackend, StateStatusesEnum
 
@@ -143,7 +144,7 @@ class PostgresBackend(StateBackend):
             return
 
         patched = self.broker.client.patch_headers(
-            state.queue_name,
+            physical_queue_name(state.queue_name),
             state.delivery_id,
             patch,
         )
