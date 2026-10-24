@@ -5,6 +5,42 @@ Changelog
 
 All notable changes to this project will be documented in this file.
 
+Unreleased
+----------
+Feat
+^^^^
+* ``PostgresBroker`` accepts dotted queue names such as ``etl.low``. Each queue maps to a pgmq name in which every
+  dot becomes ``__`` (``pgmq.q_etl__low``), so declaring one no longer fails with ``pg_partman does not support
+  objects with periods in their names``. A name without a dot is its own pgmq name, so existing queues are
+  untouched, and ``Broker.queues``, the middleware hooks and the Prometheus labels keep the queue name.
+* Add ``remoulade.helpers.pgmq_names``: the mapping (``physical_queue_name``, ``logical_queue_name``,
+  ``pgmq_table_name``) and the queue name validators, importable without the ``postgres`` extra.
+  ``remoulade.helpers.postgres_client`` still re-exports ``assert_valid_queue_name`` and ``QUEUE_NAME_MAX_LENGTH``.
+* ``PydanticEncoder`` logs a warning naming the actor whenever it falls back to its ``fallback_encoder``, except when
+  decoding data that names no actor (e.g. a forgotten result). A validation error is reported by field location and
+  error type only, never with the input values.
+
+Fix
+^^^
+* ``CatchError`` no longer drops the ``on_failure`` message when the exception carries an argument the encoder cannot
+  serialize (e.g. a ``requests.ConnectionError`` wrapping a ``MaxRetryError``, under ``JSONEncoder``,
+  ``PydanticEncoder`` or ``PostgresBroker``). When that enqueue fails to encode, a warning names the encoding error
+  and the type of each such argument, and the enqueue is retried once with each such argument replaced by its
+  ``str``; JSON-serializable arguments are kept as they are. An enqueue that already worked, with ``PickleEncoder``
+  for instance, is unchanged.
+
+Breaking changes
+^^^^^^^^^^^^^^^^
+* ``PostgresBroker`` rejects a queue name containing ``__``, ``_.`` or ``._``, which would make the mapping
+  ambiguous, or any uppercase letter: PGMQ lowercases the tables it creates while remoulade quotes the name, so such
+  a queue never worked (this also rejects the ``.DQ``/``.XQ`` suffixes). The 47-character limit now applies to the
+  pgmq name, in which each dot counts as two characters.
+* ``RemouladePostgresClient.create_indexes`` and ``RemouladePostgresClient.patch_headers`` take the pgmq name of a
+  queue (``physical_queue_name(queue_name)``) and reject a dotted name.
+* Downgrading is no rollback once a dotted queue exists: an older remoulade looks ``etl.low`` up by that name, does
+  not find ``etl__low`` and fails to create it, so its ``PostgresBroker`` cannot declare the queue and the process
+  does not start. Dot-free queues are unaffected.
+
 `7.1.3`_ -- 2026-09-25
 ----------------------
 Fix
