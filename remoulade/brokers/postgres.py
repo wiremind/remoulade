@@ -32,7 +32,8 @@ from sqlalchemy import Connection, text
 
 from ..broker import Broker, Consumer, MessageProxy
 from ..errors import QueueJoinTimeout, QueueNotFound, UnsupportedMessageEncoding
-from ..helpers.postgres_client import RemouladePostgresClient, assert_valid_queue_name
+from ..helpers.pgmq_names import assert_valid_queue_name, physical_queue_name
+from ..helpers.postgres_client import RemouladePostgresClient
 from ..message import Message
 
 if TYPE_CHECKING:
@@ -223,27 +224,29 @@ class PostgresBroker(Broker):
         if queue_name in self.queues:
             return
         assert_valid_queue_name(queue_name)
+        pgmq_queue_name = physical_queue_name(queue_name)
         with self.tx():
             if self._current_connection is None:
                 raise ValueError("cannot be None we are inside a tx")
             self._current_connection.execute(
-                text("SELECT pg_advisory_xact_lock(hashtext(:k))"), {"k": f"remoulade.declare_queue.{queue_name}"}
+                text("SELECT pg_advisory_xact_lock(hashtext(:k))"),
+                {"k": f"remoulade.declare_queue.{pgmq_queue_name}"},
             )  # Concurrency issues if broker try to create the same queues
-            self.client.validate_queue_name(queue_name, conn=self._current_connection)
-            queue_exists = self._queue_exists(queue_name)
+            self.client.validate_queue_name(pgmq_queue_name, conn=self._current_connection)
+            queue_exists = self._queue_exists(pgmq_queue_name)
 
             if not queue_exists:
                 self.emit_before("declare_queue", queue_name)
                 self.client.create_partitioned_queue(
-                    queue_name,
+                    pgmq_queue_name,
                     partition_interval=self.archive_partition_interval,
                     retention_interval=self.archive_retention_interval,
                     conn=self._current_connection,
                 )
                 if self.enable_listen_notify:
-                    self._try_enable_notify(queue_name)
+                    self._try_enable_notify(pgmq_queue_name)
 
-            self.client.create_indexes(queue_name, self._current_connection)
+            self.client.create_indexes(pgmq_queue_name, self._current_connection)
 
         self.queues[queue_name] = None
 
@@ -280,7 +283,7 @@ class PostgresBroker(Broker):
         payload = self._encode_message(message)
         visible_at = datetime.now(UTC) + timedelta(milliseconds=delay) if delay is not None else None
         self.client.send(
-            message.queue_name,
+            physical_queue_name(message.queue_name),
             payload,
             conn=self._current_connection,
             delay=visible_at,
@@ -312,7 +315,7 @@ class PostgresBroker(Broker):
                 chunk = queue_messages[chunk_start : chunk_start + chunk_size]
                 payloads = [self._encode_message(message) for message in chunk]
                 self.client.send_batch(
-                    queue_name,
+                    physical_queue_name(queue_name),
                     payloads,
                     conn=self._current_connection,
                     delay=visible_at,
@@ -326,7 +329,7 @@ class PostgresBroker(Broker):
         if queue_name not in self.queues:
             raise QueueNotFound(queue_name)
 
-        self.client.purge(queue_name, conn=self._current_connection)
+        self.client.purge(physical_queue_name(queue_name), conn=self._current_connection)
 
     @override
     def flush_all(self) -> None:
@@ -336,7 +339,7 @@ class PostgresBroker(Broker):
 
     def _count_enqueued_messages(self, queue_name: str) -> int:
         """Count every message stored in the queue, on a connection of its own."""
-        return self.client.metrics(queue_name).queue_length
+        return self.client.metrics(physical_queue_name(queue_name)).queue_length
 
     @override
     def join(
@@ -429,7 +432,7 @@ class _PostgresListener:
 
     @staticmethod
     def _channel_for(queue_name: str) -> str:
-        return f"pgmq.q_{queue_name}.INSERT"
+        return f"pgmq.q_{physical_queue_name(queue_name).lower()}.INSERT"
 
     def register(self, queue_name: str, event: Event) -> None:
         """Register a consumer's wake event and ensure its channel is listened to."""
@@ -617,6 +620,7 @@ class _PostgresConsumer(Consumer):
         self.broker = broker
         self.client = broker.client
         self.queue_name = queue_name
+        self.pgmq_queue_name = physical_queue_name(queue_name)
         self.prefetch = prefetch
         self.timeout = timeout
         self.visibility_timeout_seconds = broker.visibility_timeout_seconds
@@ -655,7 +659,7 @@ class _PostgresConsumer(Consumer):
         """Read up to ``qty`` messages without polling."""
         return self._normalize_messages(
             self.client.read(
-                self.queue_name,
+                self.pgmq_queue_name,
                 vt=self.visibility_timeout_seconds,
                 qty=qty,
             )
@@ -671,7 +675,7 @@ class _PostgresConsumer(Consumer):
             return self._read_immediate(qty)
         return self._normalize_messages(
             self.client.read_with_poll(
-                self.queue_name,
+                self.pgmq_queue_name,
                 vt=self.visibility_timeout_seconds,
                 qty=qty,
                 max_poll_seconds=max((self.timeout + 999) // 1000, 1),
@@ -721,7 +725,7 @@ class _PostgresConsumer(Consumer):
             if not message_ids:
                 continue
             try:
-                self.client.set_vt(self.queue_name, message_ids, self.visibility_timeout_seconds)
+                self.client.set_vt(self.pgmq_queue_name, message_ids, self.visibility_timeout_seconds)
             except Exception as e:
                 self.broker.logger.warning(
                     "Failed to extend visibility timeout heartbeat for queue %s. Error: %s",
@@ -746,7 +750,7 @@ class _PostgresConsumer(Consumer):
         for message_id in message_ids:
             self._unregister_heartbeat_message_id(message_id)
         if len(message_ids) > 0:
-            self.client.set_vt(self.queue_name, message_ids, 0)
+            self.client.set_vt(self.pgmq_queue_name, message_ids, 0)
 
     def _archive_message(self, message: "MessageProxy") -> None:
         """Stop tracking a message and archive it, tolerating transient failures.
@@ -761,7 +765,7 @@ class _PostgresConsumer(Consumer):
             raise ValueError("It must be a PostgresMessage")
         self._unregister_heartbeat_message_id(message.delivery_id)
         try:
-            self.client.archive(self.queue_name, message.delivery_id)
+            self.client.archive(self.pgmq_queue_name, message.delivery_id)
         except Exception:
             self.broker.logger.error(
                 "Failed to archive message %s on queue %s; it will be redelivered after its visibility timeout.",
