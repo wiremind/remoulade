@@ -244,6 +244,7 @@ class PostgresBroker(Broker):
                     self._try_enable_notify(queue_name)
 
             self.client.create_indexes(queue_name, self._current_connection)
+            self.client.enable_infinite_time_partitions(queue_name, self._current_connection)
 
         self.queues[queue_name] = None
 
