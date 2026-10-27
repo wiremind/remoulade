@@ -93,7 +93,7 @@ class LocalBroker(Broker):
           Message: Either the original message or a copy of it.
         """
 
-        message, total_delay = self._consume_delay_option(message, delay)
+        message, total_delay = self._merge_delay_option(message, delay)
         message = self._apply_delay(message, total_delay)
         self.emit_before("enqueue", message, total_delay)
         self.emit_after("enqueue", message, total_delay)
