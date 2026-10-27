@@ -441,15 +441,12 @@ class Broker:
         """
         raise NotImplementedError
 
-    def _consume_delay_option(
+    def _merge_delay_option(
         self, message: "Message[Any]", enqueue_delay: int | None
     ) -> tuple["Message[Any]", int | None]:
         """Return a copy of the message without its ``delay`` option, and that option added to the enqueue delay."""
-        if message.options.get("delay") is None:
-            return message, enqueue_delay or None
-
         message = message.copy()
-        message_delay = message.options.pop("delay")
+        message_delay = message.options.pop("delay", None) or 0
         return message, ((enqueue_delay or 0) + message_delay) or None
 
     def enqueue(self, message: "Message[Any]", *, delay: int | None = None) -> "Message[Any]":  # pragma: no cover
@@ -464,7 +461,7 @@ class Broker:
           Message: Either the original message or a copy of it.
         """
 
-        message, total_delay = self._consume_delay_option(message, delay)
+        message, total_delay = self._merge_delay_option(message, delay)
         message = self._apply_delay(message, total_delay)
         self.emit_before("enqueue", message, total_delay)
 
@@ -502,7 +499,7 @@ class Broker:
         Returns:
           list[Message]: The enqueued messages, in the order they were given.
         """
-        messages_with_total_delay = [self._consume_delay_option(message, delay) for message in messages]
+        messages_with_total_delay = [self._merge_delay_option(message, delay) for message in messages]
         messages = [self._apply_delay(message, total_delay) for message, total_delay in messages_with_total_delay]
         total_delays = [total_delay for _, total_delay in messages_with_total_delay]
         emitted_before: list[tuple[Message[Any], int | None]] = []
