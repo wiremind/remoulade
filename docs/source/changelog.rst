@@ -5,7 +5,7 @@ Changelog
 
 All notable changes to this project will be documented in this file.
 
-`7.2.1`_ -- Unreleased
+`7.2.1`_ -- 2026-10-27
 ----------------------
 Changed
 ^^^^^^^
