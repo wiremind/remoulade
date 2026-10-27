@@ -25,7 +25,7 @@ redis = ["redis>=7.0.0"]
 server = ["flask~=2.3.3", "marshmallow>=3,<4", "flask-apispec"]
 postgres = ["sqlalchemy>=2.0,<3", "psycopg>=3.2", "pgmq[sqlalchemy]>=1.1.1,<2"]
 pydantic = ["pydantic>=2.12"]
-limits = ["limits~=5.3.0"]
+limits = ["limits>=5.8.0"]
 tracing = ["opentelemetry-api>=1.20"]
 
 dev = [
@@ -38,7 +38,7 @@ dev = [
   "pgmq[sqlalchemy]>=1.1.1",
   "psycopg>=3.2",
   "pydantic>=2.12",
-  "limits~=5.3.0",
+  "limits>=5.8.0",
   # Docs
   "alabaster",
   "sphinx==4.1.1",

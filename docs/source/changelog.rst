@@ -5,6 +5,13 @@ Changelog
 
 All notable changes to this project will be documented in this file.
 
+`7.2.1`_ -- Unreleased
+----------------------
+Changed
+^^^^^^^
+* The ``limits`` extra requires ``limits>=5.8.0`` instead of ``limits~=5.3.0``. The old pin held ``packaging``,
+  and through it ``virtualenv``, below the versions that fix the emSign CA certificate incident.
+
 `7.2.0`_ -- 2026-10-20
 ----------------------
 Feat
