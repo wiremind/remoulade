@@ -81,6 +81,23 @@ class RemouladePostgresClient(SQLAlchemyPGMQueue):
             for table in (f"q_{queue_name}", f"a_{queue_name}"):
                 connection.execute(text(f'CREATE INDEX IF NOT EXISTS "{table}_msg_id_idx" ON pgmq."{table}" (msg_id)'))
 
+    def enable_infinite_time_partitions(self, queue_name: str, conn: Connection | None = None) -> None:
+        """Make pg_partman premake the queue and archive partitions ahead of now(), not of their newest row.
+
+        Without it, an empty table never gets new partitions and messages end up in the default one.
+        Idempotent: also fixes queues created before remoulade set it.
+        """
+        with self._connection(conn) as connection:
+            partman_schema = connection.execute(text("SELECT pgmq._get_pg_partman_schema()")).scalar_one()
+            part_config = f"{connection.dialect.identifier_preparer.quote(partman_schema)}.part_config"
+            connection.execute(
+                text(
+                    f"UPDATE {part_config} SET infinite_time_partitions = true"  # noqa: S608
+                    " WHERE parent_table IN (:queue_table, :archive_table) AND NOT infinite_time_partitions"
+                ),
+                {"queue_table": f"pgmq.q_{queue_name}", "archive_table": f"pgmq.a_{queue_name}"},
+            )
+
     def patch_headers(self, queue: str, msg_id: int, patch: dict[str, Any], conn: Connection | None = None) -> bool:
         """Merge ``patch`` into an enqueued message's headers, key by key.
 

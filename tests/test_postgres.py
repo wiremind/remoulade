@@ -169,6 +169,7 @@ def test_postgres_broker_checks_queue_existence_on_its_transaction_connection():
     broker.client.create_partitioned_queue = Mock()
     broker.client.enable_notify = Mock()
     broker.client.create_indexes = Mock()
+    broker.client.enable_infinite_time_partitions = Mock()
     broker.client.list_queues = Mock(return_value=[])
 
     transaction_connection = Mock()
@@ -224,6 +225,7 @@ def test_postgres_broker_does_not_fail_when_enable_notify_raises(caplog):
     broker.client.enable_notify = Mock(side_effect=RuntimeError("notify unavailable"))
     broker._queue_exists = Mock(return_value=False)
     broker.client.create_indexes = Mock()
+    broker.client.enable_infinite_time_partitions = Mock()
 
     broker.declare_queue("default")
 
@@ -238,6 +240,7 @@ def test_postgres_broker_declare_queue_is_idempotent_when_queue_already_exists()
     broker.client.enable_notify = Mock()
     broker._queue_exists = Mock(return_value=True)
     broker.client.create_indexes = Mock()
+    broker.client.enable_infinite_time_partitions = Mock()
 
     broker.declare_queue("default")
 
@@ -261,6 +264,7 @@ def test_postgres_broker_poll_only_mode_opens_no_listener_and_skips_enable_notif
     broker.client.enable_notify = Mock()
     broker._queue_exists = Mock(return_value=False)
     broker.client.create_indexes = Mock()
+    broker.client.enable_infinite_time_partitions = Mock()
 
     broker.declare_queue("default")
 
@@ -851,6 +855,7 @@ def test_postgres_consumer_decodes_payload_with_global_encoder(pydantic_encoder)
     broker.client.enable_notify = Mock()
     broker._queue_exists = Mock(return_value=False)
     broker.client.create_indexes = Mock()
+    broker.client.enable_infinite_time_partitions = Mock()
     _install_listener(broker, available=False)
 
     @remoulade.actor(actor_name="typed.actor", queue_name="default")
@@ -954,6 +959,26 @@ def test_postgres_broker_declare_queue_creates_msg_id_index_on_all_partitions(po
 
     assert "q_default" in tables  # the partitioned parent
     assert len(tables) > 1  # propagated to at least one partition
+
+
+@pytest.mark.usefixtures("postgres_broker")
+def test_postgres_broker_declare_queue_enables_infinite_time_partitions(postgres_broker):
+    postgres_broker.declare_queue("default")
+    with postgres_broker.client.session() as session:
+        session.execute(text("UPDATE partman.part_config SET infinite_time_partitions = false"))
+        session.commit()
+    postgres_broker.queues.clear()  # a queue created before the flag existed, seen by a new worker
+
+    postgres_broker.declare_queue("default")
+
+    with postgres_broker.client.session() as session:
+        flags = session.execute(
+            text(
+                "SELECT parent_table, infinite_time_partitions FROM partman.part_config"
+                " WHERE parent_table IN ('pgmq.q_default', 'pgmq.a_default')"
+            )
+        ).all()
+    assert sorted(flags) == [("pgmq.a_default", True), ("pgmq.q_default", True)]
 
 
 @pytest.mark.usefixtures("postgres_broker")

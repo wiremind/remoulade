@@ -5,6 +5,16 @@ Changelog
 
 All notable changes to this project will be documented in this file.
 
+`7.2.1`_ -- 2026-10-27
+----------------------
+Fix
+^^^
+* ``PostgresBroker`` enables pg_partman's ``infinite_time_partitions`` on the queue and archive tables it
+  declares, existing queues included. Without it, a table that stays empty gets no new partitions and its
+  messages pile up in the default partition. Before declaring an existing queue, make sure ``q_<queue>_default``
+  and ``a_<queue>_default`` hold no rows (move them with ``partman.partition_data_proc``): otherwise pg_partman
+  fails to create the missing partitions, and ``run_maintenance`` fails for every partitioned table.
+
 `7.2.0`_ -- 2026-10-20
 ----------------------
 Feat
