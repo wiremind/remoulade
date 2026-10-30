@@ -404,6 +404,21 @@ def test_fallback_on_bytes_encode_logs_a_warning_naming_the_actor(stub_broker, c
     assert "could not encode a message of actor opaque_actor, falling back to PickleEncoder" in caplog.text
 
 
+def test_failed_json_fallback_logs_nothing_and_raises(
+    stub_broker, stub_result_backend, message_data_encoded: bytes, caplog
+):
+    stub_broker.add_middleware(Results(backend=stub_result_backend))
+    stub_broker.declare_actor(my_actor_tuple)
+    encoder = PydanticEncoder(fallback_encoder=PickleEncoder())
+    message_json_decoded = json.loads(message_data_encoded.decode("utf-8"))
+    message_json_decoded["args"] = [{"toto": "a"}]
+
+    with caplog.at_level(logging.WARNING, logger="remoulade.encoder"), pytest.raises(TypeError, match="PickleEncoder"):
+        encoder.decode_json(message_json_decoded)
+
+    assert "falling back" not in caplog.text
+
+
 def test_no_fallback_logs_nothing_and_raises(encoder: PydanticEncoder, message_data_encoded: bytes, caplog):
     message_json_decoded = json.loads(message_data_encoded.decode("utf-8"))
     message_json_decoded["args"] = [{"toto": "a"}]
