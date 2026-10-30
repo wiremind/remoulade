@@ -69,6 +69,47 @@ Brokers
    :members:
    :inherited-members:
 
+Postgres Queue Names
+^^^^^^^^^^^^^^^^^^^^
+
+How ``PostgresBroker`` maps a queue name to the name of its PGMQ queue and tables
+(see the "Queue names" section of the user guide).
+
+.. autodata:: remoulade.helpers.pgmq_names.QUEUE_NAME_MAX_LENGTH
+
+   The longest pgmq name a queue may have: PGMQ's own limit, which also keeps the
+   longest index name remoulade derives (``q_<pgmq name>_msg_id_idx``) under
+   PostgreSQL's 63-byte identifier limit.
+
+.. autofunction:: remoulade.helpers.pgmq_names.physical_queue_name
+
+   Return the pgmq name of a queue, in which every dot becomes ``__``
+   (``etl.low`` -> ``etl__low``). A pgmq name is its own pgmq name.
+
+.. autofunction:: remoulade.helpers.pgmq_names.logical_queue_name
+
+   Return the queue name of a pgmq name, the inverse of ``physical_queue_name`` for
+   every valid queue name.
+
+.. autofunction:: remoulade.helpers.pgmq_names.pgmq_table_name
+
+   Return the name of the PGMQ table (in the ``pgmq`` schema) holding the messages
+   (``prefix="q"``) or the archive (``prefix="a"``) of a queue, given its queue name
+   or its pgmq name.
+
+.. autofunction:: remoulade.helpers.pgmq_names.assert_valid_queue_name
+
+   Raise ``ValueError`` unless a queue name can be declared on a ``PostgresBroker``:
+   it matches :data:`~remoulade.actor.QUEUE_NAME_PATTERN`, holds no uppercase letter,
+   contains neither ``__``, ``_.`` nor ``._``, and its pgmq name is at most
+   ``QUEUE_NAME_MAX_LENGTH`` characters long.
+
+.. autofunction:: remoulade.helpers.pgmq_names.assert_valid_pgmq_queue_name
+
+   Raise ``ValueError`` unless a name is the pgmq name of a valid queue name, which
+   is what ``RemouladePostgresClient.create_indexes``, ``patch_headers``,
+   ``delete_messages`` and ``find_last_attempts`` take.
+
 
 .. _Reference Middleware:
 

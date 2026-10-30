@@ -6,6 +6,7 @@ import time
 from unittest.mock import Mock, patch
 
 import pytest
+from psycopg import sql as psycopg_sql
 from pydantic import BaseModel
 from sqlalchemy import JSON, Column, Integer, MetaData, Table, func
 from sqlalchemy.sql import select, text
@@ -15,6 +16,8 @@ from remoulade import Message, QueueJoinTimeout, UnsupportedMessageEncoding, Wor
 from remoulade.brokers.postgres import PostgresBroker, _PostgresListener
 from remoulade.encoder import Encoder, MessageData
 from remoulade.errors import QueueNotFound
+from remoulade.helpers.pgmq_names import pgmq_table_name, physical_queue_name
+from remoulade.middleware import Middleware
 from remoulade.results import Results
 from remoulade.results.backends import StubBackend
 
@@ -22,14 +25,14 @@ TEST_POSTGRES_URL = os.getenv("REMOULADE_TEST_DB_URL") or "postgresql://remoulad
 
 
 def _count_messages(broker, queue_name="default"):
-    queue_table = Table(f"q_{queue_name}", MetaData(), Column("msg_id", Integer), schema="pgmq")
+    queue_table = Table(pgmq_table_name(queue_name), MetaData(), Column("msg_id", Integer), schema="pgmq")
     with broker.client.session() as session:
         return session.execute(select(func.count()).select_from(queue_table)).scalar_one()
 
 
 def _first_payload(broker, queue_name="default"):
     queue_table = Table(
-        f"q_{queue_name}",
+        pgmq_table_name(queue_name),
         MetaData(),
         Column("msg_id", Integer),
         Column("message", JSON),
@@ -41,7 +44,7 @@ def _first_payload(broker, queue_name="default"):
 
 
 def _count_archived_messages(broker, queue_name="default"):
-    archive_table = Table(f"a_{queue_name}", MetaData(), Column("msg_id", Integer), schema="pgmq")
+    archive_table = Table(pgmq_table_name(queue_name, "a"), MetaData(), Column("msg_id", Integer), schema="pgmq")
     with broker.client.session() as session:
         return session.execute(select(func.count()).select_from(archive_table)).scalar_one()
 
@@ -49,7 +52,7 @@ def _count_archived_messages(broker, queue_name="default"):
 def _queue_exists(broker, queue_name):
     with broker.client.session() as session:
         query = text("SELECT EXISTS(SELECT 1 FROM pgmq.list_queues() WHERE queue_name = :queue_name)")
-        return session.execute(query, {"queue_name": queue_name}).scalar_one()
+        return session.execute(query, {"queue_name": physical_queue_name(queue_name)}).scalar_one()
 
 
 def _expected_payload(message):
@@ -1307,3 +1310,302 @@ def test_listener_wakes_all_consumers_on_a_queue_and_unregister_spares_siblings(
     listener.unregister("default", second)
     assert channel not in listener._channel_to_queue
     assert "default" not in listener._events
+
+
+class _DeclareRecorder(Middleware):
+    def __init__(self):
+        self.declared = []
+
+    def before_declare_queue(self, broker, queue_name):
+        self.declared.append(("before", queue_name))
+
+    def after_declare_queue(self, broker, queue_name):
+        self.declared.append(("after", queue_name))
+
+
+class _RecordingListener(_FakeListener):
+    def __init__(self, available):
+        super().__init__(available)
+        self.calls = []
+
+    def register(self, queue_name, event):
+        self.calls.append(("register", queue_name))
+
+    def unregister(self, queue_name, event):
+        self.calls.append(("unregister", queue_name))
+
+
+def test_postgres_broker_declares_a_dotted_queue_under_its_pgmq_name():
+    recorder = _DeclareRecorder()
+    broker = PostgresBroker(url=TEST_POSTGRES_URL, middleware=[recorder])
+    broker.client.validate_queue_name = Mock()
+    broker.client.list_queues = Mock(return_value=[])
+    broker.client.create_partitioned_queue = Mock()
+    broker.client.enable_notify = Mock()
+    broker.client.create_indexes = Mock()
+    conn = Mock()
+    broker.client.engine.begin = Mock(return_value=_StubTransaction(conn))
+
+    broker.declare_queue("etl.low")
+
+    assert conn.execute.call_args.args[1] == {"k": "remoulade.declare_queue.etl__low"}
+    broker.client.validate_queue_name.assert_called_once_with("etl__low", conn=conn)
+    broker.client.list_queues.assert_called_once_with(conn=conn)
+    broker.client.create_partitioned_queue.assert_called_once_with(
+        "etl__low",
+        partition_interval="1 day",
+        retention_interval="7 days",
+        conn=conn,
+    )
+    broker.client.enable_notify.assert_called_once_with("etl__low", throttle_interval_ms=250, conn=conn)
+    broker.client.create_indexes.assert_called_once_with("etl__low", conn)
+    assert list(broker.queues) == ["etl.low"]
+    assert recorder.declared == [("before", "etl.low"), ("after", "etl.low")]
+
+
+def test_postgres_broker_finds_an_existing_dotted_queue_by_its_pgmq_name():
+    broker = PostgresBroker(url=TEST_POSTGRES_URL, middleware=[])
+    broker.client.validate_queue_name = Mock()
+    broker.client.list_queues = Mock(return_value=[Mock(queue_name="etl__low")])
+    broker.client.create_partitioned_queue = Mock()
+    broker.client.create_indexes = Mock()
+    broker.client.engine.begin = Mock(return_value=_StubTransaction(Mock()))
+
+    broker.declare_queue("etl.low")
+
+    broker.client.create_partitioned_queue.assert_not_called()
+    assert broker.client.create_indexes.call_args.args[0] == "etl__low"
+
+
+@pytest.mark.parametrize("queue_name", ["etl__low", "etl_.low", "Etl.low", "sales.DQ", "a." * 16 + "a"])
+def test_postgres_broker_refuses_to_declare_an_ambiguous_queue_name(queue_name):
+    broker = PostgresBroker(url=TEST_POSTGRES_URL, middleware=[])
+    broker.client.engine.begin = Mock()
+
+    with pytest.raises(ValueError, match="not a usable queue name"):
+        broker.declare_queue(queue_name)
+
+    broker.client.engine.begin.assert_not_called()
+    assert broker.queues == {}
+
+
+def test_postgres_broker_sends_flushes_and_counts_on_the_pgmq_name_of_a_dotted_queue():
+    broker = PostgresBroker(url=TEST_POSTGRES_URL, middleware=[])
+    broker.queues["etl.low"] = None
+    broker.client.send = Mock()
+    broker.client.send_batch = Mock()
+    broker.client.purge = Mock()
+    broker.client.metrics = Mock(return_value=Mock(queue_length=0))
+    first = Message(queue_name="etl.low", actor_name="do_work", args=(1,), kwargs={}, options={})
+    second = Message(queue_name="etl.low", actor_name="do_work", args=(2,), kwargs={}, options={})
+
+    broker.enqueue(first)
+    broker.enqueue_many([first, second])
+    broker.flush("etl.low")
+    broker.join("etl.low", min_successes=1, idle_time=0)
+
+    assert broker.client.send.call_args.args[0] == "etl__low"
+    assert broker.client.send_batch.call_args.args[0] == "etl__low"
+    assert len(broker.client.send_batch.call_args.args[1]) == 2
+    broker.client.purge.assert_called_once_with("etl__low", conn=None)
+    broker.client.metrics.assert_called_once_with("etl__low")
+
+
+@pytest.mark.parametrize("listener_available", [True, False])
+def test_postgres_consumer_reads_and_acks_on_the_pgmq_name_of_a_dotted_queue(listener_available):
+    broker = PostgresBroker(
+        url=TEST_POSTGRES_URL,
+        middleware=[],
+        visibility_timeout_ms=2_000,
+        heartbeat_interval_ms=50,
+    )
+    broker.queues["etl.low"] = None
+    listener = _RecordingListener(available=listener_available)
+    broker._listener = listener
+
+    first = Message(queue_name="etl.low", actor_name="do_work", args=(1,), kwargs={}, options={})
+    second = Message(queue_name="etl.low", actor_name="do_work", args=(2,), kwargs={}, options={})
+    rows = [Mock(msg_id=1, message=_expected_payload(first)), Mock(msg_id=2, message=_expected_payload(second))]
+    broker.client.read = Mock(return_value=rows)
+    broker.client.read_with_poll = Mock(return_value=rows)
+    broker.client.set_vt = Mock()
+    broker.client.archive = Mock()
+
+    consumer = broker.consume("etl.low", prefetch=2, timeout=200)
+    consumed = next(consumer)
+    deadline = time.monotonic() + 1.0
+    while broker.client.set_vt.call_count == 0 and time.monotonic() < deadline:
+        time.sleep(0.01)
+    consumer.ack(consumed)
+    consumer.close()
+
+    reader = broker.client.read if listener_available else broker.client.read_with_poll
+    assert reader.call_args.args[0] == "etl__low"
+    assert broker.client.set_vt.call_count >= 2
+    assert {call.args[0] for call in broker.client.set_vt.call_args_list} == {"etl__low"}
+    broker.client.set_vt.assert_called_with("etl__low", [2], 0)
+    broker.client.archive.assert_called_once_with("etl__low", 1)
+    assert listener.calls == [("register", "etl.low"), ("unregister", "etl.low")]
+    assert consumer.queue_name == "etl.low"
+
+
+def test_listener_listens_on_the_lowercase_pgmq_channel_of_a_dotted_queue():
+    listener = _PostgresListener("postgresql://localhost/test", logging.getLogger("test"))
+    listener._started = True
+    event = threading.Event()
+
+    listener.register("etl.low", event)
+    connection = _FakeConnection()
+    listener._connection = connection
+    listener._drain_pending_listen()
+    listener._wake_channel("pgmq.q_etl__low.INSERT")
+
+    assert listener._channel_for("etl.low") == "pgmq.q_etl__low.INSERT"
+    assert listener._channel_to_queue == {"pgmq.q_etl__low.INSERT": "etl.low"}
+    assert set(listener._events) == {"etl.low"}
+    assert connection.listened == [
+        psycopg_sql.SQL("LISTEN {}").format(psycopg_sql.Identifier("pgmq.q_etl__low.INSERT")),
+    ]
+    assert event.is_set()
+
+
+@pytest.mark.usefixtures("postgres_broker")
+def test_postgres_broker_creates_a_dotted_queue_under_its_pgmq_name(postgres_broker):
+    postgres_broker.declare_queue("etl.low")
+
+    queue_names = {queue.queue_name for queue in postgres_broker.client.list_queues()}
+    with postgres_broker.client.session() as session:
+        parent_tables = set(
+            session.execute(
+                text("SELECT parent_table FROM partman.part_config WHERE parent_table LIKE 'pgmq.%etl%'")
+            ).scalars()
+        )
+        index_names = set(
+            session.execute(
+                text(
+                    "SELECT indexname FROM pg_indexes "
+                    "WHERE schemaname = 'pgmq' AND tablename IN ('q_etl__low', 'a_etl__low')"
+                )
+            ).scalars()
+        )
+
+    assert "etl.low" in postgres_broker.queues
+    assert "etl__low" in queue_names
+    assert "etl.low" not in queue_names
+    assert _queue_exists(postgres_broker, "etl.low")
+    assert parent_tables == {"pgmq.q_etl__low", "pgmq.a_etl__low"}
+    assert {"q_etl__low_msg_id_idx", "a_etl__low_msg_id_idx"} <= index_names
+
+    postgres_broker.queues.pop("etl.low")
+    postgres_broker.declare_queue("etl.low")
+    assert {queue.queue_name for queue in postgres_broker.client.list_queues()} == queue_names
+
+
+@pytest.mark.usefixtures("postgres_broker")
+def test_postgres_consumer_consumes_requeues_and_archives_on_a_dotted_queue(postgres_broker):
+    message = Message(queue_name="etl.low", actor_name="do_work", args=(1,), kwargs={}, options={})
+    postgres_broker.declare_queue("etl.low")
+    postgres_broker.enqueue(message)
+
+    assert _count_messages(postgres_broker, "etl.low") == 1
+    assert _first_payload(postgres_broker, "etl.low") == _expected_payload(message)
+    assert postgres_broker._count_enqueued_messages("etl.low") == 1
+
+    consumer = postgres_broker.consume("etl.low", prefetch=1, timeout=200)
+    try:
+        consumed = next(consumer)
+        assert consumed is not None
+        consumer.requeue([consumed])
+        replayed = next(consumer)
+        assert replayed is not None
+        assert replayed.message_id == message.message_id
+        consumer.ack(replayed)
+    finally:
+        consumer.close()
+
+    assert _count_messages(postgres_broker, "etl.low") == 0
+    assert _count_archived_messages(postgres_broker, "etl.low") == 1
+
+
+@pytest.mark.usefixtures("postgres_broker")
+def test_postgres_broker_joins_and_flushes_a_dotted_queue(postgres_broker):
+    postgres_broker.declare_queue("etl.low")
+    postgres_broker.enqueue_many(
+        [Message(queue_name="etl.low", actor_name="do_work", args=(i,), kwargs={}, options={}) for i in range(3)]
+    )
+
+    assert _count_messages(postgres_broker, "etl.low") == 3
+    with pytest.raises(QueueJoinTimeout):
+        postgres_broker.join("etl.low", min_successes=1, idle_time=10, timeout=100)
+
+    postgres_broker.flush("etl.low")
+
+    assert _count_messages(postgres_broker, "etl.low") == 0
+    postgres_broker.join("etl.low", min_successes=1, idle_time=10, timeout=1_000)
+
+
+@pytest.mark.usefixtures("postgres_broker")
+@pytest.mark.parametrize("queue_name", ["etl.low", "default"])
+def test_postgres_consumer_is_woken_on_the_pgmq_channel_of_its_queue(postgres_broker, queue_name):
+    message = Message(queue_name=queue_name, actor_name="do_work", args=(99,), kwargs={}, options={})
+    postgres_broker.declare_queue(queue_name)
+    consumer = postgres_broker.consume(queue_name, prefetch=1, timeout=20_000)
+    assert consumer._listener_available
+
+    consumed_messages = []
+    thread = threading.Thread(target=lambda: consumed_messages.append(next(consumer)))
+    thread.start()
+    try:
+        time.sleep(0.3)
+        started = time.monotonic()
+        postgres_broker.enqueue(message)
+        with postgres_broker.client.engine.begin() as connection:
+            connection.execute(
+                text("SELECT pg_notify('pgmq.' || pgmq.format_table_name(:queue, 'q') || '.INSERT', NULL)"),
+                {"queue": physical_queue_name(queue_name)},
+            )
+        thread.join(timeout=5)
+        elapsed = time.monotonic() - started
+
+        assert not thread.is_alive()
+        assert elapsed < 5
+        assert consumed_messages[0] is not None
+        assert consumed_messages[0].message_id == message.message_id
+        consumer.ack(consumed_messages[0])
+    finally:
+        consumer.close()
+        thread.join(timeout=5)
+
+
+@pytest.mark.usefixtures("postgres_broker")
+def test_postgres_metrics_name_a_dotted_queue_by_its_pgmq_name(postgres_broker):
+    postgres_broker.declare_queue("etl.low")
+    postgres_broker.enqueue(Message(queue_name="etl.low", actor_name="do_work", args=(), kwargs={}, options={}))
+
+    metrics = {metric.queue_name: metric for metric in postgres_broker.client.metrics_all()}
+
+    assert "etl__low" in metrics
+    assert metrics["etl__low"].queue_length == 1
+    assert postgres_broker.client.metrics("etl__low").queue_length == 1
+
+
+@pytest.mark.usefixtures("postgres_broker")
+def test_postgres_worker_processes_an_actor_on_a_dotted_queue(postgres_broker):
+    seen = []
+
+    @remoulade.actor(queue_name="etl.low")
+    def do_work(value):
+        seen.append(value)
+
+    postgres_broker.declare_actor(do_work)
+    worker = Worker(postgres_broker, worker_timeout=100, worker_threads=1)
+    worker.start()
+    try:
+        do_work.send(5)
+        postgres_broker.join("etl.low", timeout=10_000)
+        worker.join()
+    finally:
+        worker.stop()
+
+    assert seen == [5]
+    assert _count_archived_messages(postgres_broker, "etl.low") == 1

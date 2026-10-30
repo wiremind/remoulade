@@ -110,7 +110,7 @@ def test_postgres_client_declaring_an_existing_queue_backfills_its_indexes(postg
     assert _index_exists(postgres_broker, "a_default_msg_id_idx")
 
 
-@pytest.mark.parametrize("queue_name", ["default", "sales", "sales_eu", "sales.DQ", "sales-eu", "_x", "q" * 47])
+@pytest.mark.parametrize("queue_name", ["default", "sales", "sales_eu", "sales.eu", "sales-eu", "_x", "q" * 47])
 def test_postgres_client_accepts_usable_queue_names(queue_name):
     assert assert_valid_queue_name(queue_name) is None
 
@@ -128,11 +128,60 @@ def test_postgres_client_accepts_usable_queue_names(queue_name):
         "semi;colon",
         "back\\slash",
         "1leading-digit",
+        "sales.DQ",
+        "sales__eu",
     ],
 )
 def test_postgres_client_rejects_queue_names_it_cannot_quote(queue_name):
     with pytest.raises(ValueError, match="not a usable queue name"):
         assert_valid_queue_name(queue_name)
+
+
+def test_postgres_client_create_indexes_names_the_pgmq_table_of_a_dotted_queue():
+    broker = PostgresBroker(url=TEST_POSTGRES_URL, middleware=[])
+    conn = Mock()
+
+    broker.client.create_indexes("etl__low", conn)
+
+    executed = [str(call.args[0]) for call in conn.execute.call_args_list]
+    assert executed == [
+        'CREATE INDEX IF NOT EXISTS "q_etl__low_msg_id_idx" ON pgmq."q_etl__low" (msg_id)',
+        'CREATE INDEX IF NOT EXISTS "a_etl__low_msg_id_idx" ON pgmq."a_etl__low" (msg_id)',
+    ]
+
+
+@pytest.mark.parametrize("method", ["create_indexes", "patch_headers"])
+def test_postgres_client_refuses_a_logical_dotted_queue_name(method):
+    broker = PostgresBroker(url=TEST_POSTGRES_URL, middleware=[])
+    conn = Mock()
+    args = (conn,) if method == "create_indexes" else (7, {"status": "Success"}, conn)
+
+    with pytest.raises(ValueError, match="not a usable queue name"):
+        getattr(broker.client, method)("etl.low", *args)
+
+    conn.execute.assert_not_called()
+
+
+@pytest.mark.parametrize(("method", "kwargs"), [("delete_messages", {}), ("find_last_attempts", {"status": "Failure"})])
+def test_postgres_client_archive_queries_refuse_a_logical_dotted_queue_name(method, kwargs):
+    broker = PostgresBroker(url=TEST_POSTGRES_URL, middleware=[])
+
+    with patch.object(broker.client, "engine") as engine, pytest.raises(ValueError, match="not a usable queue name"):
+        getattr(broker.client, method)("etl.low", **kwargs)
+
+    engine.connect.assert_not_called()
+
+
+def test_postgres_client_patch_headers_updates_the_pgmq_table_of_a_dotted_queue():
+    broker = PostgresBroker(url=TEST_POSTGRES_URL, middleware=[])
+    conn = Mock()
+    conn.execute.return_value.rowcount = 1
+
+    assert broker.client.patch_headers("etl__low", 7, {"status": "Success"}, conn) is True
+
+    (statement, params) = conn.execute.call_args.args
+    assert 'UPDATE pgmq."q_etl__low"' in str(statement)
+    assert params["msg_id"] == 7
 
 
 def test_postgres_client_create_indexes_refuses_a_queue_name_it_cannot_quote():
@@ -187,3 +236,13 @@ def test_postgres_backend_ignores_a_state_the_pgmq_row_already_implies():
         backend.set_state(State("mid", progress=0.5, queue_name="default", delivery_id=7))
 
     patch_headers.assert_not_called()
+
+
+def test_postgres_backend_patches_the_pgmq_name_of_a_dotted_queue():
+    broker = PostgresBroker(url=TEST_POSTGRES_URL, middleware=[])
+    backend = PostgresBackend(broker=broker)
+
+    with patch.object(broker.client, "patch_headers", return_value=True) as patch_headers:
+        backend.set_state(State("mid", StateStatusesEnum.Success, queue_name="etl.low", delivery_id=7))
+
+    patch_headers.assert_called_once_with("etl__low", 7, {"status": "Success"})
