@@ -22,9 +22,10 @@ import warnings
 from typing import Annotated, Any, get_type_hints, override
 
 from remoulade.errors import UnsupportedMessageEncoding
+from remoulade.logging import get_logger
 
 try:
-    from pydantic import TypeAdapter, WithJsonSchema
+    from pydantic import TypeAdapter, ValidationError, WithJsonSchema
 except ImportError:  # pragma: no cover
     warnings.warn(
         "Pydantic is not available.  Run `pip install remoulade[pydantic]`",
@@ -36,6 +37,22 @@ except ImportError:  # pragma: no cover
 #: Represents the contents of a Message object as a dict.
 MessageData = dict[str, Any]
 JsonData = dict[str, Any]
+
+logger = get_logger(__name__)
+
+
+def _actor_name(data: Any) -> Any:
+    return data.get("actor_name") if isinstance(data, dict) else None
+
+
+def _describe_error(error: Exception) -> str:
+    if isinstance(error, ValidationError):
+        locations = ", ".join(
+            f"{'.'.join(str(part) for part in details['loc']) or '<root>'} ({details['type']})"
+            for details in error.errors(include_url=False, include_context=False, include_input=False)
+        )
+        return f"{type(error).__name__} at {locations}"
+    return f"{type(error).__name__}: {error}"
 
 
 class Encoder(abc.ABC):
@@ -135,12 +152,27 @@ class PydanticEncoder(Encoder):
         self.fallback_encoder = fallback_encoder
         self.json_adapter: TypeAdapter[object] = TypeAdapter(object)
 
+    def _warn_fallback(self, action: str, actor_name: Any, error: Exception) -> None:
+        logger.warning(
+            "PydanticEncoder could not %s a message of actor %s, falling back to %s: %s",
+            action,
+            actor_name,
+            type(self.fallback_encoder).__name__,
+            _describe_error(error),
+        )
+
+    def _warn_decode_fallback(self, data: Any, error: Exception) -> None:
+        actor_name = _actor_name(data)
+        if actor_name is not None:
+            self._warn_fallback("decode", actor_name, error)
+
     @override
     def encode_in_bytes(self, data: MessageData) -> bytes:
         try:
             return json.dumps(self._encode_in_json(data)).encode("utf-8")
-        except Exception:
+        except Exception as error:
             if self.fallback_encoder is not None:
+                self._warn_fallback("encode", _actor_name(data), error)
                 return self.fallback_encoder.encode_in_bytes(data)
             raise
 
@@ -148,9 +180,11 @@ class PydanticEncoder(Encoder):
     def decode_bytes(self, data: bytes) -> MessageData:
         try:
             return self.decode_json(json.loads(data.decode("utf-8")))
-        except Exception:
+        except Exception as error:
             if self.fallback_encoder is not None:
-                return self.fallback_encoder.decode_bytes(data)
+                decoded = self.fallback_encoder.decode_bytes(data)
+                self._warn_decode_fallback(decoded, error)
+                return decoded
             raise
 
     @override
@@ -203,7 +237,8 @@ class PydanticEncoder(Encoder):
                     parsed_message[key] = values
 
             return parsed_message
-        except Exception:
+        except Exception as error:
             if self.fallback_encoder is not None:
+                self._warn_decode_fallback(data, error)
                 return self.fallback_encoder.decode_json(data)
             raise
