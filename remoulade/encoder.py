@@ -239,6 +239,7 @@ class PydanticEncoder(Encoder):
             return parsed_message
         except Exception as error:
             if self.fallback_encoder is not None:
+                decoded = self.fallback_encoder.decode_json(data)
                 self._warn_decode_fallback(data, error)
-                return self.fallback_encoder.decode_json(data)
+                return decoded
             raise
