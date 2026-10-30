@@ -413,6 +413,15 @@ class TestPurge:
         assert _msg_ids(postgres_broker, "a_default") == []
         assert _msg_ids(postgres_broker, "q_default") == []
 
+    def test_purges_a_dotted_queue_under_its_pgmq_name(self, postgres_broker, postgres_state_backend):
+        postgres_broker.declare_queue("etl.low")
+        _send(postgres_broker, status="Success", queue_name="etl__low")
+        _send(postgres_broker, archive=False, queue_name="etl__low")
+
+        assert postgres_state_backend.purge("etl.low", include_active=True) == {"a_etl__low": 1, "q_etl__low": 1}
+        assert _msg_ids(postgres_broker, "a_etl__low") == []
+        assert _msg_ids(postgres_broker, "q_etl__low") == []
+
     def test_leaves_other_queues_alone(self, postgres_broker, postgres_state_backend):
         postgres_broker.declare_queue("other")
         archived = _send(postgres_broker, queue_name="other")
@@ -521,7 +530,7 @@ def _enqueued_payloads(broker, queue_name="default"):
     with broker.client.engine.begin() as connection:
         return list(
             connection.execute(
-                text(f'SELECT message FROM pgmq."q_{queue_name}" ORDER BY msg_id')  # noqa: S608
+                text(f'SELECT message FROM pgmq."{pgmq_table_name(queue_name, "q")}" ORDER BY msg_id')  # noqa: S608
             ).scalars()
         )
 
@@ -565,6 +574,24 @@ class TestReplayFailures:
         assert payload["message_id"] == message.message_id
         assert payload["args"] == ["an-argument"]
         assert payload["options"]["retries"] == 0
+
+    def test_replays_a_failure_of_a_dotted_queue_onto_that_queue(self, postgres_broker, postgres_state_backend):
+        @remoulade.actor(queue_name="etl.low", max_retries=0)
+        def etl_boom():
+            raise RuntimeError("kaboom")
+
+        postgres_broker.declare_actor(etl_boom)
+        message = etl_boom.send()
+        _drain(postgres_broker, queue_name="etl.low")
+        ((archived_msg_id, _, _),) = _archived_attempts(postgres_broker, queue_name="etl.low")
+
+        replayed = postgres_state_backend.replay_failures("etl.low")
+
+        assert list(replayed) == [archived_msg_id]
+        (payload,) = _enqueued_payloads(postgres_broker, queue_name="etl.low")
+        assert payload["message_id"] == message.message_id
+        assert payload["queue_name"] == "etl.low"
+        assert postgres_state_backend.replay_failures("etl.low") == {}
 
     def test_a_replay_runs_and_is_not_replayed_again(self, postgres_broker, postgres_state_backend, actors):
         boom, _, fixed = actors

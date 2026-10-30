@@ -107,8 +107,8 @@ How ``PostgresBroker`` maps a queue name to the name of its PGMQ queue and table
 .. autofunction:: remoulade.helpers.pgmq_names.assert_valid_pgmq_queue_name
 
    Raise ``ValueError`` unless a name is the pgmq name of a valid queue name, which
-   is what ``RemouladePostgresClient.create_indexes`` and
-   ``RemouladePostgresClient.patch_headers`` take.
+   is what ``RemouladePostgresClient.create_indexes``, ``patch_headers``,
+   ``delete_messages`` and ``find_last_attempts`` take.
 
 
 .. _Reference Middleware:

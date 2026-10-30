@@ -96,6 +96,9 @@ class RemouladePostgresClient(SQLAlchemyPGMQueue):
     ) -> dict[str, int]:
         """Delete the archived messages of a queue, and its enqueued ones too when ``include_active``.
 
+        ``queue`` is the pgmq name of the queue, see
+        :func:`~remoulade.helpers.pgmq_names.physical_queue_name`.
+
         Filters combine with AND and are skipped when None: a timestamp in ``[start, end)``
         -- ``archived_at`` on the archive, ``enqueued_at`` on the queue, each table's
         indexed partition key -- and ``headers->>'status'`` in ``statuses``.
@@ -109,15 +112,15 @@ class RemouladePostgresClient(SQLAlchemyPGMQueue):
           dict[str, int]: The number of deleted rows, by table name.
 
         Raises:
-          ValueError: If ``queue`` cannot be used as a SQL identifier.
+          ValueError: If ``queue`` is not the pgmq name of a usable queue name.
           sqlalchemy.exc.OperationalError: If a batch waits on a lock past ``lock_timeout``,
             e.g. while pg_partman maintenance drops a partition.
         """
-        assert_valid_queue_name(queue)
+        assert_valid_pgmq_queue_name(queue)
         params = {"start": start, "end": end, "statuses": statuses, "batch_size": batch_size}
-        time_column_by_table = {f"a_{queue}": "archived_at"}
+        time_column_by_table = {pgmq_table_name(queue, "a"): "archived_at"}
         if include_active:
-            time_column_by_table[f"q_{queue}"] = "enqueued_at"
+            time_column_by_table[pgmq_table_name(queue, "q")] = "enqueued_at"
 
         set_lock_timeout = text("SELECT set_config('lock_timeout', :lock_timeout, true)")
         deleted_count_by_table = {}
@@ -170,7 +173,8 @@ class RemouladePostgresClient(SQLAlchemyPGMQueue):
         ``composition_id``): running it again would run, or count, part of a composition
         that already ended. Filters apply to that last attempt
         and are skipped when None: ``archived_at`` in ``[start, end)``, ``actor_name``,
-        ``message_id`` in ``message_ids``.
+        ``message_id`` in ``message_ids``. ``queue`` is the pgmq name of the queue, see
+        :func:`~remoulade.helpers.pgmq_names.physical_queue_name`.
 
         Reads the whole archive, which has no ``message_id`` index, unless ``actor_name`` or
         ``message_ids`` narrow it first; a plain read never blocks the workers.
@@ -179,9 +183,9 @@ class RemouladePostgresClient(SQLAlchemyPGMQueue):
           list[tuple[int, dict[str, Any]]]: ``(archived msg_id, message payload)``, by ``msg_id``.
 
         Raises:
-          ValueError: If ``queue`` cannot be used as a SQL identifier.
+          ValueError: If ``queue`` is not the pgmq name of a usable queue name.
         """
-        assert_valid_queue_name(queue)
+        assert_valid_pgmq_queue_name(queue)
         # Every attempt of a message shares its message_id and actor_name, so these filters
         # can narrow the archive before the DISTINCT ON sorts it without changing the result.
         attempt_conditions = ["TRUE"]
@@ -193,7 +197,7 @@ class RemouladePostgresClient(SQLAlchemyPGMQueue):
             "headers->>'status' = :status",
             "message->'options'->'composition_id' IS NULL",
             f"""NOT EXISTS (
-                SELECT 1 FROM pgmq."q_{queue}" AS active
+                SELECT 1 FROM pgmq."{pgmq_table_name(queue, "q")}" AS active
                 WHERE active.message->>'message_id' = last_attempt.message->>'message_id'
             )""",  # noqa: S608
         ]
@@ -204,7 +208,7 @@ class RemouladePostgresClient(SQLAlchemyPGMQueue):
         statement = text(f"""
             WITH last_attempt AS (
                 SELECT DISTINCT ON (message->>'message_id') msg_id, archived_at, message, headers
-                FROM pgmq."a_{queue}"
+                FROM pgmq."{pgmq_table_name(queue, "a")}"
                 WHERE {" AND ".join(attempt_conditions)}
                 ORDER BY message->>'message_id', msg_id DESC
             )

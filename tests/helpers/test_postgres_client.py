@@ -162,6 +162,16 @@ def test_postgres_client_refuses_a_logical_dotted_queue_name(method):
     conn.execute.assert_not_called()
 
 
+@pytest.mark.parametrize(("method", "kwargs"), [("delete_messages", {}), ("find_last_attempts", {"status": "Failure"})])
+def test_postgres_client_archive_queries_refuse_a_logical_dotted_queue_name(method, kwargs):
+    broker = PostgresBroker(url=TEST_POSTGRES_URL, middleware=[])
+
+    with patch.object(broker.client, "engine") as engine, pytest.raises(ValueError, match="not a usable queue name"):
+        getattr(broker.client, method)("etl.low", **kwargs)
+
+    engine.connect.assert_not_called()
+
+
 def test_postgres_client_patch_headers_updates_the_pgmq_table_of_a_dotted_queue():
     broker = PostgresBroker(url=TEST_POSTGRES_URL, middleware=[])
     conn = Mock()

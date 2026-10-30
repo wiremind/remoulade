@@ -13,6 +13,8 @@ Feat
   dot becomes ``__`` (``pgmq.q_etl__low``), so declaring one no longer fails with ``pg_partman does not support
   objects with periods in their names``. A name without a dot is its own pgmq name, so existing queues are
   untouched, and ``Broker.queues``, the middleware hooks and the Prometheus labels keep the queue name.
+  ``PostgresBackend.purge`` and ``PostgresBackend.replay_failures`` take the queue name too; ``purge`` counts the
+  deleted rows by pgmq table name (``a_etl__low``).
 * Add ``remoulade.helpers.pgmq_names``: the mapping (``physical_queue_name``, ``logical_queue_name``,
   ``pgmq_table_name``) and the queue name validators, importable without the ``postgres`` extra.
   ``remoulade.helpers.postgres_client`` still re-exports ``assert_valid_queue_name`` and ``QUEUE_NAME_MAX_LENGTH``.
@@ -35,8 +37,8 @@ Breaking changes
   ambiguous, or any uppercase letter: PGMQ lowercases the tables it creates while remoulade quotes the name, so such
   a queue never worked (this also rejects the ``.DQ``/``.XQ`` suffixes). The 47-character limit now applies to the
   pgmq name, in which each dot counts as two characters.
-* ``RemouladePostgresClient.create_indexes`` and ``RemouladePostgresClient.patch_headers`` take the pgmq name of a
-  queue (``physical_queue_name(queue_name)``) and reject a dotted name.
+* ``RemouladePostgresClient.create_indexes``, ``patch_headers``, ``delete_messages`` and ``find_last_attempts`` take
+  the pgmq name of a queue (``physical_queue_name(queue_name)``) and reject a dotted name.
 * Downgrading is no rollback once a dotted queue exists: an older remoulade looks ``etl.low`` up by that name, does
   not find ``etl__low`` and fails to create it, so its ``PostgresBroker`` cannot declare the queue and the process
   does not start. Dot-free queues are unaffected.
