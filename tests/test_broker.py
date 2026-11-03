@@ -226,6 +226,16 @@ def test_enqueue_keeps_the_delay_option_of_the_given_message(stub_broker, do_wor
     assert message.options["delay"] == 1000
 
 
+def test_merge_delay_option_does_not_copy_a_message_without_delay_option(stub_broker, do_work):
+    message = do_work.message(0)
+
+    merged_message, total_delay = stub_broker._merge_delay_option(message, 500)
+
+    # nothing to remove from the options, so a large group.run() does not copy every message for nothing
+    assert merged_message is message
+    assert total_delay == 500
+
+
 def test_enqueue_many_writes_one_batch_per_total_delay(stub_broker, do_work, enqueue_delays, enqueue_many_batches):
     messages = [
         do_work.message_with_options(args=(0,), delay=1000),
@@ -238,6 +248,30 @@ def test_enqueue_many_writes_one_batch_per_total_delay(stub_broker, do_work, enq
     assert enqueue_delays == [(0, 1500), (1, 500), (2, 1500)]
     assert [message.args[0] for message in enqueued_messages] == [0, 1, 2]
     assert all("delay" not in message.options for message in enqueued_messages)
+
+
+def test_enqueue_many_reports_as_failed_only_the_batches_not_written(stub_broker, do_work, monkeypatch):
+    recorder = _EnqueueRecorder()
+    stub_broker.add_middleware(recorder)
+    enqueue_many = stub_broker._enqueue_many
+
+    def enqueue_many_failing_on_delayed_batch(messages, *, delay=None):
+        if delay is not None:
+            raise RuntimeError("backend down")
+        return enqueue_many(messages, delay=delay)
+
+    monkeypatch.setattr(stub_broker, "_enqueue_many", enqueue_many_failing_on_delayed_batch)
+
+    with pytest.raises(RuntimeError):
+        stub_broker.enqueue_many([do_work.message(0), do_work.message_with_options(args=(1,), delay=1000)])
+
+    # message 0 is already in its queue when the batch of message 1 fails, so only message 1 is reported as failed
+    assert recorder.events == [
+        ("before", 0),
+        ("before", 1),
+        ("after", 0, False),
+        ("after", 1, True),
+    ]
 
 
 def test_enqueue_many_without_message_delay_writes_a_single_batch(stub_broker, do_work, enqueue_many_batches):

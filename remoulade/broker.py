@@ -444,9 +444,16 @@ class Broker:
     def _merge_delay_option(
         self, message: "Message[Any]", enqueue_delay: int | None
     ) -> tuple["Message[Any]", int | None]:
-        """Return a copy of the message without its ``delay`` option, and that option added to the enqueue delay."""
+        """Return the message without its ``delay`` option, and that option added to the enqueue delay.
+
+        The message is copied only when it has a ``delay`` option, so the caller's message is never
+        modified and a message without the option is not copied for nothing.
+        """
+        if message.options.get("delay") is None:
+            return message, enqueue_delay or None
+
         message = message.copy()
-        message_delay = message.options.pop("delay", None) or 0
+        message_delay = message.options.pop("delay")
         return message, ((enqueue_delay or 0) + message_delay) or None
 
     def enqueue(self, message: "Message[Any]", *, delay: int | None = None) -> "Message[Any]":  # pragma: no cover
@@ -487,9 +494,12 @@ class Broker:
         total delay are written with one :meth:`_enqueue_many` call, so a group without per-message
         delays still makes a single backend write.
 
-        On failure, ``emit_after`` is emitted (with the exception) only for the messages whose
-        ``emit_before`` already ran, so tracing spans / message state opened in ``before_enqueue`` are
-        always closed.
+        ``emit_after`` is emitted for a batch as soon as it is written. On failure, it is emitted with
+        the exception only for the messages whose ``emit_before`` already ran and whose batch was not
+        written, so tracing spans / message state opened in ``before_enqueue`` are always closed, and
+        a message already written by an earlier batch is not reported as failed. Writing several
+        batches is not atomic: run the group in a transaction (``group_transaction``) to roll every
+        batch back when one fails.
 
         Parameters:
           messages(list[Message]): The messages to enqueue.
@@ -499,30 +509,28 @@ class Broker:
         Returns:
           list[Message]: The enqueued messages, in the order they were given.
         """
-        messages_with_total_delay = [self._merge_delay_option(message, delay) for message in messages]
-        messages = [self._apply_delay(message, total_delay) for message, total_delay in messages_with_total_delay]
-        total_delays = [total_delay for _, total_delay in messages_with_total_delay]
-        emitted_before: list[tuple[Message[Any], int | None]] = []
+        batches: dict[int | None, list[tuple[int, Message[Any]]]] = {}
+        not_written: dict[int, tuple[Message[Any], int | None]] = {}
+        enqueued_messages: dict[int, Message[Any]] = {}
         try:
-            for message, total_delay in zip(messages, total_delays, strict=True):
+            for index, message in enumerate(messages):
+                message, total_delay = self._merge_delay_option(message, delay)
+                message = self._apply_delay(message, total_delay)
                 self.emit_before("enqueue", message, total_delay)
-                emitted_before.append((message, total_delay))
+                not_written[index] = (message, total_delay)
+                batches.setdefault(total_delay, []).append((index, message))
 
-            indexes_by_total_delay: dict[int | None, list[int]] = {}
-            for index, total_delay in enumerate(total_delays):
-                indexes_by_total_delay.setdefault(total_delay, []).append(index)
-            enqueued_messages = list(messages)
-            for total_delay, indexes in indexes_by_total_delay.items():
-                enqueued_batch = self._enqueue_many([messages[index] for index in indexes], delay=total_delay)
-                for index, enqueued_message in zip(indexes, enqueued_batch, strict=True):
+            for total_delay, batch in batches.items():
+                enqueued_batch = self._enqueue_many([message for _, message in batch], delay=total_delay)
+                for (index, _), enqueued_message in zip(batch, enqueued_batch, strict=True):
+                    del not_written[index]
                     enqueued_messages[index] = enqueued_message
+                    self.emit_after("enqueue", enqueued_message, total_delay)
 
-            for message, total_delay in zip(enqueued_messages, total_delays, strict=True):
-                self.emit_after("enqueue", message, total_delay)
-            return enqueued_messages
+            return [enqueued_messages[index] for index in range(len(messages))]
 
         except BaseException as e:
-            for message, total_delay in emitted_before:
+            for message, total_delay in not_written.values():
                 self.emit_after("enqueue", message, total_delay, exception=e)
             raise e from e
 
