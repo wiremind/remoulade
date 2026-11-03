@@ -14,7 +14,9 @@ Feat
   ignored. It adds up with the delay of the enqueue call (``group.run(delay=...)``, ``send_with_options(delay=...)``),
   and the first enqueue consumes it, so a retry or the delay queue does not apply it a second time.
 * ``enqueue_many`` writes one ``_enqueue_many`` batch per total delay: a group without per-message delays still makes a
-  single backend write, and ``PostgresBroker`` sends one ``send_batch`` per distinct delay.
+  single backend write, and ``PostgresBroker`` sends one ``send_batch`` per distinct delay. When a batch fails, only
+  the messages not written yet get ``after_enqueue`` with the exception; the batches already written are reported as
+  enqueued. Run the group in a transaction (``group_transaction``) to roll every batch back.
 
 Fix
 ^^^
