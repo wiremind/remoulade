@@ -111,7 +111,7 @@ class CollectionResults[ResultT: Result | "CollectionResults"]:
         timeout: int | None = None,
         raise_on_error: Literal[True] = True,
         forget: bool = False,
-    ) -> Generator[R, None, None]: ...
+    ) -> Generator[R]: ...
 
     @overload
     def get(
@@ -121,16 +121,16 @@ class CollectionResults[ResultT: Result | "CollectionResults"]:
         timeout: int | None = None,
         raise_on_error: bool = True,
         forget: bool = False,
-    ) -> Generator[R | ErrorStored, None, None]: ...
+    ) -> Generator[R | ErrorStored]: ...
 
     @overload
     def get(
         self, *, block: bool = False, timeout: int | None = None, raise_on_error: bool = True, forget: bool = False
-    ) -> Generator[Any, None, None]: ...
+    ) -> Generator[Any]: ...
 
     def get(
         self, *, block: bool = False, timeout: int | None = None, raise_on_error: bool = True, forget: bool = False
-    ) -> Generator[Any, None, None]:
+    ) -> Generator[Any]:
         """Get the results of each job in the collection.
 
         Parameters:
