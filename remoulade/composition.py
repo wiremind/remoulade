@@ -53,58 +53,20 @@ class GroupInfo(namedtuple("GroupInfo", ("group_id", "children_count"))):
         return cast(GroupInfoDict, self._asdict())
 
 
-class pipeline[ResultsT: "Result[Any] | CollectionResults[Any]"]:
-    """Chain actors together, passing the result of one actor to the
-    next one in line.
-
-    Parameters:
-      children(Iterable[Message|pipeline|group]): A sequence of messages or
-        pipelines or groups.  Child pipelines are flattened into the resulting
-        pipeline.
-      broker(Broker): The broker to run the pipeline on.  Defaults to
-        the current global broker.
-      cancel_on_error(boolean): True if you want to cancel all messages of a composition if on of
-      the actor fails, this is only possible with a Cancel middleware.
-
-    Attributes:
-        children(List[Message|group]) The sequence of messages or groups to execute as a pipeline
-    """
-
-    @overload
-    def __init__(
-        self,
-        # we should actually not use ResultTs here but define a new type var that is only bound to Result
-        # but then mypy gets lost, so reusing ResultsT and ignoring the error
-        children: tuple[  # type: ignore
-            *tuple[Message[Any] | pipeline[Any] | group[Any], ...], Message[ResultsT] | pipeline[ResultsT]
-        ],
-        cancel_on_error: bool = False,
-    ): ...
-
-    @overload
-    def __init__(
-        self: pipeline[CollectionResults[ResultsT_1]],
-        children: tuple[*tuple[Message[Any] | pipeline[Any] | group[Any], ...], group[ResultsT_1]],
-        cancel_on_error: bool = False,
-    ): ...
-
-    @overload
-    def __init__(
-        self,
-        children: tuple[Message[Any] | pipeline[Any] | group[Any], ...],
-        cancel_on_error: bool = False,
-    ): ...
+class _BasePipeline[ResultsT: "Result[Any] | CollectionResults[Any]"]:
+    """Implementation shared by :class:`pipeline` and :class:`unsafe_pipeline`, which only differ by the groups
+    they accept."""
 
     def __init__(
         self,
-        children: tuple[Message[Any] | pipeline[Any] | group[Any], ...],
+        children: tuple[Message[Any] | _BasePipeline[Any] | group[Any], ...],
         cancel_on_error: bool = False,
     ):
         self.broker = get_broker()
 
         self.children: list[Message[Any] | group[Any]] = []
         for child in children:
-            if isinstance(child, pipeline):
+            if isinstance(child, _BasePipeline):
                 self.children += child.children
             elif isinstance(child, group):
                 self.children.append(child)
@@ -212,14 +174,176 @@ class pipeline[ResultsT: "Result[Any] | CollectionResults[Any]"]:
         backend.cancel(list(flatten(self.message_ids)))
 
 
+class pipeline[ResultsT: "Result[Any] | CollectionResults[Any]"](_BasePipeline[ResultsT]):
+    """Chain actors together, passing the result of one actor to the
+    next one in line.
+
+    A pipeline holds at most one group. Each message of a pipeline carries
+    every message that follows it, so with two groups each message of the
+    first group would carry every message of the second one: the payload
+    would grow as the product of the group sizes. See :class:`unsafe_pipeline`.
+
+    Parameters:
+      children(Iterable[Message|pipeline|group]): A sequence of messages or
+        pipelines or groups.  Child pipelines are flattened into the resulting
+        pipeline.
+      broker(Broker): The broker to run the pipeline on.  Defaults to
+        the current global broker.
+      cancel_on_error(boolean): True if you want to cancel all messages of a composition if on of
+      the actor fails, this is only possible with a Cancel middleware.
+
+    Attributes:
+        children(List[Message|group]) The sequence of messages or groups to execute as a pipeline
+
+    Raises:
+      ValueError: if the pipeline holds more than one group once its child pipelines are flattened.
+    """
+
+    # A variadic tuple can only have one unbounded part, so the overloads below cannot express "one group anywhere":
+    # they type a group in first, second, second to last or last position.
+    # We should actually not use ResultTs in Message[ResultsT] but define a new type var that is only bound to Result
+    # but then mypy gets lost, so reusing ResultsT and ignoring the error.
+
+    @overload
+    def __init__(
+        self,
+        children: tuple[  # type: ignore
+            *tuple[Message[Any] | pipeline[Any], ...], Message[ResultsT] | pipeline[ResultsT]
+        ],
+        cancel_on_error: bool = False,
+    ): ...
+
+    @overload
+    def __init__(
+        self: pipeline[CollectionResults[ResultsT_1]],
+        children: tuple[*tuple[Message[Any] | pipeline[Any], ...], group[ResultsT_1]],
+        cancel_on_error: bool = False,
+    ): ...
+
+    @overload
+    def __init__(
+        self,
+        children: tuple[  # type: ignore
+            group[Any], *tuple[Message[Any] | pipeline[Any], ...], Message[ResultsT] | pipeline[ResultsT]
+        ],
+        cancel_on_error: bool = False,
+    ): ...
+
+    @overload
+    def __init__(
+        self,
+        children: tuple[  # type: ignore
+            Message[Any] | pipeline[Any],
+            group[Any],
+            *tuple[Message[Any] | pipeline[Any], ...],
+            Message[ResultsT] | pipeline[ResultsT],
+        ],
+        cancel_on_error: bool = False,
+    ): ...
+
+    @overload
+    def __init__(
+        self,
+        children: tuple[  # type: ignore
+            *tuple[Message[Any] | pipeline[Any], ...], group[Any], Message[ResultsT] | pipeline[ResultsT]
+        ],
+        cancel_on_error: bool = False,
+    ): ...
+
+    @overload
+    def __init__(
+        self,
+        children: tuple[Message[Any] | pipeline[Any], ...],
+        cancel_on_error: bool = False,
+    ): ...
+
+    def __init__(
+        self,
+        children: tuple[Message[Any] | _BasePipeline[Any] | group[Any], ...],
+        cancel_on_error: bool = False,
+    ):
+        super().__init__(children, cancel_on_error)
+        if sum(isinstance(child, group) for child in self.children) > 1:
+            raise ValueError(
+                "A pipeline holds at most one group: each message of a group would carry every message of the next "
+                "group, so the payload would grow as the product of the group sizes. "
+                "Use unsafe_pipeline to compose several groups anyway."
+            )
+
+
+class unsafe_pipeline[ResultsT: "Result[Any] | CollectionResults[Any]"](_BasePipeline[ResultsT]):
+    """Like :class:`pipeline`, but may hold several groups.
+
+    .. warning::
+       Use it with caution. Each message of a pipeline carries every message
+       that follows it, so each message of a group carries every message of
+       the next group: the payload grows as the product of the group sizes,
+       and a few groups of a few hundred messages are enough to enqueue
+       messages of hundreds of megabytes. Keep the groups small, and make sure
+       their sizes stay bounded whatever the input data.
+
+    Use a :class:`pipeline` whenever possible, and this class when a
+    composition with several groups is still needed.
+
+    An unsafe_pipeline is not a :class:`pipeline`: a pipeline does not accept
+    it as a child, so ``message | unsafe`` raises if ``unsafe`` holds a group
+    and ``unsafe_pipeline((message, unsafe))`` must be used instead.
+
+    Parameters:
+      children(Iterable[Message|pipeline|unsafe_pipeline|group]): A sequence of messages,
+        pipelines or groups.  Child pipelines are flattened into the resulting
+        pipeline.
+      cancel_on_error(boolean): True if you want to cancel all messages of a composition if on of
+      the actor fails, this is only possible with a Cancel middleware.
+
+    Attributes:
+        children(List[Message|group]) The sequence of messages or groups to execute as a pipeline
+    """
+
+    @overload
+    def __init__(
+        self,
+        # we should actually not use ResultTs here but define a new type var that is only bound to Result
+        # but then mypy gets lost, so reusing ResultsT and ignoring the error
+        children: tuple[  # type: ignore
+            *tuple[Message[Any] | pipeline[Any] | unsafe_pipeline[Any] | group[Any], ...],
+            Message[ResultsT] | pipeline[ResultsT] | unsafe_pipeline[ResultsT],
+        ],
+        cancel_on_error: bool = False,
+    ): ...
+
+    @overload
+    def __init__(
+        self: unsafe_pipeline[CollectionResults[ResultsT_1]],
+        children: tuple[
+            *tuple[Message[Any] | pipeline[Any] | unsafe_pipeline[Any] | group[Any], ...], group[ResultsT_1]
+        ],
+        cancel_on_error: bool = False,
+    ): ...
+
+    @overload
+    def __init__(
+        self,
+        children: tuple[Message[Any] | pipeline[Any] | unsafe_pipeline[Any] | group[Any], ...],
+        cancel_on_error: bool = False,
+    ): ...
+
+    def __init__(
+        self,
+        children: tuple[Message[Any] | _BasePipeline[Any] | group[Any], ...],
+        cancel_on_error: bool = False,
+    ):
+        super().__init__(children, cancel_on_error)
+
+
 class group[ResultsT: "Result[Any] | CollectionResults[Any]"]:
     """Run a group of actors in parallel.
 
     Parameters:
-      children(Iterable[Message|pipeline]): A sequence of messages or pipelines.
+      children(Iterable[Message|pipeline|unsafe_pipeline]): A sequence of messages or pipelines.
 
     Attributes:
-        children(List[Message|pipeline]) The sequence to execute as a group
+        children(List[Message|pipeline|unsafe_pipeline]) The sequence to execute as a group
 
     Raise:
         NoCancelBackend: if no cancel middleware is set
@@ -229,11 +353,11 @@ class group[ResultsT: "Result[Any] | CollectionResults[Any]"]:
         self,
         # we should actually not use ResultTs here but define a new type var that is only bound to Result
         # but then mypy gets lost, so reusing ResultsT and ignoring the error
-        children: Iterable[pipeline[ResultsT] | Message[ResultsT]],  # type: ignore
+        children: Iterable[pipeline[ResultsT] | unsafe_pipeline[ResultsT] | Message[ResultsT]],  # type: ignore
         group_id: str | None = None,
         cancel_on_error: bool = False,
     ) -> None:
-        self.children: list[Message[Any] | pipeline[Any]] = []
+        self.children: list[Message[Any] | _BasePipeline[Any]] = []
         for child in children:
             if isinstance(child, group):
                 raise ValueError("Groups of groups are not supported")
@@ -246,7 +370,7 @@ class group[ResultsT: "Result[Any] | CollectionResults[Any]"]:
         if cancel_on_error:
             self.broker.get_cancel_backend()
 
-    def __or__(self, other: Message | group | pipeline) -> pipeline:
+    def __or__(self, other: Message | pipeline) -> pipeline:
         """Combine this group into a pipeline with "other"."""
         return pipeline((self, other))
 
@@ -274,7 +398,7 @@ class group[ResultsT: "Result[Any] | CollectionResults[Any]"]:
         }
         messages: list[Message] = []
         for group_child in self.children:
-            if isinstance(group_child, pipeline):
+            if isinstance(group_child, _BasePipeline):
                 messages += group_child.build(
                     last_options=options, composition_id=composition_id, cancel_on_error=cancel_on_error
                 )
@@ -290,7 +414,7 @@ class group[ResultsT: "Result[Any] | CollectionResults[Any]"]:
     @property
     def message_ids(self):
         for child in self.children:
-            if isinstance(child, pipeline):
+            if isinstance(child, _BasePipeline):
                 yield list(child.message_ids)
             else:
                 yield child.message_id

@@ -85,6 +85,7 @@
 .. |send_with_options| replace:: :meth:`send_with_options<remoulade.Actor.send_with_options>`
 .. |send| replace:: :meth:`send<remoulade.Actor.send>`
 .. |set_state| replace:: :meth:`set_state<remoulade.state.set_state>`
+.. |unsafe_pipeline| replace:: :class:`unsafe_pipeline<remoulade.unsafe_pipeline>`
 
 .. _gevent: http://www.gevent.org/
 .. _RabbitMQ: https://www.rabbitmq.com
