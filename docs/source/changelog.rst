@@ -5,6 +5,13 @@ Changelog
 
 All notable changes to this project will be documented in this file.
 
+`8.0.0`_ -- Unreleased
+----------------------
+Changed
+^^^^^^^
+* Add support for Python 3.15
+* Drop support for Python 3.12
+
 `7.2.1`_ -- 2026-10-27
 ----------------------
 Changed
