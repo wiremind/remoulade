@@ -5,7 +5,7 @@ Changelog
 
 All notable changes to this project will be documented in this file.
 
-`8.0.0`_ -- Unreleased
+`8.0.0`_ -- 2026-11-04
 ----------------------
 Breaking changes
 ^^^^^^^^^^^^^^^^
