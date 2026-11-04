@@ -444,6 +444,30 @@ after each actor is finished a counter in the results backend associed to the gr
 counter reach the number of message in the group, the results of each message are fetched from the result backend
 and the next message is enqueued.
 
+A |pipeline| holds at most one group, and raises a ``ValueError`` otherwise. A group may still hold pipelines that
+each hold a group, since none of their messages carries more than one group.
+
+.. warning::
+   Be careful when you chain several groups. Each message of a pipeline carries every message that follows it, so
+   each message of a group carries every message of the next group, which carry every message of the one after:
+   the size of the messages grows as the product of the group sizes. With three groups of 100 messages, each
+   message of the first group carries more than 10,000 messages, so enqueueing that first group alone sends about
+   a million messages to the broker.
+
+When a composition with several groups is still needed, |unsafe_pipeline| keeps the old behavior. Use it with
+caution: keep its groups small, and make sure their sizes stay bounded whatever the input data. It is not a
+|pipeline|, which does not accept it as a child: compose it with other unsafe pipelines only::
+
+  pipe = unsafe_pipeline((
+    group([do_something.message(1), do_something.message(2)]),
+    merge_results.message(),
+    group([do_something_else.message(1), do_something_else.message(2)]),
+  ))
+
+The type checker enforces the one group rule on ``pipeline((...))`` for a group in first, second, second to last or
+last position. A group with at least two steps on each side of it, as in ``pipeline((a, b, g, c, d))``, is valid
+but not typed: write ``a | b | g | c | d`` or ``pipeline((pipeline((a, b)), g, c, d))`` instead.
+
 Scheduling
 ----------
 

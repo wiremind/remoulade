@@ -7,6 +7,26 @@ All notable changes to this project will be documented in this file.
 
 `8.0.0`_ -- Unreleased
 ----------------------
+Breaking changes
+^^^^^^^^^^^^^^^^
+* A ``pipeline`` holds at most one group and raises ``ValueError`` otherwise, child pipelines included once
+  flattened. Each message of a pipeline carries every message that follows it, so each message of a group carried
+  every message of the next group and the payload grew as the product of the group sizes. A group of pipelines
+  that each hold a group, as built by ``reduce``, is still accepted.
+* The ``pipeline`` constructor is typed accordingly: a tuple with several groups, or with a group that has at least
+  two steps on each side of it, no longer type checks, and ``group | group`` neither. Write the latter case
+  ``a | b | g | c | d`` or ``pipeline((pipeline((a, b)), g, c, d))``.
+* A tuple built from a list of messages and groups, typed ``tuple[Message | group, ...]``, no longer type checks
+  either, even when it holds a single group at runtime. Keep the group out of the list and unpack the messages
+  before it: ``pipeline((*messages, g))`` or ``pipeline((*messages, g, m))``. For a variable number of messages
+  after the group, put them in their own pipeline: ``pipeline((g, pipeline(tuple(after))))``.
+* To migrate a composition that needs several groups, build it with ``unsafe_pipeline``. It is not a ``pipeline``,
+  so ``message | unsafe`` raises when ``unsafe`` holds a group: write ``unsafe_pipeline((message, unsafe))``.
+
+Feat
+^^^^
+* Add ``unsafe_pipeline``, a pipeline that may hold several groups, for the compositions that still need them.
+
 Changed
 ^^^^^^^
 * Add support for Python 3.15

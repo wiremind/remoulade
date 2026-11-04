@@ -37,6 +37,10 @@ Message Composition
    :members:
 .. autoclass:: pipeline
    :members:
+   :inherited-members:
+.. autoclass:: unsafe_pipeline
+   :members:
+   :inherited-members:
 
 Message Encoders
 ^^^^^^^^^^^^^^^^

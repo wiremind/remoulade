@@ -7,7 +7,7 @@ from unittest.mock import call, patch
 import pytest
 
 import remoulade
-from remoulade import CollectionResults, group, pipeline
+from remoulade import CollectionResults, group, pipeline, unsafe_pipeline
 from remoulade.results import ErrorStored, MessageIdsMissing, ResultMissing, Results, ResultTimeout
 from remoulade.results.backends import StubBackend
 from tests.common import get_logs
@@ -626,7 +626,7 @@ def test_multiple_groups_pipelines(stub_broker, stub_worker, result_backend):
     stub_broker.declare_actor(do_work)
     stub_broker.declare_actor(do_sum)
 
-    pipe = pipeline(
+    pipe = unsafe_pipeline(
         [
             group([do_work.message(), do_work.message()]),
             group([do_sum.message(), do_sum.message()]),
@@ -637,6 +637,54 @@ def test_multiple_groups_pipelines(stub_broker, stub_worker, result_backend):
     result = pipe.result.get(block=True)
 
     assert result == 4
+
+
+@pytest.mark.parametrize(
+    "compose",
+    [
+        pytest.param(lambda m, g1, g2: pipeline([g1, m, g2]), id="constructor"),
+        pytest.param(lambda m, g1, g2: g1 | m | g2, id="pipe-notation"),
+        pytest.param(lambda m, g1, g2: g1 | (m | g2), id="flattened-child-pipeline"),
+        pytest.param(lambda m, g1, g2: m | unsafe_pipeline([g1, m, g2]), id="flattened-unsafe-pipeline"),
+    ],
+)
+def test_pipelines_reject_several_groups(stub_broker, do_work, compose):
+    # Given two groups and a message
+    g1 = group([do_work.message(), do_work.message()])
+    g2 = group([do_work.message(), do_work.message()])
+
+    # When I compose them in a single pipeline
+    # Then a ValueError points to unsafe_pipeline
+    with pytest.raises(ValueError, match="unsafe_pipeline"):
+        compose(do_work.message(), g1, g2)
+
+
+def test_unsafe_pipelines_accept_several_groups(stub_broker, do_work):
+    # Given an unsafe pipeline holding a group
+    pipe = unsafe_pipeline([group([do_work.message(), do_work.message()]), do_work.message()])
+
+    # When I pipe another group into it
+    pipe = pipe | group([do_work.message(), do_work.message()])
+
+    # Then I get back an unsafe pipeline, which is not a pipeline
+    assert isinstance(pipe, unsafe_pipeline)
+    assert not isinstance(pipe, pipeline)
+
+    # And each message of the first group carries every message of the second one
+    targets = pipe.build()
+    assert len(targets) == 2
+    assert len(targets[0].options["pipe_target"][0]["options"]["pipe_target"]) == 2
+
+
+def test_pipelines_accept_groups_of_pipelines_holding_a_group(stub_broker, do_work):
+    # Given a group of pipelines that each hold a group, as built by reduce
+    inner = [group([do_work.message(), do_work.message()]) | do_work.message() for _ in range(2)]
+
+    # When I pipe that group with a message
+    pipe = group(inner) | do_work.message()
+
+    # Then the pipeline is built, each of its own children holding a single group
+    assert len(pipe.build()) == 4
 
 
 def test_pipeline_does_not_continue_to_next_actor_when_message_is_marked_as_failed(stub_broker, stub_worker):

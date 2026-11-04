@@ -20,7 +20,7 @@ import importlib.metadata
 from .actor import Actor, actor
 from .broker import Broker, Consumer, MessageProxy, change_broker, declare_actors, get_broker, set_broker
 from .collection_results import CollectionResults
-from .composition import group, pipeline
+from .composition import group, pipeline, unsafe_pipeline
 from .encoder import Encoder, JSONEncoder, PickleEncoder
 from .errors import (
     ActorNotFound,
@@ -90,6 +90,7 @@ __all__ = [
     "set_broker",
     "set_encoder",
     "set_scheduler",
+    "unsafe_pipeline",
 ]
 
 __version__ = importlib.metadata.version(__package__)
