@@ -43,7 +43,7 @@ class GroupInfo(namedtuple("GroupInfo", ("group_id", "children_count"))):
 
     Parameters:
       group_id(str): The id of the group
-      children_count(int)
+      children_count(int): The number of message completions that complete the group
     """
 
     def __new__(cls, *, group_id: str, children_count: int):
@@ -132,6 +132,15 @@ class _BasePipeline[ResultsT: "Result[Any] | CollectionResults[Any]"]:
                 yield list(child.message_ids)
             else:
                 yield child.message_id
+
+    @property
+    def _completion_count(self) -> int:
+        """The number of messages that complete the pipeline: its last message, or those of its last non-empty group"""
+        for child in reversed(self.children):
+            count = child._completion_count if isinstance(child, group) else 1
+            if count:
+                return count
+        return 0
 
     def run(self, *, delay: int | None = None, transaction: bool | None = None) -> Self:
         """Run this pipeline.
@@ -385,11 +394,14 @@ class group[ResultsT: "Result[Any] | CollectionResults[Any]"]:
         """Build group for pipeline"""
         if options is None:
             options = {}
-        else:
+        elif "group_info" not in options:
+            # The last group of a pipeline in a group is completed with that group, whose message ids hold its own
             self.broker.emit_before("build_group_pipeline", group_id=self.group_id, message_ids=list(self.message_ids))
 
         composition_id = options.get("composition_id", self.group_id)
         cancel_on_error = options.get("cancel_on_error", self.cancel_on_error)
+        # The messages of the last group of a pipeline in a group take the group_info of that group: each of them
+        # counts in its completion count
         options = {
             "group_info": self.info.asdict(),
             "composition_id": composition_id,
@@ -409,7 +421,13 @@ class group[ResultsT: "Result[Any] | CollectionResults[Any]"]:
     @property
     def info(self) -> GroupInfo:
         """Info used for group completion and cancel"""
-        return GroupInfo(group_id=self.group_id, children_count=len(self.children))
+        return GroupInfo(group_id=self.group_id, children_count=self._completion_count)
+
+    @property
+    def _completion_count(self) -> int:
+        """The number of messages whose completion completes the group: one per message, and the messages that
+        complete each of its pipelines"""
+        return sum(child._completion_count if isinstance(child, _BasePipeline) else 1 for child in self.children)
 
     @property
     def message_ids(self):

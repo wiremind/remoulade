@@ -147,7 +147,12 @@ class Results(Middleware):
     def after_enqueue_pipe_target(self, _, group_info):
         """After a pipe target has been enqueued, we need to forget the result of the group (if it's a group)"""
         if group_info:
-            message_ids = self.backend.get_group_message_ids(group_info.group_id)
+            from ..collection_results import CollectionResults
+
+            # Forget the results that were piped: the message ids of a pipeline in the group are nested in a list, and
+            # its result is the one of its last message, or the results of its last group
+            stored_message_ids = self.backend.get_group_message_ids(group_info.group_id)
+            message_ids = CollectionResults.from_message_ids(stored_message_ids).message_ids
             self.backend.forget_results(message_ids, self.result_ttl)
             self.backend.delete_group_message_ids(group_info.group_id)
             self.backend.delete_group_completion(group_info.group_id)

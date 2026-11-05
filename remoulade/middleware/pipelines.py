@@ -123,7 +123,13 @@ class Pipelines(Middleware):
         message_ids = result_backend.get_group_message_ids(group_id=group_info.group_id)
         results = CollectionResults.from_message_ids(message_ids)
 
-        return [str(r) if isinstance(r, ErrorStored) else r for r in results.get(raise_on_error=raise_on_error)]
+        def serialize(result):
+            # The results of a pipeline that ends with a group are a list
+            if isinstance(result, list):
+                return [serialize(r) for r in result]
+            return str(result) if isinstance(result, ErrorStored) else result
+
+        return [serialize(r) for r in results.get(raise_on_error=raise_on_error)]
 
     def _group_completed(self, message, group_info, broker):
         """Returns true if a group is completed, and increment the completion count of the group
