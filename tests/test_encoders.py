@@ -1,5 +1,7 @@
 import datetime
 import json
+import logging
+import pickle
 from _decimal import Decimal
 from enum import Enum
 
@@ -8,9 +10,9 @@ from pydantic import BaseModel, ValidationError
 
 import remoulade
 from remoulade import ActorNotFound, Message
-from remoulade.encoder import JSONEncoder, MessageData, PydanticEncoder
+from remoulade.encoder import JSONEncoder, MessageData, PickleEncoder, PydanticEncoder
 from remoulade.results import Results
-from remoulade.results.backend import BackendResult
+from remoulade.results.backend import BackendResult, ForgottenResult
 
 
 def test_set_encoder_sets_the_global_encoder(pickle_encoder):
@@ -335,3 +337,93 @@ def test_fallback_no_schema(encoder_with_fallback: PydanticEncoder, backend_resu
     decoded_backend_result = encoder_with_fallback.decode_bytes(json.dumps(backend_result_json_decoded).encode("utf-8"))
     # Do not raise and keep dict instead of schema
     assert decoded_backend_result == backend_result_json_decoded
+
+
+class _Opaque:
+    pass
+
+
+def test_fallback_on_json_decode_logs_a_warning_naming_the_actor(
+    encoder_with_fallback: PydanticEncoder, message_data_encoded: bytes, caplog
+):
+    message_json_decoded = json.loads(message_data_encoded.decode("utf-8"))
+    message_json_decoded["args"] = [{"toto": "a"}]
+
+    with caplog.at_level(logging.WARNING, logger="remoulade.encoder"):
+        decoded = encoder_with_fallback.decode_json(message_json_decoded)
+
+    assert decoded == message_json_decoded
+    assert "could not decode a message of actor my_actor_tuple, falling back to JSONEncoder" in caplog.text
+    assert "ValidationError" in caplog.text
+
+
+def test_fallback_warning_names_the_failing_fields_without_their_values(
+    encoder_with_fallback: PydanticEncoder, message_data_encoded: bytes, caplog
+):
+    message_json_decoded = json.loads(message_data_encoded.decode("utf-8"))
+    message_json_decoded["args"] = [{"name": "Jane Doe", "email": "jane.doe@example.com"}]
+
+    with caplog.at_level(logging.WARNING, logger="remoulade.encoder"):
+        encoder_with_fallback.decode_json(message_json_decoded)
+
+    assert "ValidationError at address (missing), birth_date (missing), enum (missing)" in caplog.text
+    assert "Jane Doe" not in caplog.text
+    assert "jane.doe@example.com" not in caplog.text
+
+
+def test_fallback_on_a_result_without_actor_logs_nothing(encoder_with_fallback: PydanticEncoder, caplog):
+    forgotten_result = ForgottenResult.asdict()
+
+    with caplog.at_level(logging.WARNING, logger="remoulade.encoder"):
+        decoded = encoder_with_fallback.decode_bytes(encoder_with_fallback.encode_in_bytes(forgotten_result))
+
+    assert decoded == forgotten_result
+    assert "falling back" not in caplog.text
+
+
+def test_fallback_on_bytes_decode_logs_a_warning_naming_the_actor(
+    stub_broker, message_data_decoded: MessageData, caplog
+):
+    encoder = PydanticEncoder(fallback_encoder=PickleEncoder())
+
+    with caplog.at_level(logging.WARNING, logger="remoulade.encoder"):
+        decoded = encoder.decode_bytes(pickle.dumps(message_data_decoded))
+
+    assert decoded == message_data_decoded
+    assert "could not decode a message of actor my_actor_tuple, falling back to PickleEncoder" in caplog.text
+
+
+def test_fallback_on_bytes_encode_logs_a_warning_naming_the_actor(stub_broker, caplog):
+    encoder = PydanticEncoder(fallback_encoder=PickleEncoder())
+    data = {"actor_name": "opaque_actor", "args": [_Opaque()]}
+
+    with caplog.at_level(logging.WARNING, logger="remoulade.encoder"):
+        encoded = encoder.encode_in_bytes(data)
+
+    assert isinstance(pickle.loads(encoded)["args"][0], _Opaque)  # noqa: S301
+    assert "could not encode a message of actor opaque_actor, falling back to PickleEncoder" in caplog.text
+
+
+def test_failed_json_fallback_logs_nothing_and_raises(
+    stub_broker, stub_result_backend, message_data_encoded: bytes, caplog
+):
+    stub_broker.add_middleware(Results(backend=stub_result_backend))
+    stub_broker.declare_actor(my_actor_tuple)
+    encoder = PydanticEncoder(fallback_encoder=PickleEncoder())
+    message_json_decoded = json.loads(message_data_encoded.decode("utf-8"))
+    message_json_decoded["args"] = [{"toto": "a"}]
+
+    with caplog.at_level(logging.WARNING, logger="remoulade.encoder"), pytest.raises(TypeError, match="PickleEncoder"):
+        encoder.decode_json(message_json_decoded)
+
+    assert "falling back" not in caplog.text
+
+
+def test_no_fallback_logs_nothing_and_raises(encoder: PydanticEncoder, message_data_encoded: bytes, caplog):
+    message_json_decoded = json.loads(message_data_encoded.decode("utf-8"))
+    message_json_decoded["args"] = [{"toto": "a"}]
+
+    with caplog.at_level(logging.WARNING, logger="remoulade.encoder"), pytest.raises(ValidationError):
+        encoder.decode_json(message_json_decoded)
+
+    assert "falling back" not in caplog.text

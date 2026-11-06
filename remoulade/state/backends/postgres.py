@@ -23,6 +23,7 @@ from typing import Any, ClassVar, Final, override
 
 from ...broker import Broker
 from ...encoder import Encoder
+from ...helpers.pgmq_names import physical_queue_name
 from ...message import Message
 from ..backend import State, StateBackend, StateStatusesEnum
 
@@ -143,7 +144,7 @@ class PostgresBackend(StateBackend):
             return
 
         patched = self.broker.client.patch_headers(
-            state.queue_name,
+            physical_queue_name(state.queue_name),
             state.delivery_id,
             patch,
         )
@@ -196,7 +197,7 @@ class PostgresBackend(StateBackend):
             raise ValueError(f"PostgresBackend never records {', '.join(unwritten)}, so no message can match them.")
 
         return self.broker.client.delete_messages(
-            queue_name,
+            physical_queue_name(queue_name),
             include_active=include_active,
             statuses=None if statuses is None else [status.value for status in statuses],
             start=start,
@@ -238,7 +239,7 @@ class PostgresBackend(StateBackend):
         """
         _check_range(start, end)
         last_attempts = self.broker.client.find_last_attempts(
-            queue_name,
+            physical_queue_name(queue_name),
             status=StateStatusesEnum.Failure.value,
             start=start,
             end=end,
