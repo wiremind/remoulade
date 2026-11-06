@@ -5,6 +5,19 @@ Changelog
 
 All notable changes to this project will be documented in this file.
 
+`8.0.1`_ -- Unreleased
+----------------------
+Fix
+^^^
+* A group of pipelines that end with a group now completes once every message of those last groups has ended. It
+  expected one completion per pipeline, so the step after it ran as soon as the first of them ended, then again for
+  the later ones, logging ``MessageIdsMissing``. The count is set when the composition is built: workers of any
+  version complete it alike.
+* With ``pipe_on_error``, the errors that such a group pipes are strings, as for the other groups: the next message
+  could not encode them.
+* ``Results`` forgets the results that a group of pipelines piped, which it never did: their message ids are nested
+  in a list. The results of the other steps of the pipelines are kept.
+
 `8.0.0`_ -- 2026-11-04
 ----------------------
 Breaking changes

@@ -687,6 +687,214 @@ def test_pipelines_accept_groups_of_pipelines_holding_a_group(stub_broker, do_wo
     assert len(pipe.build()) == 4
 
 
+def test_groups_of_pipelines_ending_with_a_group_count_each_message_of_their_last_group(stub_broker, do_work):
+    # Given a group holding a message and two pipelines that each end with a group of two messages
+    outer = group(
+        [do_work.message()] + [do_work.message() | group([do_work.message(), do_work.message()]) for _ in range(2)]
+    )
+
+    # When I pipe that group with a message and build the pipeline
+    messages = (outer | do_work.message()).build()
+
+    # Then the group is completed by its message and the four messages of the last groups
+    assert outer.info.children_count == 5
+
+    # And the messages of the last groups count in its completion
+    for message in messages[1:]:
+        for message_data in message.options["pipe_target"]:
+            assert message_data["options"]["group_info"] == outer.info.asdict()
+
+
+def test_groups_of_pipelines_ending_with_a_group_run_the_next_step_once(stub_broker, stub_worker, result_middleware):
+    # Given an actor that records its runs
+    runs = []
+
+    @remoulade.actor
+    def record(name):
+        runs.append(name)
+
+    stub_broker.declare_actor(record)
+
+    # And a group of pipelines that each end with a group of three messages
+    pipelines = [
+        record.message("first")
+        | group([record.message_with_options(args=("last",), pipe_ignore=True) for _ in range(3)])
+        for _ in range(2)
+    ]
+
+    # When I pipe that group with a message and run the pipeline
+    pipeline([group(pipelines), record.message_with_options(args=("next",), pipe_ignore=True)]).run()
+
+    stub_broker.join(record.queue_name)
+    stub_worker.join()
+
+    # Then the next message runs once, after every message of the last groups
+    assert runs.count("last") == 6
+    assert runs[-1] == "next"
+    assert runs.count("next") == 1
+
+
+def test_groups_of_pipelines_ending_with_a_group_pipe_their_nested_results(stub_broker, stub_worker, result_middleware):
+    # Given actors that store results
+    @remoulade.actor(store_results=True)
+    def do_work():
+        return 1
+
+    @remoulade.actor(store_results=True)
+    def add(x, y):
+        return x + y
+
+    received = []
+
+    @remoulade.actor(store_results=True)
+    def identity(results):
+        received.append(results)
+        return results
+
+    stub_broker.declare_actor(do_work)
+    stub_broker.declare_actor(add)
+    stub_broker.declare_actor(identity)
+
+    # When I pipe a group of pipelines that each end with a group with a message
+    pipelines = [do_work.message() | group([add.message(1), add.message(2)]) for _ in range(2)]
+    pipeline([group(pipelines), identity.message()]).run()
+
+    stub_broker.join(identity.queue_name)
+    stub_worker.join()
+
+    # Then the message runs once, with the results of each last group
+    assert received == [[[2, 3], [2, 3]]]
+
+
+def test_groups_of_pipelines_ending_with_a_group_pipe_their_errors(stub_broker, stub_worker, result_middleware):
+    # Given actors that store results and pipe their errors
+    @remoulade.actor(store_results=True)
+    def do_work():
+        return 1
+
+    @remoulade.actor(store_results=True, pipe_on_error=True)
+    def add(x, y):
+        return x + y
+
+    @remoulade.actor(store_results=True, pipe_on_error=True, max_retries=0)
+    def fail(_):
+        raise ValueError()
+
+    @remoulade.actor(store_results=True)
+    def identity(results):
+        return results
+
+    stub_broker.declare_actor(do_work)
+    stub_broker.declare_actor(add)
+    stub_broker.declare_actor(fail)
+    stub_broker.declare_actor(identity)
+
+    # When I pipe a group of pipelines that each end with a group holding a failing message with a message
+    pipelines = [do_work.message() | group([add.message(1), fail.message()]) for _ in range(2)]
+    pipe = pipeline([group(pipelines), identity.message()])
+    pipe.run()
+
+    # Then the message gets the errors of the last groups as strings
+    assert pipe.result.get(block=True) == [[2, "ValueError()"], [2, "ValueError()"]]
+
+
+def test_groups_of_pipelines_ending_with_a_group_stop_on_a_failure(stub_broker, stub_worker, result_middleware):
+    # Given an actor that records its runs
+    runs = []
+
+    @remoulade.actor
+    def record(name):
+        runs.append(name)
+
+    # And an actor that fails
+    @remoulade.actor(max_retries=0)
+    def fail():
+        raise ValueError()
+
+    stub_broker.declare_actor(record)
+    stub_broker.declare_actor(fail)
+
+    # And a group of pipelines that each end with a group, one of them holding a failing message
+    pipelines = [
+        record.message("first") | group([record.message_with_options(args=("last",), pipe_ignore=True), last])
+        for last in [
+            record.message_with_options(args=("last",), pipe_ignore=True),
+            fail.message_with_options(pipe_ignore=True),
+        ]
+    ]
+
+    # When I pipe that group with a message and run the pipeline
+    pipeline([group(pipelines), record.message_with_options(args=("next",), pipe_ignore=True)]).run()
+
+    stub_broker.join(record.queue_name)
+    stub_worker.join()
+
+    # Then the next message never runs
+    assert runs.count("last") == 3
+    assert "next" not in runs
+
+
+def test_groups_of_pipelines_nested_twice_run_the_next_step_once(stub_broker, stub_worker, result_middleware):
+    # Given an actor that records its runs
+    runs = []
+
+    @remoulade.actor
+    def record(name):
+        runs.append(name)
+
+    stub_broker.declare_actor(record)
+
+    # And a group of pipelines ending with a group of pipelines that also end with a group
+    def last_message():
+        return record.message_with_options(args=("last",), pipe_ignore=True)
+
+    def inner_pipeline():
+        return record.message_with_options(args=("first",), pipe_ignore=True) | group([last_message(), last_message()])
+
+    pipelines = [record.message("first") | group([inner_pipeline(), inner_pipeline()]) for _ in range(2)]
+
+    # When I pipe that group with a message and run the pipeline
+    pipeline([group(pipelines), record.message_with_options(args=("next",), pipe_ignore=True)]).run()
+
+    stub_broker.join(record.queue_name)
+    stub_worker.join()
+
+    # Then the next message runs once, after every message of the innermost groups
+    assert runs.count("last") == 8
+    assert runs[-1] == "next"
+    assert runs.count("next") == 1
+
+
+def test_groups_of_pipelines_forget_their_results(stub_broker, stub_worker, result_middleware):
+    # Given actors that store results
+    @remoulade.actor(store_results=True)
+    def do_work():
+        return 1
+
+    @remoulade.actor(store_results=True)
+    def do_sum(results):
+        return sum(results)
+
+    stub_broker.declare_actor(do_work)
+    stub_broker.declare_actor(do_sum)
+
+    # When I pipe a group of pipelines with a message and run the pipeline
+    g = group([do_work.message() | do_work.message_with_options(pipe_ignore=True) for _ in range(2)])
+    pipe = g | do_sum.message()
+    pipe.run()
+
+    assert pipe.result.get(block=True) == 2
+
+    stub_broker.join(do_work.queue_name)
+    stub_worker.join()
+
+    # Then the results of the group have been forgotten
+    assert list(g.results.get()) == [None, None]
+
+    # But not the results of the first messages of its pipelines, which were not piped
+    assert [child.children[0].result.get() for child in g.children] == [1, 1]
+
+
 def test_pipeline_does_not_continue_to_next_actor_when_message_is_marked_as_failed(stub_broker, stub_worker):
     # Given that I have an actor that fails messages
     class FailMessageMiddleware(remoulade.middleware.Middleware):

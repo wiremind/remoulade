@@ -15,6 +15,7 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 import contextlib
+import threading
 import time
 from typing import Any, ClassVar
 
@@ -31,6 +32,8 @@ class StubBackend(ResultBackend):
     """
 
     results: ClassVar[dict[str, Any]] = {}
+    # The worker threads complete the messages of a group concurrently
+    group_completion_lock: ClassVar[threading.Lock] = threading.Lock()
 
     def _get(self, message_key: str, forget: bool = False):
         if forget:
@@ -56,6 +59,7 @@ class StubBackend(ResultBackend):
 
     def increment_group_completion(self, group_id: str, message_id: str, ttl: int) -> int:
         group_completion_key = self.build_group_completion_key(group_id)
-        completed = self.results.get(group_completion_key, set()) | {message_id}
-        self.results[group_completion_key] = completed
+        with self.group_completion_lock:
+            completed = self.results.get(group_completion_key, set()) | {message_id}
+            self.results[group_completion_key] = completed
         return len(completed)
