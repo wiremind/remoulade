@@ -4,9 +4,11 @@ import pytest
 
 import remoulade
 import remoulade.broker
+from remoulade import group
 from remoulade.brokers.rabbitmq import RabbitmqBroker
 from remoulade.brokers.stub import StubBroker
-from remoulade.middleware import AgeLimit, Middleware, ShutdownNotifications, TimeLimit
+from remoulade.helpers.queues import dq_name
+from remoulade.middleware import AgeLimit, Middleware, ShutdownNotifications, TimeLimit, TimeLimitExceeded
 
 CURRENT_OS = platform.system()
 skip_on_windows = pytest.mark.skipif(CURRENT_OS == "Windows", reason="test skipped on Windows")
@@ -148,7 +150,7 @@ def test_enqueue_many_emits_after_with_exception_only_for_started_messages(stub_
 
     boom = RuntimeError("backend down")
 
-    def failing_enqueue_many(messages, *, delay=None):
+    def failing_enqueue_many(messages, *, delays=None):
         raise boom
 
     stub_broker._enqueue_many = failing_enqueue_many
@@ -164,6 +166,195 @@ def test_enqueue_many_emits_after_with_exception_only_for_started_messages(stub_
         ("after", 0, True),
         ("after", 1, True),
     ]
+
+
+class _DelayRecorder(Middleware):
+    def __init__(self):
+        self.delays = []
+
+    def before_enqueue(self, broker, message, delay):
+        self.delays.append((message.args[0], delay))
+
+
+@pytest.fixture
+def do_work(stub_broker):
+    @remoulade.actor
+    def do_work(index):
+        return index
+
+    stub_broker.declare_actor(do_work)
+    return do_work
+
+
+@pytest.fixture
+def enqueue_delays(stub_broker):
+    """Record the delay each message is announced with to the ``before_enqueue`` middleware."""
+    recorder = _DelayRecorder()
+    stub_broker.add_middleware(recorder)
+    return recorder.delays
+
+
+@pytest.fixture
+def enqueue_many_batches(stub_broker, monkeypatch):
+    """Record the messages and the delays of every ``_enqueue_many`` call of the stub broker."""
+    batches = []
+    enqueue_many = stub_broker._enqueue_many
+
+    def recording_enqueue_many(messages, *, delays=None):
+        batches.append(([message.args[0] for message in messages], delays))
+        return enqueue_many(messages, delays=delays)
+
+    monkeypatch.setattr(stub_broker, "_enqueue_many", recording_enqueue_many)
+    return batches
+
+
+def test_enqueue_adds_the_message_delay_option_to_the_enqueue_delay(stub_broker, do_work, enqueue_delays):
+    message = stub_broker.enqueue(do_work.message_with_options(args=(0,), delay=1000), delay=500)
+
+    assert enqueue_delays == [(0, 1500)]
+    assert message.queue_name == dq_name(do_work.queue_name)
+    # the option is consumed, so enqueuing the message again (delay queue, retries) does not delay it twice
+    assert "delay" not in message.options
+
+
+def test_enqueue_keeps_the_delay_option_of_the_given_message(stub_broker, do_work):
+    message = do_work.message_with_options(args=(0,), delay=1000)
+
+    stub_broker.enqueue(message)
+
+    # the option is consumed on a copy, the caller's message is left untouched
+    assert message.options["delay"] == 1000
+
+
+def test_merge_delay_option_does_not_copy_a_message_without_delay_option(stub_broker, do_work):
+    message = do_work.message(0)
+
+    merged_message, total_delay = stub_broker._merge_delay_option(message, 500)
+
+    # nothing to remove from the options, so a large group.run() does not copy every message for nothing
+    assert merged_message is message
+    assert total_delay == 500
+
+
+def test_enqueue_many_writes_each_message_with_its_delay(stub_broker, do_work, enqueue_delays, enqueue_many_batches):
+    messages = [
+        do_work.message_with_options(args=(0,), delay=1000),
+        do_work.message(1),
+        do_work.message_with_options(args=(2,), delay=1000),
+    ]
+    enqueued_messages = stub_broker.enqueue_many(messages, delay=500)
+
+    assert enqueue_many_batches == [([0, 1, 2], [1500, 500, 1500])]
+    assert enqueue_delays == [(0, 1500), (1, 500), (2, 1500)]
+    assert [message.args[0] for message in enqueued_messages] == [0, 1, 2]
+    assert all("delay" not in message.options for message in enqueued_messages)
+
+
+def test_enqueue_many_reports_every_message_as_failed_when_the_write_fails(stub_broker, do_work, monkeypatch):
+    recorder = _EnqueueRecorder()
+    stub_broker.add_middleware(recorder)
+    enqueue_many = stub_broker._enqueue_many
+
+    def enqueue_many_failing_on_delayed_message(messages, *, delays=None):
+        if any(delay is not None for delay in delays or []):
+            raise RuntimeError("backend down")
+        return enqueue_many(messages, delays=delays)
+
+    monkeypatch.setattr(stub_broker, "_enqueue_many", enqueue_many_failing_on_delayed_message)
+
+    with pytest.raises(RuntimeError):
+        stub_broker.enqueue_many([do_work.message(0), do_work.message_with_options(args=(1,), delay=1000)])
+
+    # a single write for the whole group: when it fails, no message is reported as enqueued
+    assert recorder.events == [
+        ("before", 0),
+        ("before", 1),
+        ("after", 0, True),
+        ("after", 1, True),
+    ]
+
+
+class _InterruptedAfterEnqueue(Middleware):
+    """Interrupt the first successful ``after_enqueue``, as a time limit hitting the actor that runs a group."""
+
+    def __init__(self):
+        self.interrupted = False
+
+    def after_enqueue(self, broker, message, delay, exception=None):
+        if exception is None and not self.interrupted:
+            self.interrupted = True
+            raise TimeLimitExceeded()
+
+
+def test_enqueue_many_writes_every_message_when_after_enqueue_is_interrupted(stub_broker, do_work):
+    recorder = _EnqueueRecorder()
+    stub_broker.add_middleware(recorder)
+    stub_broker.add_middleware(_InterruptedAfterEnqueue())
+
+    with pytest.raises(TimeLimitExceeded):
+        stub_broker.enqueue_many([do_work.message(0), do_work.message_with_options(args=(1,), delay=1000)])
+
+    # the whole group is written before the first after_enqueue, so the interruption leaves no message unwritten
+    assert stub_broker.queues["default"].qsize() == 1
+    assert stub_broker.queues[dq_name("default")].qsize() == 1
+    assert recorder.events == [
+        ("before", 0),
+        ("before", 1),
+        ("after", 0, True),
+        ("after", 1, True),
+    ]
+
+
+def test_enqueue_many_without_message_delay_writes_no_delay(stub_broker, do_work, enqueue_many_batches):
+    stub_broker.enqueue_many([do_work.message(0), do_work.message(1)])
+
+    assert enqueue_many_batches == [([0, 1], [None, None])]
+
+
+@pytest.mark.parametrize(
+    ("option_delay", "enqueue_delay"),
+    [(0, None), (None, 0), (0, 0)],
+    ids=["zero_option", "zero_enqueue_delay", "zero_both"],
+)
+def test_enqueue_sends_a_zero_delay_message_without_delay(
+    stub_broker, do_work, enqueue_delays, option_delay, enqueue_delay
+):
+    options = {} if option_delay is None else {"delay": option_delay}
+
+    message = stub_broker.enqueue(do_work.message_with_options(args=(0,), **options), delay=enqueue_delay)
+
+    # a zero delay goes straight to the queue instead of through the delay queue
+    assert enqueue_delays == [(0, None)]
+    assert message.queue_name == do_work.queue_name
+    assert "eta" not in message.options
+
+
+def test_enqueue_many_writes_a_zero_delay_message_without_delay(stub_broker, do_work, enqueue_many_batches):
+    stub_broker.enqueue_many([do_work.message_with_options(args=(0,), delay=0), do_work.message(1)])
+
+    assert enqueue_many_batches == [([0, 1], [None, None])]
+
+
+def test_group_runs_each_message_once_after_its_delay_option(stub_broker, stub_worker):
+    results = []
+
+    @remoulade.actor
+    def append(value):
+        results.append(value)
+
+    stub_broker.declare_actor(append)
+
+    group(
+        [
+            append.message_with_options(args=(1,), delay=300),
+            append.message_with_options(args=(2,), delay=100),
+        ]
+    ).run()
+
+    stub_broker.join(append.queue_name)
+    stub_worker.join()
+
+    assert results == [2, 1]
 
 
 def test_can_instantiate_brokers_without_middleware():

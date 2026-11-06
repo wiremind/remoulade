@@ -289,24 +289,27 @@ class PostgresBroker(Broker):
         return message
 
     @override
-    def _enqueue_many(self, messages: list["Message"], *, delay: int | None = None) -> list["Message"]:
-        """Send several messages to PGMQ with a ``send_batch`` per queue (optionally chunked).
+    def _enqueue_many(self, messages: list["Message"], *, delays: list[int | None] | None = None) -> list["Message"]:
+        """Send several messages to PGMQ with a ``send_batch`` per queue and delay (optionally chunked).
 
         For large fan-outs (e.g. ``group.run()``) this collapses N ``INSERT`` round-trips into one
-        statement per queue. Combined with ``group_transaction`` it means one connection, one
-        transaction and one insert for the whole group instead of N of each. When
-        ``enqueue_batch_size`` is set, each queue's messages are split into chunks of that size and
-        sent with one ``send_batch`` per chunk, so a huge fan-out does not build a single oversized
-        ``INSERT``; every chunk still runs inside the same transaction.
+        statement per queue and delay, since a ``send_batch`` has a single visibility date. Combined
+        with ``group_transaction`` it means one connection, one transaction and one insert per delay
+        for the whole group instead of N of each. When ``enqueue_batch_size`` is set, each batch is
+        split into chunks of that size and sent with one ``send_batch`` per chunk, so a huge fan-out
+        does not build a single oversized ``INSERT``; every chunk still runs inside the same
+        transaction.
         """
-        visible_at = datetime.now(UTC) + timedelta(milliseconds=delay) if delay is not None else None
-        messages_by_queue: dict[str, list[Message]] = {}
-        for message in messages:
+        now = datetime.now(UTC)
+        delays = delays or [None] * len(messages)
+        messages_by_batch: dict[tuple[str, int | None], list[Message]] = {}
+        for message, delay in zip(messages, delays, strict=True):
             if message.queue_name not in self.queues:
                 raise QueueNotFound(message.queue_name)
-            messages_by_queue.setdefault(message.queue_name, []).append(message)
+            messages_by_batch.setdefault((message.queue_name, delay), []).append(message)
 
-        for queue_name, queue_messages in messages_by_queue.items():
+        for (queue_name, delay), queue_messages in messages_by_batch.items():
+            visible_at = now + timedelta(milliseconds=delay) if delay is not None else None
             chunk_size = self.enqueue_batch_size or len(queue_messages)
             for chunk_start in range(0, len(queue_messages), chunk_size):
                 chunk = queue_messages[chunk_start : chunk_start + chunk_size]
