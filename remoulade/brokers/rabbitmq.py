@@ -378,8 +378,11 @@ class RabbitmqBroker(Broker):
                 self.logger.info("Retrying enqueue due to closed connection. [%d/%d]", attempts, MAX_ENQUEUE_ATTEMPTS)
 
     @override
-    def _enqueue_many(self, messages: list["Message[Any]"], *, delay: int | None = None) -> list["Message[Any]"]:
-        return [self._enqueue(message, delay=delay) for message in messages]
+    def _enqueue_many(
+        self, messages: list["Message[Any]"], *, delays: list[int | None] | None = None
+    ) -> list["Message[Any]"]:
+        delays = delays or [None] * len(messages)
+        return [self._enqueue(message, delay=delay) for message, delay in zip(messages, delays, strict=True)]
 
     def get_queue_message_counts(self, queue_name: str):
         """Get the number of messages in a queue.  This method is only

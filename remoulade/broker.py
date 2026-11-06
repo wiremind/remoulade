@@ -431,13 +431,18 @@ class Broker:
     def _enqueue(self, message: "Message", *, delay: int | None = None) -> "Message":
         raise NotImplementedError
 
-    def _enqueue_many(self, messages: list["Message[Any]"], *, delay: int | None = None) -> list["Message[Any]"]:
+    def _enqueue_many(
+        self, messages: list["Message[Any]"], *, delays: list[int | None] | None = None
+    ) -> list["Message[Any]"]:
         """Raw batch-enqueue hook, called by :meth:`enqueue_many` after ``emit_before``.
 
         The default implementation simply loops over :meth:`_enqueue`, so brokers that do not
         override it behave exactly as if each message had been enqueued on its own. Brokers whose
         backend supports a native batch insert (e.g. PGMQ ``send_batch``) should override this to
         collapse the N writes into a single round-trip.
+
+        ``delays[i]`` is the total delay of ``messages[i]``, already applied by :meth:`_apply_delay`;
+        None means that no message is delayed.
         """
         raise NotImplementedError
 
@@ -490,16 +495,15 @@ class Broker:
         writes into one (see :meth:`_enqueue_many`). ``group.run()`` uses this to fan out a group in a
         single backend round-trip.
 
-        Each message is delayed by ``delay`` plus its own ``delay`` option. Messages sharing the same
-        total delay are written with one :meth:`_enqueue_many` call, so a group without per-message
-        delays still makes a single backend write.
+        Each message is delayed by ``delay`` plus its own ``delay`` option. Every message is written
+        with a single :meth:`_enqueue_many` call, which receives the delay of each message (the
+        ``PostgresBroker`` sends one ``send_batch`` per queue and delay).
 
-        ``emit_after`` is emitted for a batch as soon as it is written. On failure, it is emitted with
-        the exception only for the messages whose ``emit_before`` already ran and whose batch was not
-        written, so tracing spans / message state opened in ``before_enqueue`` are always closed, and
-        a message already written by an earlier batch is not reported as failed. Writing several
-        batches is not atomic: run the group in a transaction (``group_transaction``) to roll every
-        batch back when one fails.
+        On failure, ``emit_after`` is emitted (with the exception) only for the messages whose
+        ``emit_before`` already ran, so tracing spans / message state opened in ``before_enqueue`` are
+        always closed. A backend that writes in several statements is not atomic: run the group in a
+        transaction (``group_transaction``) so that a failure rolls back every message it reports
+        as failed.
 
         Parameters:
           messages(list[Message]): The messages to enqueue.
@@ -509,28 +513,21 @@ class Broker:
         Returns:
           list[Message]: The enqueued messages, in the order they were given.
         """
-        batches: dict[int | None, list[tuple[int, Message[Any]]]] = {}
-        not_written: dict[int, tuple[Message[Any], int | None]] = {}
-        enqueued_messages: dict[int, Message[Any]] = {}
+        merged = [self._merge_delay_option(message, delay) for message in messages]
+        messages = [self._apply_delay(message, total_delay) for message, total_delay in merged]
+        delays = [total_delay for _, total_delay in merged]
+        emitted_before: list[tuple[Message[Any], int | None]] = []
         try:
-            for index, message in enumerate(messages):
-                message, total_delay = self._merge_delay_option(message, delay)
-                message = self._apply_delay(message, total_delay)
+            for message, total_delay in zip(messages, delays, strict=True):
                 self.emit_before("enqueue", message, total_delay)
-                not_written[index] = (message, total_delay)
-                batches.setdefault(total_delay, []).append((index, message))
-
-            for total_delay, batch in batches.items():
-                enqueued_batch = self._enqueue_many([message for _, message in batch], delay=total_delay)
-                for (index, _), enqueued_message in zip(batch, enqueued_batch, strict=True):
-                    del not_written[index]
-                    enqueued_messages[index] = enqueued_message
-                    self.emit_after("enqueue", enqueued_message, total_delay)
-
-            return [enqueued_messages[index] for index in range(len(messages))]
+                emitted_before.append((message, total_delay))
+            messages = self._enqueue_many(messages, delays=delays)
+            for message, total_delay in zip(messages, delays, strict=True):
+                self.emit_after("enqueue", message, total_delay)
+            return messages
 
         except BaseException as e:
-            for message, total_delay in not_written.values():
+            for message, total_delay in emitted_before:
                 self.emit_after("enqueue", message, total_delay, exception=e)
             raise e from e
 
