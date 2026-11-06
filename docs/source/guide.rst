@@ -339,8 +339,10 @@ This lets each message of a group start at its own time::
 The option adds up with the delay of the enqueue call, so these two
 messages run 15 and 25 seconds later.  The first enqueue consumes the
 option: a retry or the delay queue does not apply it a second time.
-Messages sharing the same total delay are still written in one batch, so
-rounding delays (to the second, for instance) keeps a large group fast.
+With ``PostgresBroker``, messages sharing the same total delay are still
+written in one batch, so rounding delays (to the second, for instance)
+keeps a large group fast.  Other brokers, such as ``RabbitmqBroker``,
+publish each message on its own, so rounding delays does not change anything.
 A zero delay enqueues the message directly.
 
 Keep in mind that *your message broker is not a database*.  Scheduled
