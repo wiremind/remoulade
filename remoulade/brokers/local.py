@@ -86,17 +86,19 @@ class LocalBroker(Broker):
 
         Parameters:
           message(Message): The message to enqueue.
-          delay(int): The number of milliseconds to delay the message for.
+          delay(int): The number of milliseconds to delay the message for, added to its ``delay``
+            option.
 
         Returns:
           Message: Either the original message or a copy of it.
         """
 
-        message = self._apply_delay(message, delay)
-        self.emit_before("enqueue", message, delay)
-        self.emit_after("enqueue", message, delay)
+        message, total_delay = self._merge_delay_option(message, delay)
+        message = self._apply_delay(message, total_delay)
+        self.emit_before("enqueue", message, total_delay)
+        self.emit_after("enqueue", message, total_delay)
 
-        message = self._enqueue(message, delay=delay)
+        message = self._enqueue(message, delay=total_delay)
         return message
 
     @override
@@ -134,8 +136,11 @@ class LocalBroker(Broker):
         return message_proxy
 
     @override
-    def _enqueue_many(self, messages: list["Message[Any]"], *, delay: int | None = None) -> list["Message[Any]"]:
-        return [self._enqueue(message, delay=delay) for message in messages]
+    def _enqueue_many(
+        self, messages: list["Message[Any]"], *, delays: list[int | None] | None = None
+    ) -> list["Message[Any]"]:
+        delays = delays or [None] * len(messages)
+        return [self._enqueue(message, delay=delay) for message, delay in zip(messages, delays, strict=True)]
 
     @override
     def flush(self, _: str) -> None:

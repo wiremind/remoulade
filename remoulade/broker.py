@@ -431,37 +431,59 @@ class Broker:
     def _enqueue(self, message: "Message", *, delay: int | None = None) -> "Message":
         raise NotImplementedError
 
-    def _enqueue_many(self, messages: list["Message[Any]"], *, delay: int | None = None) -> list["Message[Any]"]:
+    def _enqueue_many(
+        self, messages: list["Message[Any]"], *, delays: list[int | None] | None = None
+    ) -> list["Message[Any]"]:
         """Raw batch-enqueue hook, called by :meth:`enqueue_many` after ``emit_before``.
 
         The default implementation simply loops over :meth:`_enqueue`, so brokers that do not
         override it behave exactly as if each message had been enqueued on its own. Brokers whose
         backend supports a native batch insert (e.g. PGMQ ``send_batch``) should override this to
         collapse the N writes into a single round-trip.
+
+        ``delays[i]`` is the total delay of ``messages[i]``, already applied by :meth:`_apply_delay`;
+        None means that no message is delayed.
         """
         raise NotImplementedError
+
+    def _merge_delay_option(
+        self, message: "Message[Any]", enqueue_delay: int | None
+    ) -> tuple["Message[Any]", int | None]:
+        """Return the message without its ``delay`` option, and that option added to the enqueue delay.
+
+        The message is copied only when it has a ``delay`` option, so the caller's message is never
+        modified and a message without the option is not copied for nothing.
+        """
+        if message.options.get("delay") is None:
+            return message, enqueue_delay or None
+
+        message = message.copy()
+        message_delay = message.options.pop("delay")
+        return message, ((enqueue_delay or 0) + message_delay) or None
 
     def enqueue(self, message: "Message[Any]", *, delay: int | None = None) -> "Message[Any]":  # pragma: no cover
         """Enqueue a message on this broker.
 
         Parameters:
           message(Message): The message to enqueue.
-          delay(int): The number of milliseconds to delay the message for.
+          delay(int): The number of milliseconds to delay the message for, added to its ``delay``
+            option.
 
         Returns:
           Message: Either the original message or a copy of it.
         """
 
-        message = self._apply_delay(message, delay)
-        self.emit_before("enqueue", message, delay)
+        message, total_delay = self._merge_delay_option(message, delay)
+        message = self._apply_delay(message, total_delay)
+        self.emit_before("enqueue", message, total_delay)
 
         try:
-            message = self._enqueue(message, delay=delay)
-            self.emit_after("enqueue", message, delay)
+            message = self._enqueue(message, delay=total_delay)
+            self.emit_after("enqueue", message, total_delay)
             return message
 
         except BaseException as e:
-            self.emit_after("enqueue", message, delay, exception=e)
+            self.emit_after("enqueue", message, total_delay, exception=e)
             raise e from e
 
     def enqueue_many(self, messages: list["Message[Any]"], *, delay: int | None = None) -> list["Message[Any]"]:
@@ -473,31 +495,40 @@ class Broker:
         writes into one (see :meth:`_enqueue_many`). ``group.run()`` uses this to fan out a group in a
         single backend round-trip.
 
+        Each message is delayed by ``delay`` plus its own ``delay`` option. Every message is written
+        with a single :meth:`_enqueue_many` call, which receives the delay of each message (the
+        ``PostgresBroker`` sends one ``send_batch`` per queue and delay).
+
         On failure, ``emit_after`` is emitted (with the exception) only for the messages whose
         ``emit_before`` already ran, so tracing spans / message state opened in ``before_enqueue`` are
-        always closed.
+        always closed. A backend that writes in several statements is not atomic: run the group in a
+        transaction (``group_transaction``) so that a failure rolls back every message it reports
+        as failed.
 
         Parameters:
           messages(list[Message]): The messages to enqueue.
-          delay(int): The number of milliseconds to delay every message for.
+          delay(int): The number of milliseconds to delay every message for, added to the ``delay``
+            option of each message.
 
         Returns:
-          list[Message]: The enqueued messages.
+          list[Message]: The enqueued messages, in the order they were given.
         """
-        messages = [self._apply_delay(message, delay) for message in messages]
-        emitted_before: list[Message[Any]] = []
+        merged = [self._merge_delay_option(message, delay) for message in messages]
+        messages = [self._apply_delay(message, total_delay) for message, total_delay in merged]
+        delays = [total_delay for _, total_delay in merged]
+        emitted_before: list[tuple[Message[Any], int | None]] = []
         try:
-            for message in messages:
-                self.emit_before("enqueue", message, delay)
-                emitted_before.append(message)
-            messages = self._enqueue_many(messages, delay=delay)
-            for message in messages:
-                self.emit_after("enqueue", message, delay)
+            for message, total_delay in zip(messages, delays, strict=True):
+                self.emit_before("enqueue", message, total_delay)
+                emitted_before.append((message, total_delay))
+            messages = self._enqueue_many(messages, delays=delays)
+            for message, total_delay in zip(messages, delays, strict=True):
+                self.emit_after("enqueue", message, total_delay)
             return messages
 
         except BaseException as e:
-            for message in emitted_before:
-                self.emit_after("enqueue", message, delay, exception=e)
+            for message, total_delay in emitted_before:
+                self.emit_after("enqueue", message, total_delay, exception=e)
             raise e from e
 
     def get_actor(self, actor_name: str) -> "Actor[..., Any]":  # pragma: no cover

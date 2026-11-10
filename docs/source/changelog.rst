@@ -5,6 +5,30 @@ Changelog
 
 All notable changes to this project will be documented in this file.
 
+`8.1.0`_ -- Unreleased
+----------------------
+Feat
+^^^^
+* The ``delay`` option of a message, set with ``message_with_options(delay=...)``, is applied when the message is
+  enqueued by ``enqueue``, ``enqueue_many`` and so ``group.run()``, and also when a pipeline enqueues its next message
+  (``pipe_target``) or ``CatchError`` enqueues an ``on_failure`` message. It used to be stored in the message options
+  and ignored. It adds up with the delay of the enqueue call (``group.run(delay=...)``,
+  ``send_with_options(delay=...)``, the retry backoff), and the first enqueue consumes it, so a retry or the delay
+  queue does not apply it a second time.
+* Upgrade note: a message already stored with a ``delay`` option by an older version still carries it, since nothing
+  consumed it. It is delayed the next time it is enqueued: on a retry, on a ``PostgresBackend.replay_failures``, as an
+  already serialized ``pipe_target`` of a pipeline, or as an ``on_failure`` message. Only messages built with
+  ``message_with_options(delay=...)`` are concerned.
+* ``_enqueue_many`` takes the delay of each message (``delays``) instead of a single ``delay``: ``enqueue_many`` still
+  makes a single ``_enqueue_many`` call, and ``PostgresBroker`` sends one ``send_batch`` per queue and distinct delay.
+  Run the group in a transaction (``group_transaction``) so that a failed write rolls back every message reported as
+  failed.
+
+Fix
+^^^
+* A zero delay no longer goes through the delay queue: ``send_with_options(delay=0)`` and a ``delay=0`` option enqueue
+  the message directly, without an ``eta``.
+
 `8.0.1`_ -- 2026-11-10
 ----------------------
 Fix
