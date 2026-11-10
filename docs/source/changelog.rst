@@ -5,7 +5,7 @@ Changelog
 
 All notable changes to this project will be documented in this file.
 
-`8.0.1`_ -- 2026-11-06
+`8.0.1`_ -- 2026-11-10
 ----------------------
 Fix
 ^^^
