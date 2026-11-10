@@ -5,7 +5,7 @@ Changelog
 
 All notable changes to this project will be documented in this file.
 
-`8.1.0`_ -- Unreleased
+`8.1.0`_ -- 2026-11-10
 ----------------------
 Feat
 ^^^^
