@@ -17,9 +17,9 @@
 
 """OpenTelemetry tracing middleware for Remoulade.
 
-This middleware creates **new trace roots** on the consumer side with a
-``Link`` back to the producer span, instead of propagating trace context
-as parent-child (same ``trace_id``).
+This middleware creates **new trace roots** on both the producer and the
+consumer side, each with a ``Link`` back to the span that caused it, instead
+of propagating trace context as parent-child (same ``trace_id``).
 
 Why?
 ----
@@ -29,11 +29,15 @@ the full trace context from producer to consumer.  Combined with a
 out to thousands of Remoulade tasks, *every* task (and all its downstream
 SQL / Redis / HTTP spans) ends up in the **same** trace.  A single batch
 can easily produce 300MB+ traces that overwhelm Tempo / Jaeger ingesters.
+The producer spans alone do the same: an actor that enqueues 100k messages
+would get 100k ``send`` child spans in its own trace.
 
 This middleware breaks the parent-child chain:
 
-* **Producer side** (``before_enqueue``): starts a ``PRODUCER`` span and
-  ``inject()``s the current context into ``message.options["trace_ctx"]``.
+* **Producer side** (``before_enqueue``): always starts a **new root**
+  ``PRODUCER`` span, independently subject to the configured sampler, with a
+  ``Link`` to the span active when the message is enqueued (if any), and
+  ``inject()``s its context into ``message.options["trace_ctx"]``.
 * **Consumer side** (``before_process_message``): always starts a **new root**
   ``CONSUMER`` span with its own ``trace_id``, independently subject to the
   configured sampler.  When the message carries a ``trace_ctx`` dict
@@ -76,8 +80,10 @@ class OpenTelemetryMiddleware(Middleware):
     """Remoulade middleware that instruments message enqueue / process
     with OpenTelemetry spans using **link-based** propagation.
 
-    Each consumed message starts a new, independent trace with a
-    ``Link`` back to the producer span rather than being a child of it.
+    Each enqueued message starts a new, independent trace with a ``Link``
+    back to the span that enqueued it, and each consumed message starts a
+    new, independent trace with a ``Link`` back to the producer span,
+    rather than being a child of them.
     """
 
     def __init__(
@@ -204,14 +210,24 @@ class OpenTelemetryMiddleware(Middleware):
     # ------------------------------------------------------------------
 
     def before_enqueue(self, broker, message, delay):
+        # Start a NEW root span in an **empty** context so that an actor
+        # enqueuing many messages does not get one child span per message
+        # in its own trace.  A link keeps the enqueuing span reachable.
+        links: list[trace_api.Link] = []
+        current_span_ctx = trace_api.get_current_span().get_span_context()
+        if current_span_ctx.is_valid:
+            links.append(trace_api.Link(current_span_ctx))
+
         self._start_span(
             message,
             action="send",
             kind=trace_api.SpanKind.PRODUCER,
             is_publish=True,
+            context=context_api.Context(),
+            links=links,
         )
 
-        # Inject current context so the consumer can build a link back.
+        # Inject the producer span context so the consumer can build a link back.
         trace_ctx = message.options.get("trace_ctx")
         if not isinstance(trace_ctx, dict):
             trace_ctx = {}

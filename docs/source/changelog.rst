@@ -5,6 +5,15 @@ Changelog
 
 All notable changes to this project will be documented in this file.
 
+`8.1.1`_ -- 2026-11-18
+----------------------
+Fix
+^^^
+* ``OpenTelemetryMiddleware`` starts each producer (``remoulade/send``) span as the root of its own trace, with a link
+  to the span that enqueued the message. It was a child of that span, so an actor enqueuing thousands of messages
+  built a trace with thousands of spans, which Tempo drops above ``max_bytes_per_trace``. Each producer span is now
+  sampled on its own, and the consumer span still links to it.
+
 `8.1.0`_ -- 2026-11-17
 ----------------------
 Feat

@@ -96,6 +96,17 @@ class TestProducer:
         assert "enqueue failed" in span.status.description
         assert len(span.events) == 1  # recorded exception
 
+    def test_producer_span_without_active_span_has_no_link(self, otel_setup):
+        middleware, exporter = otel_setup
+        message = _make_message()
+
+        middleware.before_enqueue(None, message, delay=0)
+        middleware.after_enqueue(None, message, delay=0)
+
+        producer_span = exporter.get_finished_spans()[0]
+        assert producer_span.parent is None
+        assert len(producer_span.links) == 0
+
 
 # ---------------------------------------------------------------------------
 # Consumer tests
@@ -216,3 +227,28 @@ class TestContextIsolation:
         # Consumer span must NOT be a child of the ambient span
         assert consumer_span.context.trace_id != ambient_trace_id
         assert consumer_span.context.trace_id != producer_span.context.trace_id
+
+    def test_producer_spans_are_roots_linked_to_active_span(self, otel_setup):
+        """An actor enqueuing many messages must not get one child span per
+        message in its own trace: each producer span is a new root with a
+        link back to the enqueuing span."""
+        middleware, exporter = otel_setup
+
+        ambient_tracer = TracerProvider().get_tracer("ambient")
+        with ambient_tracer.start_as_current_span("ambient_operation") as ambient_span:
+            for _ in range(3):
+                message = _make_message()
+                middleware.before_enqueue(None, message, delay=0)
+                middleware.after_enqueue(None, message, delay=0)
+            assert trace_api.get_current_span() is ambient_span
+
+        ambient_ctx = ambient_span.get_span_context()
+        producer_spans = exporter.get_finished_spans()
+        assert len(producer_spans) == 3
+        assert len({span.context.trace_id for span in producer_spans}) == 3
+        for span in producer_spans:
+            assert span.parent is None
+            assert span.context.trace_id != ambient_ctx.trace_id
+            assert len(span.links) == 1
+            assert span.links[0].context.trace_id == ambient_ctx.trace_id
+            assert span.links[0].context.span_id == ambient_ctx.span_id
