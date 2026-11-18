@@ -5,6 +5,16 @@ Changelog
 
 All notable changes to this project will be documented in this file.
 
+`8.1.2`_ -- 2026-11-18
+----------------------
+Fix
+^^^
+* ``OpenTelemetryMiddleware`` no longer makes the producer (``remoulade/send``) span the current span. Since 8.1.1 it
+  is the root of another trace, and ``enqueue_many`` (so ``group.run()``) runs every ``before_enqueue`` before the
+  first ``after_enqueue``: the producer spans of the next messages linked to the previous producer span instead of the
+  span that enqueued them, and the caller was left with a producer span of another trace as its current span, so its
+  later spans and log trace ids went to that trace.
+
 `8.1.1`_ -- 2026-11-18
 ----------------------
 Fix
