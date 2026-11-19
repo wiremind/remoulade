@@ -5,6 +5,13 @@ Changelog
 
 All notable changes to this project will be documented in this file.
 
+`8.2.0`_ -- Unreleased
+----------------------
+Feat
+^^^^
+* ``PostgresBackend.purge`` (and ``RemouladePostgresClient.delete_messages``) take an ``on_progress(table,
+  deleted_count, matching_count)`` callback, called once a table's matching rows are counted and after each batch.
+
 `8.1.2`_ -- 2026-11-18
 ----------------------
 Fix

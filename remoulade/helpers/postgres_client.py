@@ -21,7 +21,7 @@ pgmq state backend never build SQL of their own.
 """
 
 import json
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from datetime import datetime
 from typing import Any
@@ -108,12 +108,16 @@ class RemouladePostgresClient(SQLAlchemyPGMQueue):
         end: datetime | None = None,
         batch_size: int = 10_000,
         lock_timeout: str = "3s",
+        on_progress: Callable[[str, int, int], None] | None = None,
     ) -> dict[str, int]:
         """Delete the archived messages of a queue, and its enqueued ones too when ``include_active``.
 
         Filters combine with AND and are skipped when None: a timestamp in ``[start, end)``
         -- ``archived_at`` on the archive, ``enqueued_at`` on the queue, each table's
         indexed partition key -- and ``headers->>'status'`` in ``statuses``.
+
+        ``on_progress(table, deleted_count, matching_count)`` is called once the rows of a
+        table are counted, then after each batch.
 
         Counts the matching rows first, then deletes them ``batch_size`` per transaction; rows
         that start matching after the count are left in place. A batch
@@ -161,10 +165,14 @@ class RemouladePostgresClient(SQLAlchemyPGMQueue):
                         params,
                     ).scalar_one()
                 deleted_count_by_table[table] = 0
+                if on_progress is not None:
+                    on_progress(table, 0, matching_count)
                 for _ in range(0, matching_count, batch_size):
                     with connection.begin():
                         connection.execute(set_lock_timeout, {"lock_timeout": lock_timeout})
                         deleted_count_by_table[table] += connection.execute(statement, params).rowcount
+                    if on_progress is not None:
+                        on_progress(table, deleted_count_by_table[table], matching_count)
         return deleted_count_by_table
 
     def find_last_attempts(

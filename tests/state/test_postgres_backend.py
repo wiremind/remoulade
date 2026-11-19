@@ -448,6 +448,22 @@ class TestPurge:
         assert deleted == {"a_default": 5}
         assert _msg_ids(postgres_broker, "a_default") == [kept]
 
+    def test_reports_progress_per_table_and_batch(self, postgres_broker, postgres_state_backend):
+        for _ in range(3):
+            _send(postgres_broker, status="Success")
+        progresses = []
+
+        postgres_state_backend.purge(
+            "default",
+            include_active=True,
+            batch_size=2,
+            on_progress=lambda table, deleted_count, matching_count: progresses.append(
+                (table, deleted_count, matching_count)
+            ),
+        )
+
+        assert progresses == [("a_default", 0, 3), ("a_default", 2, 3), ("a_default", 3, 3), ("q_default", 0, 0)]
+
     def test_skips_rows_locked_by_a_worker(self, postgres_broker, postgres_state_backend):
         """A row a worker holds is left for it rather than waited on."""
         locked = _send(postgres_broker, archive=False)
