@@ -21,7 +21,7 @@ pgmq state backend never build SQL of their own.
 """
 
 import json
-from collections.abc import Callable, Iterator
+from collections.abc import Iterator
 from contextlib import contextmanager
 from datetime import datetime
 from typing import Any
@@ -30,11 +30,14 @@ from pgmq import SQLAlchemyPGMQueue
 from sqlalchemy import Connection, text
 
 from ..actor import QUEUE_NAME_PATTERN
+from ..logging import get_logger
 
 #: pgmq's own limit on a queue name. It also keeps the longest identifier remoulade
 #: derives from one (``q_<queue>_msg_id_idx``) under PostgreSQL's 63-byte cap, past
 #: which PostgreSQL truncates -- and two long queue names would collide on one index.
 QUEUE_NAME_MAX_LENGTH = 47
+
+logger = get_logger(__name__)
 
 
 def assert_valid_queue_name(queue_name: str) -> None:
@@ -108,7 +111,6 @@ class RemouladePostgresClient(SQLAlchemyPGMQueue):
         end: datetime | None = None,
         batch_size: int = 10_000,
         lock_timeout: str = "3s",
-        on_progress: Callable[[str, int, int], None] | None = None,
     ) -> dict[str, int]:
         """Delete the archived messages of a queue, and its enqueued ones too when ``include_active``.
 
@@ -116,11 +118,9 @@ class RemouladePostgresClient(SQLAlchemyPGMQueue):
         -- ``archived_at`` on the archive, ``enqueued_at`` on the queue, each table's
         indexed partition key -- and ``headers->>'status'`` in ``statuses``.
 
-        ``on_progress(table, deleted_count, matching_count)`` is called once the rows of a
-        table are counted, then after each batch.
-
         Counts the matching rows first, then deletes them ``batch_size`` per transaction; rows
-        that start matching after the count are left in place. A batch
+        that start matching after the count are left in place. Logs the progress after each
+        batch, at INFO. A batch
         skips rows another transaction has locked (``SKIP LOCKED``) rather than wait on them,
         and they stay in place; ``lock_timeout`` bounds any other lock wait.
 
@@ -165,14 +165,11 @@ class RemouladePostgresClient(SQLAlchemyPGMQueue):
                         params,
                     ).scalar_one()
                 deleted_count_by_table[table] = 0
-                if on_progress is not None:
-                    on_progress(table, 0, matching_count)
                 for _ in range(0, matching_count, batch_size):
                     with connection.begin():
                         connection.execute(set_lock_timeout, {"lock_timeout": lock_timeout})
                         deleted_count_by_table[table] += connection.execute(statement, params).rowcount
-                    if on_progress is not None:
-                        on_progress(table, deleted_count_by_table[table], matching_count)
+                    logger.info("Deleted %d/%d rows of pgmq.%s", deleted_count_by_table[table], matching_count, table)
         return deleted_count_by_table
 
     def find_last_attempts(

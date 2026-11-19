@@ -17,7 +17,7 @@
 """A state backend that records a message's status inside the pgmq message itself."""
 
 import json
-from collections.abc import Callable, Collection
+from collections.abc import Collection
 from datetime import datetime
 from typing import Any, ClassVar, Final, override
 
@@ -166,7 +166,6 @@ class PostgresBackend(StateBackend):
         start: datetime | None = None,
         end: datetime | None = None,
         batch_size: int = 10_000,
-        on_progress: Callable[[str, int, int], None] | None = None,
     ) -> dict[str, int]:
         """Delete the archived messages of a queue, and its enqueued ones too when ``include_active``.
 
@@ -175,9 +174,6 @@ class PostgresBackend(StateBackend):
         ``statuses``; a row with no recorded status never matches a status filter.
         Deleting enqueued messages drops in-flight ones too: their ack then archives
         nothing, so they leave no trace.
-
-        ``on_progress(table, deleted_count, matching_count)`` is called once the rows of a
-        table are counted, then after each batch, e.g. to drive a progress bar.
 
         Runs in batches of ``batch_size`` rows, one transaction each; see
         :meth:`~remoulade.helpers.postgres_client.RemouladePostgresClient.delete_messages`
@@ -206,7 +202,6 @@ class PostgresBackend(StateBackend):
             start=start,
             end=end,
             batch_size=batch_size,
-            on_progress=on_progress,
         )
 
     def replay_failures(
