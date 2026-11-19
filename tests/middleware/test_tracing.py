@@ -21,10 +21,12 @@ import pytest
 pytest.importorskip("opentelemetry.sdk")
 
 from opentelemetry import trace as trace_api
+from opentelemetry.propagate import extract
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 
+import remoulade
 from remoulade import Message
 from remoulade.middleware.tracing import OpenTelemetryMiddleware
 
@@ -252,3 +254,38 @@ class TestContextIsolation:
             assert len(span.links) == 1
             assert span.links[0].context.trace_id == ambient_ctx.trace_id
             assert span.links[0].context.span_id == ambient_ctx.span_id
+
+    def test_enqueue_many_links_every_message_to_active_span_and_keeps_it_current(self, otel_setup, stub_broker):
+        """``enqueue_many`` runs every ``before_enqueue`` before the first
+        ``after_enqueue``: the producer spans must not become the current
+        span, or the next messages would link to them and the caller would
+        be left on a span of another trace."""
+        middleware, exporter = otel_setup
+        stub_broker.add_middleware(middleware)
+
+        @remoulade.actor
+        def do_work(value):
+            pass
+
+        stub_broker.declare_actor(do_work)
+
+        ambient_tracer = TracerProvider().get_tracer("ambient")
+        with ambient_tracer.start_as_current_span("ambient_operation") as ambient_span:
+            messages = stub_broker.enqueue_many([do_work.message(value) for value in range(3)])
+            assert trace_api.get_current_span() is ambient_span
+
+        ambient_ctx = ambient_span.get_span_context()
+        producer_spans = exporter.get_finished_spans()
+        assert len(producer_spans) == 3
+        for span in producer_spans:
+            assert span.parent is None
+            assert len(span.links) == 1
+            assert span.links[0].context.span_id == ambient_ctx.span_id
+
+        span_by_message_id = {span.attributes["messaging.message.id"]: span for span in producer_spans}
+        assert len(messages) == 3
+        for message in messages:
+            injected_ctx = trace_api.get_current_span(extract(message.options["trace_ctx"])).get_span_context()
+            producer_ctx = span_by_message_id[message.message_id].context
+            assert injected_ctx.trace_id == producer_ctx.trace_id
+            assert injected_ctx.span_id == producer_ctx.span_id

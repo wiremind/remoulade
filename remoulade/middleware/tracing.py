@@ -136,8 +136,9 @@ class OpenTelemetryMiddleware(Middleware):
         is_publish: bool,
         context: context_api.Context | None = None,
         links: list[trace_api.Link] | None = None,
-    ) -> None:
-        """Create a span, activate it and store it in the registry."""
+        activate: bool = True,
+    ) -> Any:
+        """Create a span, activate it if asked and store it in the registry."""
         retry_count = message.options.get("retries", 0)
 
         span = self._tracer.start_span(
@@ -153,9 +154,12 @@ class OpenTelemetryMiddleware(Middleware):
             },
         )
 
-        activation = trace_api.use_span(span, end_on_exit=True)
-        activation.__enter__()
+        activation = None
+        if activate:
+            activation = trace_api.use_span(span, end_on_exit=True)
+            activation.__enter__()
         self._span_registry[message.message_id, is_publish] = (span, activation)
+        return span
 
     # ------------------------------------------------------------------
     # Consumer hooks
@@ -203,7 +207,10 @@ class OpenTelemetryMiddleware(Middleware):
         if exception is not None:
             span.set_status(Status(StatusCode.ERROR, str(exception)))
             span.record_exception(exception)
-        activation.__exit__(None, None, None)
+        if activation is None:
+            span.end()
+        else:
+            activation.__exit__(None, None, None)
 
     # ------------------------------------------------------------------
     # Producer hooks
@@ -213,25 +220,30 @@ class OpenTelemetryMiddleware(Middleware):
         # Start a NEW root span in an **empty** context so that an actor
         # enqueuing many messages does not get one child span per message
         # in its own trace.  A link keeps the enqueuing span reachable.
+        # The producer span is NOT activated: ``enqueue_many`` runs every
+        # ``before_enqueue`` before the first ``after_enqueue``, so an
+        # activated span would become the parent context of the next
+        # messages and stay the current span of the caller afterwards.
         links: list[trace_api.Link] = []
         current_span_ctx = trace_api.get_current_span().get_span_context()
         if current_span_ctx.is_valid:
             links.append(trace_api.Link(current_span_ctx))
 
-        self._start_span(
+        span = self._start_span(
             message,
             action="send",
             kind=trace_api.SpanKind.PRODUCER,
             is_publish=True,
             context=context_api.Context(),
             links=links,
+            activate=False,
         )
 
         # Inject the producer span context so the consumer can build a link back.
         trace_ctx = message.options.get("trace_ctx")
         if not isinstance(trace_ctx, dict):
             trace_ctx = {}
-        inject(trace_ctx)
+        inject(trace_ctx, context=trace_api.set_span_in_context(span))
         message.options["trace_ctx"] = trace_ctx
 
     def after_enqueue(self, broker, message, delay, exception=None):
