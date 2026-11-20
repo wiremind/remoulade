@@ -30,11 +30,14 @@ from pgmq import SQLAlchemyPGMQueue
 from sqlalchemy import Connection, text
 
 from ..actor import QUEUE_NAME_PATTERN
+from ..logging import get_logger
 
 #: pgmq's own limit on a queue name. It also keeps the longest identifier remoulade
 #: derives from one (``q_<queue>_msg_id_idx``) under PostgreSQL's 63-byte cap, past
 #: which PostgreSQL truncates -- and two long queue names would collide on one index.
 QUEUE_NAME_MAX_LENGTH = 47
+
+logger = get_logger(__name__)
 
 
 def assert_valid_queue_name(queue_name: str) -> None:
@@ -116,7 +119,8 @@ class RemouladePostgresClient(SQLAlchemyPGMQueue):
         indexed partition key -- and ``headers->>'status'`` in ``statuses``.
 
         Counts the matching rows first, then deletes them ``batch_size`` per transaction; rows
-        that start matching after the count are left in place. A batch
+        that start matching after the count are left in place. Logs the progress after each
+        batch, at INFO. A batch
         skips rows another transaction has locked (``SKIP LOCKED``) rather than wait on them,
         and they stay in place; ``lock_timeout`` bounds any other lock wait.
 
@@ -165,6 +169,7 @@ class RemouladePostgresClient(SQLAlchemyPGMQueue):
                     with connection.begin():
                         connection.execute(set_lock_timeout, {"lock_timeout": lock_timeout})
                         deleted_count_by_table[table] += connection.execute(statement, params).rowcount
+                    logger.info("Deleted %d/%d rows of pgmq.%s", deleted_count_by_table[table], matching_count, table)
         return deleted_count_by_table
 
     def find_last_attempts(

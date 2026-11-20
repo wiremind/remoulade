@@ -5,6 +5,13 @@ Changelog
 
 All notable changes to this project will be documented in this file.
 
+`8.2.0`_ -- Unreleased
+----------------------
+Feat
+^^^^
+* ``PostgresBackend.purge`` logs its progress after each batch (``Deleted <n>/<total> rows of pgmq.<table>``), at
+  INFO on ``remoulade.helpers.postgres_client``.
+
 `8.1.2`_ -- 2026-11-18
 ----------------------
 Fix

@@ -6,6 +6,7 @@ implements no read path, so what was written is checked against the pgmq tables
 directly.
 """
 
+import logging
 import re
 from datetime import UTC, datetime
 
@@ -447,6 +448,18 @@ class TestPurge:
 
         assert deleted == {"a_default": 5}
         assert _msg_ids(postgres_broker, "a_default") == [kept]
+
+    def test_logs_the_progress_after_each_batch(self, postgres_broker, postgres_state_backend, caplog):
+        for _ in range(3):
+            _send(postgres_broker, status="Success")
+
+        with caplog.at_level(logging.INFO, logger="remoulade.helpers.postgres_client"):
+            postgres_state_backend.purge("default", batch_size=2)
+
+        assert [record.getMessage() for record in caplog.records] == [
+            "Deleted 2/3 rows of pgmq.a_default",
+            "Deleted 3/3 rows of pgmq.a_default",
+        ]
 
     def test_skips_rows_locked_by_a_worker(self, postgres_broker, postgres_state_backend):
         """A row a worker holds is left for it rather than waited on."""
