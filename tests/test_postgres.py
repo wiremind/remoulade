@@ -350,6 +350,17 @@ def test_postgres_broker_forwards_pool_size_to_client():
     assert broker.client.engine.pool.size() == 3
 
 
+@pytest.mark.parametrize("scheme", ["postgresql", "postgres", "postgresql+psycopg"])
+def test_postgres_broker_keeps_the_connection_options_of_the_url(scheme):
+    url = TEST_POSTGRES_URL.replace("postgresql", scheme, 1)
+    broker = PostgresBroker(url=f"{url}?application_name=remoulade-options&connect_timeout=7")
+
+    with broker.client.engine.connect() as connection:
+        assert connection.scalar(text("SHOW application_name")) == "remoulade-options"
+        assert connection.connection.dbapi_connection.info.get_parameters()["connect_timeout"] == "7"
+    broker.close()
+
+
 def test_postgres_broker_uses_custom_partition_settings_when_provided():
     broker = PostgresBroker(
         url=TEST_POSTGRES_URL,

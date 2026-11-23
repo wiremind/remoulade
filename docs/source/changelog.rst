@@ -25,6 +25,15 @@ Fix
   that failed during a failover could be lost, since the broker logs and swallows the errors of a middleware and then
   acks the message. A send that fails all 6 attempts is still dropped that way. A send inside ``broker.tx()`` is not
   retried. A send whose reply is lost after its commit can be stored twice.
+* ``PostgresBroker`` keeps the libpq options of the query string of ``url`` (``connect_timeout``, ``keepalives_*``,
+  ``tcp_user_timeout``, ``sslmode``, ``application_name``, ...) on the connections of its pool, as its listener
+  already did. PGMQ rebuilt the URL from the host, port, user, password and database only, so a primary that stopped
+  answering without closing its connections blocked reads, heartbeats and acks for the kernel's TCP timeout. Without
+  ``engine``, the broker now builds the engine itself, with the settings PGMQ used (``pool_size``, ``max_overflow=20``,
+  ``pool_pre_ping=True``).
+* Upgrade note: the pool now reads ``url`` as libpq does, like the listener. A ``url`` without a password or a
+  database no longer falls back to the ``PG_PASSWORD`` and ``PG_DATABASE`` variables or to ``postgres``, and an ``@``
+  in the password must be percent-encoded. A ``key=value`` connection string is no longer accepted: use a URL.
 
 `8.1.2`_ -- 2026-11-18
 ----------------------

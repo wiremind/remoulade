@@ -29,7 +29,7 @@ from urllib.parse import urlparse
 import psycopg
 from pgmq.messages import Message as PostgresQueueMessage
 from psycopg import sql as psycopg_sql
-from sqlalchemy import Connection, text
+from sqlalchemy import Connection, create_engine, make_url, text
 from sqlalchemy.exc import OperationalError
 
 from ..broker import Broker, Consumer, MessageProxy
@@ -110,7 +110,7 @@ class PostgresBroker(Broker):
             :meth:`_enqueue_many`. When None (default), a queue's messages are all sent in a single
             ``send_batch``; set it to cap the size of each ``INSERT`` on very large fan-outs. All chunks
             still run inside the same transaction. Must be greater than 0 when provided.
-          engine(Engine | None): A pre-configured SQLAlchemy engine to reuse instead of letting PGMQ build one, so
+          engine(Engine | None): A pre-configured SQLAlchemy engine to reuse instead of letting the broker build one, so
             the pool can be sized and shared by the caller.
         """
         super().__init__(middleware=middleware)
@@ -133,6 +133,14 @@ class PostgresBroker(Broker):
         self.enable_listen_notify = enable_listen_notify
         self.enqueue_batch_size = enqueue_batch_size
 
+        # PGMQ rebuilds its engine URL from the host, port, user, password and database only, so it would drop the
+        # libpq options of the query string (connect_timeout, keepalives_*, sslmode, ...) that the listener keeps.
+        engine = engine or create_engine(
+            make_url(url).set(drivername="postgresql+psycopg"),
+            pool_size=pool_size,
+            max_overflow=20,
+            pool_pre_ping=True,
+        )
         self.client = RemouladePostgresClient(
             conn_string=url,
             init_extension=False,
