@@ -18,9 +18,10 @@ import logging
 import math
 import time
 from collections import deque
-from collections.abc import Iterable, Iterator
+from collections.abc import Callable, Iterable, Iterator
 from contextlib import contextmanager
 from datetime import UTC, datetime, timedelta
+from functools import partial
 from threading import Event, Lock, Thread, local
 from typing import TYPE_CHECKING, Any, Final, override
 from urllib.parse import urlparse
@@ -29,6 +30,7 @@ import psycopg
 from pgmq.messages import Message as PostgresQueueMessage
 from psycopg import sql as psycopg_sql
 from sqlalchemy import Connection, text
+from sqlalchemy.exc import OperationalError
 
 from ..broker import Broker, Consumer, MessageProxy
 from ..errors import QueueJoinTimeout, QueueNotFound, UnsupportedMessageEncoding
@@ -44,6 +46,8 @@ PostgresPayload = dict[str, Any]
 LISTEN_NOTIFY_THROTTLE_MS: Final[int] = 250
 LISTENER_RECONNECT_BACKOFF_MIN_S: Final[float] = 0.5
 LISTENER_RECONNECT_BACKOFF_MAX_S: Final[float] = 30.0
+MAX_ENQUEUE_ATTEMPTS: Final[int] = 6
+ENQUEUE_RETRY_BACKOFF_MIN_S: Final[float] = 0.5
 
 
 def _milliseconds_to_seconds(milliseconds: int) -> int:
@@ -282,14 +286,33 @@ class PostgresBroker(Broker):
 
         payload = self._encode_message(message)
         visible_at = datetime.now(UTC) + timedelta(milliseconds=delay) if delay is not None else None
-        self.client.send(
-            message.queue_name,
-            payload,
-            conn=self._current_connection,
-            delay=visible_at,
+        self._send_with_retries(
+            partial(self.client.send, message.queue_name, payload, conn=self._current_connection, delay=visible_at)
         )
 
         return message
+
+    def _send_with_retries(self, send: Callable[[], object]) -> None:
+        """Retry a send outside a transaction on a database error, with an exponential backoff.
+
+        A send that fails during a failover would otherwise be lost when its caller is a middleware (a retry, the next
+        message of a pipeline), since the broker logs and swallows their errors and then acks the message. Inside a
+        transaction the error has aborted it, so it is raised at once.
+        """
+        for attempt in range(1, MAX_ENQUEUE_ATTEMPTS + 1):
+            try:
+                send()
+                return
+            except OperationalError:
+                if self._current_connection is not None or attempt == MAX_ENQUEUE_ATTEMPTS:
+                    raise
+                self.logger.warning(
+                    "Retrying enqueue after a database error. [%d/%d]",
+                    attempt + 1,
+                    MAX_ENQUEUE_ATTEMPTS,
+                    exc_info=True,
+                )
+                time.sleep(ENQUEUE_RETRY_BACKOFF_MIN_S * 2 ** (attempt - 1))
 
     @override
     def _enqueue_many(self, messages: list["Message"], *, delays: list[int | None] | None = None) -> list["Message"]:
@@ -317,11 +340,10 @@ class PostgresBroker(Broker):
             for chunk_start in range(0, len(queue_messages), chunk_size):
                 chunk = queue_messages[chunk_start : chunk_start + chunk_size]
                 payloads = [self._encode_message(message) for message in chunk]
-                self.client.send_batch(
-                    queue_name,
-                    payloads,
-                    conn=self._current_connection,
-                    delay=visible_at,
+                self._send_with_retries(
+                    partial(
+                        self.client.send_batch, queue_name, payloads, conn=self._current_connection, delay=visible_at
+                    )
                 )
 
         return messages

@@ -19,6 +19,12 @@ Fix
   every message running at the time became visible again after ``visibility_timeout_ms`` and ran a second time while
   the first run went on. The running messages are now tracked by the broker, per queue, and still count against
   ``prefetch``.
+* ``PostgresBroker`` retries a send that fails on a database error (``OperationalError``) up to 6 attempts, with a
+  backoff from 0.5 s that doubles each time (15.5 s of waiting between attempts), as ``RabbitmqBroker`` retries on a
+  closed connection. A send made by a middleware (a retry, the next message of a pipeline, an ``on_failure`` message)
+  that failed during a failover could be lost, since the broker logs and swallows the errors of a middleware and then
+  acks the message. A send that fails all 6 attempts is still dropped that way. A send inside ``broker.tx()`` is not
+  retried. A send whose reply is lost after its commit can be stored twice.
 
 `8.1.2`_ -- 2026-11-18
 ----------------------

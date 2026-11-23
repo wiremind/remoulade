@@ -8,11 +8,12 @@ from unittest.mock import Mock, patch
 import pytest
 from pydantic import BaseModel
 from sqlalchemy import JSON, Column, Integer, MetaData, Table, func
+from sqlalchemy.exc import OperationalError
 from sqlalchemy.sql import select, text
 
 import remoulade
 from remoulade import Message, QueueJoinTimeout, UnsupportedMessageEncoding, Worker, group
-from remoulade.brokers.postgres import PostgresBroker, _PostgresListener
+from remoulade.brokers.postgres import MAX_ENQUEUE_ATTEMPTS, PostgresBroker, _PostgresListener
 from remoulade.encoder import Encoder, MessageData
 from remoulade.errors import QueueNotFound
 from remoulade.results import Results
@@ -475,6 +476,57 @@ def test_postgres_broker_enqueue_many_raises_for_unknown_queue():
         broker._enqueue_many([Message(queue_name="missing", actor_name="do_work", args=(), kwargs={}, options={})])
 
     broker.client.send_batch.assert_not_called()
+
+
+def _database_error():
+    return OperationalError("INSERT", {}, Exception("terminating connection due to administrator command"))
+
+
+def test_postgres_broker_retries_a_send_that_fails_on_a_database_error(monkeypatch):
+    sleep = Mock()
+    monkeypatch.setattr("remoulade.brokers.postgres.time.sleep", sleep)
+    broker = PostgresBroker(url=TEST_POSTGRES_URL, middleware=[])
+    broker.client = Mock()
+    broker.client.send.side_effect = [_database_error(), _database_error(), None]
+    broker.client.send_batch.side_effect = [_database_error(), None]
+    broker.queues = {"default": None}
+    message = Message(queue_name="default", actor_name="do_work", args=(1,), kwargs={}, options={})
+
+    broker._enqueue(message)
+    broker._enqueue_many([message])
+
+    assert broker.client.send.call_count == 3
+    assert broker.client.send_batch.call_count == 2
+    assert [call.args[0] for call in sleep.call_args_list] == [0.5, 1.0, 0.5]
+
+
+def test_postgres_broker_raises_a_send_error_after_the_last_attempt(monkeypatch):
+    monkeypatch.setattr("remoulade.brokers.postgres.time.sleep", Mock())
+    broker = PostgresBroker(url=TEST_POSTGRES_URL, middleware=[])
+    broker.client = Mock()
+    broker.client.send.side_effect = _database_error()
+    broker.queues = {"default": None}
+
+    with pytest.raises(OperationalError):
+        broker._enqueue(Message(queue_name="default", actor_name="do_work", args=(1,), kwargs={}, options={}))
+
+    assert broker.client.send.call_count == MAX_ENQUEUE_ATTEMPTS
+
+
+def test_postgres_broker_does_not_retry_a_send_inside_a_transaction(monkeypatch):
+    sleep = Mock()
+    monkeypatch.setattr("remoulade.brokers.postgres.time.sleep", sleep)
+    broker = PostgresBroker(url=TEST_POSTGRES_URL, middleware=[])
+    broker.client = Mock()
+    broker.client.engine.begin.return_value = _StubTransaction(Mock())
+    broker.client.send.side_effect = _database_error()
+    broker.queues = {"default": None}
+
+    with pytest.raises(OperationalError), broker.tx():
+        broker._enqueue(Message(queue_name="default", actor_name="do_work", args=(1,), kwargs={}, options={}))
+
+    assert broker.client.send.call_count == 1
+    sleep.assert_not_called()
 
 
 def test_postgres_broker_rejects_non_positive_enqueue_batch_size():
