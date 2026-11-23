@@ -863,6 +863,59 @@ def test_postgres_consumer_heartbeat_extends_inflight_message_visibility():
     consumer.close()
 
 
+def test_postgres_consumer_rebuilt_after_an_error_keeps_renewing_running_messages():
+    broker = PostgresBroker(
+        url=TEST_POSTGRES_URL,
+        middleware=[],
+        visibility_timeout_ms=2_000,
+        heartbeat_interval_ms=50,
+    )
+    broker.queues["default"] = None
+    _install_listener(broker, available=False)
+
+    message = Message(queue_name="default", actor_name="do_work", args=(7,), kwargs={}, options={})
+    broker.client.read = Mock(return_value=None)
+    broker.client.read_with_poll = Mock(return_value=[Mock(msg_id=7, message=_expected_payload(message))])
+    broker.client.set_vt = Mock()
+    broker.client.archive = Mock()
+
+    first_consumer = broker.consume("default", prefetch=1, timeout=200)
+    consumed = next(first_consumer)
+    assert consumed is not None
+    first_consumer.close()
+
+    second_consumer = broker.consume("default", prefetch=1, timeout=200)
+    broker.client.set_vt.reset_mock()
+    deadline = time.monotonic() + 1.0
+    while broker.client.set_vt.call_count == 0 and time.monotonic() < deadline:
+        time.sleep(0.01)
+
+    assert broker.client.set_vt.call_args.args == ("default", [7], 2)
+    assert next(second_consumer) is None
+
+    second_consumer.ack(consumed)
+    with second_consumer._heartbeat_message_ids_lock:
+        assert second_consumer._heartbeat_message_ids == set()
+    second_consumer.close()
+
+
+def test_postgres_consumer_frees_the_slot_of_a_message_it_cannot_decode():
+    broker = PostgresBroker(url=TEST_POSTGRES_URL, middleware=[])
+    broker.queues["default"] = None
+    _install_listener(broker, available=False)
+    broker.client.read = Mock(return_value=None)
+    broker.client.read_with_poll = Mock(return_value=[Mock(msg_id=99, message=["not", "an", "object"])])
+    broker.client.set_vt = Mock()
+
+    consumer = broker.consume("default", prefetch=1, timeout=200)
+    with pytest.raises(UnsupportedMessageEncoding):
+        next(consumer)
+
+    with consumer._heartbeat_message_ids_lock:
+        assert consumer._heartbeat_message_ids == set()
+    consumer.close()
+
+
 def test_postgres_consumer_decodes_payload_with_global_encoder(pydantic_encoder):
     class InputSchema(BaseModel):
         value: int

@@ -138,6 +138,9 @@ class PostgresBroker(Broker):
         )
 
         self._listener = _PostgresListener(self.url, self.logger) if enable_listen_notify else None
+        # Held by the broker so a consumer rebuilt after a read error keeps renewing the leases of running messages.
+        self._in_flight_lock = Lock()
+        self._in_flight_message_ids: dict[str, set[int]] = {}
 
     @staticmethod
     def convert_days_in_partman_syntax(interval_in_day: int) -> str:
@@ -629,8 +632,9 @@ class _PostgresConsumer(Consumer):
         self._capacity_event = Event()
         self._heartbeat_stop = Event()
         self._heartbeat_thread: Thread | None = None
-        self._heartbeat_message_ids_lock = Lock()
-        self._heartbeat_message_ids: set[int] = set()
+        self._heartbeat_message_ids_lock = broker._in_flight_lock
+        with self._heartbeat_message_ids_lock:
+            self._heartbeat_message_ids = broker._in_flight_message_ids.setdefault(queue_name, set())
 
         if broker._listener is not None:
             broker._listener.register(queue_name, self._notify_event)
@@ -791,7 +795,12 @@ class _PostgresConsumer(Consumer):
 
     def _build_message(self, postgres_message: PostgresQueueMessage) -> "PostgresMessage":
         """Wrap a raw PGMQ row as a Remoulade message proxy."""
-        return PostgresMessage(postgres_message)
+        try:
+            return PostgresMessage(postgres_message)
+        except Exception:
+            # The broker tracks the id across consumers: left there, it would hold an in-flight slot for good.
+            self._unregister_heartbeat_message_id(postgres_message.msg_id)
+            raise
 
     @override
     def __next__(self) -> "PostgresMessage | None":

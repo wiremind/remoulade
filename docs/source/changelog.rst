@@ -12,6 +12,14 @@ Feat
 * ``PostgresBackend.purge`` logs its progress after each batch (``Deleted <n>/<total> rows of pgmq.<table>``), at
   INFO on ``remoulade.helpers.postgres_client``.
 
+Fix
+^^^
+* ``PostgresBroker`` keeps renewing the visibility timeout of running messages when the worker rebuilds a consumer
+  after a read error (a dropped connection, a failover). The rebuilt consumer started with no running message, so
+  every message running at the time became visible again after ``visibility_timeout_ms`` and ran a second time while
+  the first run went on. The running messages are now tracked by the broker, per queue, and still count against
+  ``prefetch``.
+
 `8.1.2`_ -- 2026-11-18
 ----------------------
 Fix
