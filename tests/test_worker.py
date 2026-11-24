@@ -1,5 +1,14 @@
+import threading
+import time
+from queue import Queue
+from unittest import mock
+
+import pytest
+
 import remoulade
-from remoulade.worker import build_extra
+from remoulade import worker as worker_module
+from remoulade.errors import ConnectionClosed
+from remoulade.worker import _ConsumerThread, build_extra
 
 from .common import get_logs, worker
 
@@ -94,3 +103,43 @@ def test_logging_metadata_logs(stub_broker, stub_worker, caplog):
     assert len(records) == 1
     assert records[0].levelname == "INFO"
     assert records[0].__dict__["id"] == "1"
+
+
+@pytest.mark.timeout(10)
+def test_consumer_thread_stops_after_max_restart_attempts(monkeypatch):
+    # Given a broker whose consumer always fails to connect
+    broker = mock.Mock()
+
+    def consume(**kwargs):
+        # Without the fix the thread retries forever: end the loop so the test fails.
+        if broker.consume.call_count > 20:
+            consumer_thread.running = False
+        raise ConnectionClosed(Exception("connection refused"))
+
+    broker.consume.side_effect = consume
+
+    # and a restart limit of 3 attempts
+    monkeypatch.setattr(worker_module, "CONSUMER_RESTART_MAX_RETRIES", 3)
+    # time.sleep is global: other threads of the test session keep the real one.
+    real_sleep, test_thread, delays = time.sleep, threading.get_ident(), []
+
+    def fake_sleep(seconds):
+        if threading.get_ident() == test_thread:
+            delays.append(seconds)
+        else:
+            real_sleep(seconds)
+
+    monkeypatch.setattr(worker_module.time, "sleep", fake_sleep)
+
+    consumer_thread = _ConsumerThread(
+        broker=broker, queue_name="default", prefetch=1, work_queue=Queue(), worker_timeout=100
+    )
+
+    # When the consumer thread runs
+    consumer_thread.run()
+
+    # Then it sleeps before each restart, and stops after the last one
+    assert len(delays) == 4
+    assert all(delay > 0 for delay in delays)
+    assert broker.consume.call_count == 5
+    assert not consumer_thread.running
