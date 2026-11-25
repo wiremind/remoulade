@@ -167,7 +167,8 @@ class Prometheus(Middleware):
         self.total_rejected_messages.labels(*labels).inc()
 
     def after_enqueue(self, broker, message, delay, exception=None):
-        if "retries" in message.options:
+        # The counters only exist in a worker; a producer process enqueuing a message with retries must not fail.
+        if "retries" in message.options and self.total_retried_messages is not None:
             labels = self._get_labels(broker, message)
             self.total_retried_messages.labels(*labels).inc()
 

@@ -633,6 +633,7 @@ class TestReplayFailures:
         replayed = postgres_state_backend.replay_failures("default", message_ids=[message.message_id], dry_run=True)
 
         assert list(replayed) == [attempts[-1][0]]
+        assert "retries" not in replayed[attempts[-1][0]].options
 
     def test_dry_run_enqueues_nothing(self, postgres_broker, postgres_state_backend, actors):
         boom, _, _ = actors
