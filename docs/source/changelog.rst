@@ -5,6 +5,14 @@ Changelog
 
 All notable changes to this project will be documented in this file.
 
+`8.1.5`_ -- Unreleased
+----------------------
+Fix
+^^^
+* ``PostgresBackend.replay_failures`` no longer logs a CRITICAL ``AttributeError`` from ``Prometheus.after_enqueue``
+  when run outside a worker: a replayed message drops its ``retries`` option instead of setting it to 0, and the
+  ``Prometheus`` middleware no longer counts a retry when its counters do not exist.
+
 `8.1.4`_ -- 2026-11-25
 ----------------------
 Fix
