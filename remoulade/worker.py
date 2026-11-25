@@ -294,8 +294,11 @@ class _ConsumerThread(Thread):
                 self.logger.info("Restarting consumer in %0.2f seconds.", delay)
                 self.close()
                 time.sleep(delay)
-            elif attempts >= CONSUMER_RESTART_MAX_RETRIES > 0:
-                self.logger.error("Consumer could not reconnect after %d attempts", attempts)
+            elif self.running:
+                # Stop the thread: the CLI then exits with RET_CONNECT. A retry here
+                # would have no delay and would loop as fast as the connect fails.
+                self.logger.error("Consumer could not reconnect after %d attempts, stopping it.", attempts)
+                self.stop()
 
         # If it's no longer running, then shut it down gracefully.
         self.broker.emit_before("consumer_thread_shutdown", self)
