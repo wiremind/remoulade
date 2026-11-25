@@ -5,7 +5,16 @@ Changelog
 
 All notable changes to this project will be documented in this file.
 
-`8.2.0`_ -- Unreleased
+`8.1.4`_ -- 2026-11-25
+----------------------
+Fix
+^^^
+* The consumer thread of a worker stops after its last restart attempt (``remoulade_restart_max_retries``), and the
+  worker exits with ``RET_CONNECT``. It used to retry at once in a loop while the broker stayed down: each pass opened
+  a new connection, about 3,500 DNS lookups per second from each worker pod. The process supervisor now restarts the
+  worker with its own backoff.
+
+`8.1.3`_ -- 2026-11-20
 ----------------------
 Feat
 ^^^^
