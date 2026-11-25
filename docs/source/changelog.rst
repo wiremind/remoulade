@@ -5,6 +5,14 @@ Changelog
 
 All notable changes to this project will be documented in this file.
 
+`8.1.5`_ -- Unreleased
+----------------------
+Fix
+^^^
+* ``import remoulade`` works without the ``limits`` extra (broken since 5.0.0). The broker imports the rate limit
+  middleware, which imported ``limits`` at the top of its module. ``RateLimitEnqueue`` and ``RateLimitProcess`` now
+  import ``limits`` when they are built, and raise an ``ImportError`` with the install hint without the extra.
+
 `8.1.4`_ -- 2026-11-25
 ----------------------
 Fix
