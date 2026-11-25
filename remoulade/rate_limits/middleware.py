@@ -14,13 +14,15 @@
 #
 # You should have received a copy of the GNU Lesser General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
-from limits import RateLimitItem
-from limits.util import parse_many
+from typing import TYPE_CHECKING
 
 from ..logging import get_logger
 from ..middleware import Middleware
 from .backend import RateLimitBackend
 from .errors import RateLimitExceeded, RateLimitSpecificationError
+
+if TYPE_CHECKING:
+    from limits import RateLimitItem
 
 
 class _RateLimit(Middleware):
@@ -34,6 +36,14 @@ class _RateLimit(Middleware):
         if backend is None:
             raise ValueError("backend is required for RateLimit middleware")
 
+        # Not a top-level import: the broker imports this module, and limits is an optional extra.
+        # Fail here: emit_before only logs the errors of a before_* hook, so the limits would not apply.
+        try:
+            from limits.util import parse_many
+        except ImportError as exc:
+            raise ImportError("RateLimit middleware needs the limits extra: pip install 'remoulade[limits]'") from exc
+
+        self._parse_many = parse_many
         self.backend = backend
         self.logger = get_logger(__name__, type(self))
         self._limits_cache: dict[str, list[RateLimitItem]] = {}
@@ -42,10 +52,10 @@ class _RateLimit(Middleware):
     def actor_options(self) -> set[str]:
         return {"rate_limits", "bypass_rate_limits"}
 
-    def _parse_limits(self, spec: str) -> list[RateLimitItem]:
+    def _parse_limits(self, spec: str) -> "list[RateLimitItem]":
         if spec not in self._limits_cache:
             try:
-                self._limits_cache[spec] = list(parse_many(spec))
+                self._limits_cache[spec] = list(self._parse_many(spec))
             except ValueError as exc:
                 raise RateLimitSpecificationError(f"Invalid rate_limits specification: {spec!r}") from exc
         return self._limits_cache[spec]

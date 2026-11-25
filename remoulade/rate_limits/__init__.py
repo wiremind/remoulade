@@ -14,20 +14,9 @@
 #
 # You should have received a copy of the GNU Lesser General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
-import warnings
-
 from .backend import RateLimitBackend
 from .errors import RateLimitExceeded, RateLimitSpecificationError
-
-try:
-    from .middleware import RateLimitEnqueue, RateLimitProcess
-except ImportError:
-    warnings.warn(
-        "RateLimit is not available.  Run `pip install remoulade[limits]` to add support for that middleware.",
-        ImportWarning,
-        stacklevel=2,
-    )
-
+from .middleware import RateLimitEnqueue, RateLimitProcess
 
 __all__ = [
     "RateLimitBackend",
