@@ -245,10 +245,13 @@ class PostgresBackend(StateBackend):
             actor_name=actor_name,
             message_ids=None if message_ids is None else list(message_ids),
         )
-        messages_by_msg_id = {
-            msg_id: Message[Any].decode_json(payload).copy(queue_name=queue_name, options={"retries": 0})
-            for msg_id, payload in last_attempts
-        }
+        messages_by_msg_id: dict[int, Message[Any]] = {}
+        for msg_id, payload in last_attempts:
+            message = Message[Any].decode_json(payload)
+            # Dropped rather than zeroed: Retries defaults it to 0, and a "retries" key on enqueue counts as a retry
+            # for Prometheus, whose counters do not exist outside a worker.
+            message.options.pop("retries", None)
+            messages_by_msg_id[msg_id] = message.copy(queue_name=queue_name)
         if not dry_run and messages_by_msg_id:
             self.broker.enqueue_many(list(messages_by_msg_id.values()))
         return messages_by_msg_id
