@@ -558,7 +558,7 @@ class TestReplayFailures:
         (payload,) = _enqueued_payloads(postgres_broker)
         assert payload["message_id"] == message.message_id
         assert payload["args"] == ["an-argument"]
-        assert payload["options"]["retries"] == 0
+        assert "retries" not in payload["options"]
 
     def test_a_replay_runs_and_is_not_replayed_again(self, postgres_broker, postgres_state_backend, actors):
         boom, _, fixed = actors
@@ -633,6 +633,7 @@ class TestReplayFailures:
         replayed = postgres_state_backend.replay_failures("default", message_ids=[message.message_id], dry_run=True)
 
         assert list(replayed) == [attempts[-1][0]]
+        assert "retries" not in replayed[attempts[-1][0]].options
 
     def test_dry_run_enqueues_nothing(self, postgres_broker, postgres_state_backend, actors):
         boom, _, _ = actors

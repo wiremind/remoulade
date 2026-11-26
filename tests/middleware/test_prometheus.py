@@ -43,3 +43,9 @@ def test_prometheus_process_message(_, stub_broker, do_work):
     assert prom.message_start_times
     prom.after_process_message(stub_broker, message)
     assert not prom.message_start_times
+
+
+def test_prometheus_enqueue_of_a_retried_message_outside_a_worker(stub_broker, do_work):
+    prom = prometheus.Prometheus()
+
+    prom.after_enqueue(stub_broker, do_work.message_with_options(retries=1), None)
