@@ -25,8 +25,10 @@ class RedisBackend(RateLimitBackend):
     """Redis backend using ``limits`` RedisStorage.
 
     Parameters:
-      url(str): A redis connection URL.  If both a URL and
+      url(str): An optional connection URL.  If both a URL and
         connection parameters are provided, the URL is used.
+      client(Redis): An optional client.  If this is passed,
+        then all other parameters are ignored.
       key_prefix(str): A prefix to prepend to all keys used for rate limiting.
       strategy(str): The rate limiting strategy to use.  One of
         ``fixed_window``, ``moving_window``, or ``sliding_window``.
@@ -41,15 +43,21 @@ class RedisBackend(RateLimitBackend):
     def __init__(
         self,
         *,
-        url: str,
+        url: str | None = None,
+        client=None,
         key_prefix: str = "remoulade-rate-limit:",
         strategy: str = "sliding_window",
         **parameters,
     ):
         super().__init__()
 
+        if client is None and url is None:
+            raise ValueError("Either url or client must be provided")
+
         storage: Storage
-        if "sentinel" in url:
+        if client:
+            storage = RedisStorage("redis://localhost", connection_pool=client.connection_pool, key_prefix=key_prefix)
+        elif "sentinel" in url:
             storage = RedisSentinelStorage(url, key_prefix=key_prefix, **parameters)
         else:
             storage = RedisStorage(url, key_prefix=key_prefix, **parameters)
